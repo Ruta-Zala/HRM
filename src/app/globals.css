@@ -1,26 +1,162 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Exhibyte Solutions — design tokens (light + class-based dark) */
+/* :root {
+  --ex-bg: #f9fbfc;
+  --ex-surface: #f4f6f9;
+  --ex-surface-elevated: #ffffff;
+  --ex-primary: #2c3947;
+  --ex-secondary: #547a95;
+  --ex-accent: #c2a56d;
+  --ex-border: #d4dce6;
+  --ex-muted: #6b7c8f;
+  --ex-ring: #547a95;
+  --ex-chart-1: #2c3947;
+  --ex-chart-2: #547a95;
+  --ex-chart-3: #c2a56d;
+  --ex-chart-4: #8fa9bc;
+  --ex-chart-5: #4a5d6e;
+}
+
+.dark {
+  --ex-bg: #1a222c;
+  --ex-surface: #232d38;
+  --ex-surface-elevated: #2c3947;
+  --ex-primary: #e8edf2;
+  --ex-secondary: #7a9eb8;
+  --ex-accent: #d4bc82;
+  --ex-border: #3d4d5c;
+  --ex-muted: #9aacbd;
+  --ex-ring: #7a9eb8;
+  --ex-chart-1: #7a9eb8;
+  --ex-chart-2: #d4bc82;
+  --ex-chart-3: #e8edf2;
+  --ex-chart-4: #547a95;
+  --ex-chart-5: #a8b8c8;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ex-bg: var(--ex-bg);
+  --color-ex-surface: var(--ex-surface);
+  --color-ex-elevated: var(--ex-surface-elevated);
+  --color-ex-primary: var(--ex-primary);
+  --color-ex-secondary: var(--ex-secondary);
+  --color-ex-accent: var(--ex-accent);
+  --color-ex-border: var(--ex-border);
+  --color-ex-muted: var(--ex-muted);
+  --color-ex-ring: var(--ex-ring);
+  --color-ex-chart-1: var(--ex-chart-1);
+  --color-ex-chart-2: var(--ex-chart-2);
+  --color-ex-chart-3: var(--ex-chart-3);
+  --color-ex-chart-4: var(--ex-chart-4);
+  --color-ex-chart-5: var(--ex-chart-5);
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    @apply border-ex-border;
+  }
+
+  body {
+    @apply bg-ex-bg text-ex-primary font-sans antialiased;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+Recharts text inherits theme
+.recharts-cartesian-axis-tick-value {
+  fill: var(--ex-muted);
+  font-size: 11px;
+}
+
+.recharts-legend-item-text {
+  color: var(--ex-primary) !important;
+  font-size: 12px !important;
+} */
+
+
+:root {
+  --ex-bg: #e8edf2;
+  --ex-surface: #f4f6f9;
+  --ex-surface-elevated: #ffffff;
+
+  --ex-primary: #427AB5;
+  --ex-secondary: #406AAF;
+  --ex-accent: #F7DD7D;
+
+  --ex-border: #d4dce6;
+  --ex-muted: #6b7c8f;
+  --ex-ring: #406AAF;
+
+  --ex-chart-1: #427AB5;
+  --ex-chart-2: #406AAF;
+  --ex-chart-3: #F7DD7D;
+  --ex-chart-4: #FFE8BE;
+  --ex-chart-5: #F7DD7D;
+}
+
+.dark {
+  --ex-bg: #1a222c;
+  --ex-surface: #232d38;
+  --ex-surface-elevated: #2c3947;
+
+  --ex-primary: #406AAF;
+  --ex-secondary: #427AB5;
+  --ex-accent: #F7DD7D;
+
+  --ex-border: #3d4d5c;
+  --ex-muted: #9aacbd;
+  --ex-ring: #427AB5;
+
+  --ex-chart-1: #406AAF;
+  --ex-chart-2: #427AB5;
+  --ex-chart-3: #F7DD7D;
+  --ex-chart-4: #FFE8BE;
+  --ex-chart-5: #F7DD7D;
+}
+
+@theme inline {
+  --color-ex-bg: var(--ex-bg);
+  --color-ex-surface: var(--ex-surface);
+  --color-ex-elevated: var(--ex-surface-elevated);
+  --color-ex-primary: var(--ex-primary);
+  --color-ex-secondary: var(--ex-secondary);
+  --color-ex-accent: var(--ex-accent);
+  --color-ex-border: var(--ex-border);
+  --color-ex-muted: var(--ex-muted);
+  --color-ex-ring: var(--ex-ring);
+  --color-ex-chart-1: var(--ex-chart-1);
+  --color-ex-chart-2: var(--ex-chart-2);
+  --color-ex-chart-3: var(--ex-chart-3);
+  --color-ex-chart-4: var(--ex-chart-4);
+  --color-ex-chart-5: var(--ex-chart-5);
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+@layer base {
+  * {
+    @apply border-ex-border;
+  }
+
+  body {
+    @apply bg-ex-bg text-ex-primary font-sans antialiased;
+  }
+}
+
+.recharts-cartesian-axis-tick-value {
+  fill: var(--ex-muted);
+  font-size: 11px;
+}
+
+.recharts-legend-item-text {
+  color: var(--ex-primary) !important;
+  font-size: 12px !important;
 }
