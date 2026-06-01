@@ -294,6 +294,7 @@ export async function reviewCorrection(
 export async function submitOvertimeRequest(body: {
   date: string;
   comment?: string;
+  employeeSheetRow?: number;
 }): Promise<void> {
   const res = await fetch("/api/attendance/overtime-requests", {
     method: "POST",

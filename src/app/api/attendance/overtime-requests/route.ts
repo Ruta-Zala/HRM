@@ -9,7 +9,10 @@ import {
   listOvertimeRequests,
   reviewOvertimeRequest,
 } from "@/lib/attendance/overtime-requests";
-import { resolveAttendanceEmployee } from "@/lib/attendance/employee";
+import {
+  resolveAttendanceEmployee,
+  resolveAttendanceEmployeeForTarget,
+} from "@/lib/attendance/employee";
 import { getMonthAttendance } from "@/lib/google/attendance-sheets";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees, canReviewOvertime } from "@/lib/auth/server";
@@ -36,7 +39,16 @@ export const GET = withActiveSession(async (_req, user) => {
 
 export const POST = withActiveSession(async (req, user) => {
   try {
-    const employee = await resolveAttendanceEmployee(user);
+    const body = await req.json();
+    const employeeSheetRowParam = body.employeeSheetRow;
+    const targetSheetRow =
+      employeeSheetRowParam != null && employeeSheetRowParam !== ""
+        ? parseInt(String(employeeSheetRowParam), 10)
+        : user.sheetRow;
+    const employee = await resolveAttendanceEmployeeForTarget(
+      user,
+      Number.isFinite(targetSheetRow) ? targetSheetRow : user.sheetRow,
+    );
     if (!employee?.attendanceSpreadsheetId) {
       return NextResponse.json(
         { success: false, message: "Employee attendance record not found" },
@@ -44,7 +56,6 @@ export const POST = withActiveSession(async (req, user) => {
       );
     }
 
-    const body = await req.json();
     const date = String(body.date ?? "").trim();
     const comment = String(body.comment ?? "").trim();
 

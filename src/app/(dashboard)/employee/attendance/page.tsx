@@ -208,7 +208,11 @@ export default function AttendanceHistoryPage() {
     setError(null);
     setImportMessage(null);
     try {
-      await submitOvertimeRequest({ date: row.date, comment });
+      await submitOvertimeRequest({
+        date: row.date,
+        comment,
+        ...(isHr && targetSheetRow != null ? { employeeSheetRow: targetSheetRow } : {}),
+      });
       setImportMessage(`Overtime request submitted for ${row.date}.`);
       await loadHistory();
     } catch (err) {

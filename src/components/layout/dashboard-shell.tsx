@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-provider";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
+import { TodayAttendanceProvider } from "@/contexts/today-attendance-provider";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -43,12 +44,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-ex-bg">
-      <AppSidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <AppHeader />
-        <main className="flex-1 space-y-8 p-4 pb-10 lg:p-8">{children}</main>
+    <TodayAttendanceProvider>
+      <div className="flex min-h-screen bg-ex-bg">
+        <AppSidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <AppHeader />
+          <main className="flex-1 space-y-8 p-4 pb-10 lg:p-8">{children}</main>
+        </div>
       </div>
-    </div>
+    </TodayAttendanceProvider>
   );
 }

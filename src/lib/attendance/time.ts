@@ -2,6 +2,7 @@ import {
   IDEAL_BREAK_HOURS,
   IDEAL_SHIFT_HOURS,
   IDEAL_WORKING_HOURS,
+  IMPORT_DEFAULT_BREAK,
   WORK_MODE,
 } from "./constants";
 import { WORKING_STATUS, type WorkingStatus } from "./constants";
@@ -341,6 +342,23 @@ export function resolveAttendanceBreakMs(
   return parsed > 0 ? parsed : idealBreakMs();
 }
 
+/** Break time already taken today — used for live timers (no assumed allowance). */
+export function resolveLiveBreakMs(
+  totalBreakTime: string,
+  workMode?: string,
+  options?: { inProgress?: boolean },
+): number {
+  if (workMode === WORK_MODE.HALF_DAY_LEAVE) return 0;
+  const trimmed = totalBreakTime.trim();
+  if (
+    options?.inProgress &&
+    trimmed.toLowerCase() === IMPORT_DEFAULT_BREAK.toLowerCase()
+  ) {
+    return 0;
+  }
+  return parseDurationToMs(trimmed);
+}
+
 export function idealShiftMs(): number {
   return IDEAL_SHIFT_HOURS * 60 * 60 * 1000;
 }
@@ -454,10 +472,9 @@ export function computeLiveWorkedMsFromFields(params: {
     : now.getTime();
 
   const skipBreak = params.workMode === WORK_MODE.HALF_DAY_LEAVE;
-  let totalBreakMs = resolveAttendanceBreakMs(
-    params.totalBreakTime,
-    params.workMode,
-  );
+  let totalBreakMs = resolveLiveBreakMs(params.totalBreakTime, params.workMode, {
+    inProgress: !params.punchOut.trim(),
+  });
 
   if (!skipBreak && params.breakStart.trim() && !params.breakEnd.trim()) {
     const breakStartMs = parseSheetClockTime(params.breakStart, baseDate, {

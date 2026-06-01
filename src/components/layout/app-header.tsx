@@ -1,7 +1,8 @@
 "use client";
 
-import { LogOut, Search } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/auth-provider";
+import { PunchInStatusFlag } from "@/components/attendance/punch-in-status-flag";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -30,6 +31,7 @@ export function AppHeader() {
         <Input placeholder="Search people, leave, tasks…" className="pl-9" />
       </div> */}
       <div className="ml-auto flex items-center gap-2">
+        <PunchInStatusFlag />
         <ThemeToggle />
 
         <div className="hidden text-right sm:block">

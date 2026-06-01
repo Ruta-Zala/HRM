@@ -1,49 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
+import { PunchInBanner } from "@/components/attendance/punch-in-status-flag";
 import { WorkTimer } from "@/components/attendance/work-timer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchTodayAttendance, type TodayAttendance } from "@/lib/attendance/client";
 import {
   IDEAL_BREAK_HOURS,
   IDEAL_SHIFT_HOURS,
   IDEAL_WORKING_HOURS,
 } from "@/lib/attendance/constants";
-import { computeLiveWorkedMsFromFields, formatDuration } from "@/lib/attendance/time";
+import { formatDuration } from "@/lib/attendance/time";
+import { useTodayAttendance } from "@/hooks/use-today-attendance";
 
 export function AttendanceWidget() {
-  const [today, setToday] = useState<TodayAttendance | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [tick, setTick] = useState(0);
+  const { today, loading, liveWorkedMs } = useTodayAttendance();
 
-  useEffect(() => {
-    void fetchTodayAttendance()
-      .then(setToday)
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (!today?.hasPunchedIn || today.hasPunchedOut) return;
-    const id = window.setInterval(() => setTick((t) => t + 1), 1000);
-    return () => window.clearInterval(id);
-  }, [today?.hasPunchedIn, today?.hasPunchedOut]);
-
-  const workedMs = today
-    ? computeLiveWorkedMsFromFields({
-        date: today.date,
-        punchIn: today.punchIn,
-        punchOut: today.punchOut,
-        totalBreakTime: today.totalBreakTime,
-        breakStart: today.breakStart,
-        breakEnd: today.breakEnd,
-      })
-    : 0;
-
-  const remainingMs = Math.max(0, IDEAL_WORKING_HOURS * 60 * 60 * 1000 - workedMs);
-  void tick;
+  const remainingMs = Math.max(0, IDEAL_WORKING_HOURS * 60 * 60 * 1000 - liveWorkedMs);
 
   return (
     <Card>
@@ -59,7 +33,7 @@ export function AttendanceWidget() {
         {loading ? (
           <p className="text-sm text-ex-muted">Loading attendance…</p>
         ) : !today?.hasPunchedIn ? (
-          <p className="text-sm text-ex-muted">Not punched in yet today.</p>
+          <PunchInBanner />
         ) : (
           <>
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
@@ -97,7 +71,7 @@ export function AttendanceWidget() {
                 <dd className="font-medium text-ex-primary">{IDEAL_SHIFT_HOURS}h total</dd>
               </div>
             </dl>
-            <WorkTimer workedMs={workedMs} />
+            <WorkTimer workedMs={liveWorkedMs} />
             {today.status ? (
               <p className="text-xs text-ex-muted">Status: {today.status}</p>
             ) : null}

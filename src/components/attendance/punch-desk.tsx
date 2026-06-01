@@ -170,14 +170,14 @@ function StatPill({
       className={cn(
         "rounded-xl border px-3 py-2.5 text-center transition",
         tone === "warning" &&
-          "border-amber-300/60 bg-amber-50/80 dark:border-amber-700/50 dark:bg-amber-950/40",
+        "border-amber-300/60 bg-amber-50/80 dark:border-amber-700/50 dark:bg-amber-950/40",
         tone === "success" &&
-          "border-emerald-300/50 bg-emerald-50/70 dark:border-emerald-700/40 dark:bg-emerald-950/35",
+        "border-emerald-300/50 bg-emerald-50/70 dark:border-emerald-700/40 dark:bg-emerald-950/35",
         tone !== "warning" &&
-          tone !== "success" &&
-          (highlight
-            ? "border-ex-secondary/30 bg-ex-secondary/10"
-            : "border-ex-border bg-ex-elevated/80"),
+        tone !== "success" &&
+        (highlight
+          ? "border-ex-secondary/30 bg-ex-secondary/10"
+          : "border-ex-border bg-ex-elevated/80"),
       )}
     >
       <p className="text-[10px] font-semibold uppercase tracking-wider text-ex-muted">
@@ -241,10 +241,10 @@ export function PunchDesk({
       ? { label: "Overtime", value: "—", tone: "default" as const }
       : dayOutcome === "short" && shortfallAmount
         ? {
-            label: "Early out",
-            value: shortfallAmount,
-            tone: "warning" as const,
-          }
+          label: "Early out",
+          value: shortfallAmount,
+          tone: "warning" as const,
+        }
         : dayOutcome === "overtime" && today?.overtime && today.overtime !== "—"
           ? { label: "Overtime", value: today.overtime, tone: "success" as const }
           : { label: "Overtime", value: "—", tone: "default" as const };
@@ -291,6 +291,11 @@ export function PunchDesk({
                 {today.status}
                 {hasPunchedOut && today.punchOut ? ` · Out ${today.punchOut}` : ""}
                 {!hasPunchedOut && today.punchIn ? ` · In ${today.punchIn}` : ""}
+              </Badge>
+            ) : !hasPunchedIn ? (
+              <Badge variant="warning" className="w-fit gap-1.5">
+                <LogIn className="size-3.5" aria-hidden />
+                Punch in not done
               </Badge>
             ) : null}
           </div>
@@ -344,7 +349,12 @@ export function PunchDesk({
 
       <div className="space-y-4 border-t border-ex-border bg-ex-elevated p-4 sm:p-6">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <StatPill label="Punch in" value={today?.punchIn ?? ""} highlight={hasPunchedIn} />
+          <StatPill
+            label="Punch in"
+            value={hasPunchedIn ? (today?.punchIn ?? "") : "Not done"}
+            highlight={hasPunchedIn}
+            tone={hasPunchedIn ? "default" : "warning"}
+          />
           <StatPill label="Punch out" value={today?.punchOut ?? ""} />
           <StatPill
             label="Break"
@@ -401,7 +411,7 @@ export function PunchDesk({
           {phase === "idle" ? (
             <Button
               size="lg"
-              className="h-12 min-w-[200px] flex-1 gap-2 text-base font-semibold shadow-md shadow-ex-secondary/20 sm:flex-none"
+              className="min-h-12 min-w-[200px] flex-1 gap-2 text-base font-semibold shadow-md shadow-ex-secondary/20 sm:flex-none"
               disabled={acting || loading}
               onClick={onPunchIn}
             >

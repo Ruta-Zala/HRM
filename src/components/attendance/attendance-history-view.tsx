@@ -572,7 +572,7 @@ export function AttendanceHistoryView({
               sortable: false,
               sticky: "right",
               render: (r) =>
-                !isHr && onRequestOvertime && canRequestOvertime(r) ? (
+                onRequestOvertime && canRequestOvertime(r) ? (
                   <Button
                     size="sm"
                     variant="outline"

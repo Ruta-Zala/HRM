@@ -143,10 +143,10 @@ export const navStructure: NavItem[] = [
     label: "Integrations",
     href: "/integrations",
     icon: "Plug",
-    roles: [],
+    roles: [SUPER_ADMIN, HR_MANAGER],
     children: [
-      { roles: [], label: "Overview", href: "/integrations" },
-      { roles: [], label: "Google Drive", href: "/integrations/google-drive" },
+      { roles: [SUPER_ADMIN, HR_MANAGER], label: "Overview", href: "/integrations" },
+      { roles: [SUPER_ADMIN, HR_MANAGER], label: "Google Drive", href: "/integrations/google-drive" },
       { roles: [], label: "Slack", href: "/integrations/slack" },
       { roles: [], label: "Media uploads", href: "/integrations/media" },
     ],

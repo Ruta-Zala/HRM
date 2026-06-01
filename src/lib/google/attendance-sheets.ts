@@ -18,7 +18,7 @@ import {
   monthlySheetTitle,
   normalizeSheetDate,
   parseDurationToMs,
-  resolveAttendanceBreakMs,
+  resolveLiveBreakMs,
   parseSheetClockTime,
   parseTimeOnDate,
 } from "@/lib/attendance/time";
@@ -1025,10 +1025,7 @@ export async function punchIn(
   rowValues[ATTENDANCE_COL.status] = WORKING_STATUS.IN_PROGRESS;
   rowValues[ATTENDANCE_COL.breakStart] = "";
   rowValues[ATTENDANCE_COL.breakEnd] = "";
-  rowValues[ATTENDANCE_COL.totalBreakTime] = IMPORT_DEFAULT_BREAK;
-  if (rowValues[ATTENDANCE_COL.workMode] === WORK_MODE.HALF_DAY_LEAVE) {
-    rowValues[ATTENDANCE_COL.totalBreakTime] = "";
-  }
+  rowValues[ATTENDANCE_COL.totalBreakTime] = "";
 
   const targetRow = found?.sheetRow ?? Math.max(rows.length + 1, 2);
   await updateAttendanceRow(
@@ -1458,10 +1455,9 @@ export function computeLiveWorkedMs(
   if (punchInMs == null) return 0;
 
   const skipBreak = record.workMode === WORK_MODE.HALF_DAY_LEAVE;
-  let totalBreakMs = resolveAttendanceBreakMs(
-    record.totalBreakTime,
-    record.workMode,
-  );
+  let totalBreakMs = resolveLiveBreakMs(record.totalBreakTime, record.workMode, {
+    inProgress: true,
+  });
 
   if (!skipBreak && record.breakStart.trim() && !record.breakEnd.trim()) {
     const breakStartMs = parseSheetClockTime(record.breakStart, baseDate, {
