@@ -49,11 +49,7 @@ export function isEmployeeDirectoryPath(pathname: string): boolean {
 }
 
 /** Resolve sidebar active state for a nav child link. */
-export function isNavChildActive(
-  pathname: string,
-  childHref: string,
-  parentHref: string,
-): boolean {
+export function isNavChildActive(pathname: string, childHref: string, parentHref: string): boolean {
   if (parentHref === "/employee") {
     if (childHref === "/employee") {
       return isEmployeeDirectoryPath(pathname);
@@ -76,11 +72,7 @@ export function isNavGroupActive(pathname: string, item: NavItem): boolean {
 
   if (pathname === item.href) return true;
 
-  return (
-    item.children?.some((child) =>
-      isNavChildActive(pathname, child.href, item.href),
-    ) ?? false
-  );
+  return item.children?.some((child) => isNavChildActive(pathname, child.href, item.href)) ?? false;
 }
 
 export const navStructure: NavItem[] = [
@@ -101,19 +93,39 @@ export const navStructure: NavItem[] = [
         href: "/employee",
         roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
       },
-      { label: "Onboarding / offboarding", href: "/employee/onboarding", roles: [SUPER_ADMIN, HR_MANAGER], },
+      {
+        label: "Onboarding / offboarding",
+        href: "/employee/onboarding",
+        roles: [SUPER_ADMIN, HR_MANAGER],
+      },
       {
         label: "Employee profile",
         href: "/employee/profile",
         roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
       },
-      { label: "Punch in / out", href: "/employee/punch", roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE], },
-      { label: "Overtime & approvals", href: "/employee/overtime", roles: [SUPER_ADMIN, HR_MANAGER], },
-      { label: "Salary slips", href: "/employee/salary-slips", roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE], },
-      { label: "Complaints", href: "/employee/complaints", roles: [], },
-      { label: "Attendance history", href: "/employee/attendance", roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE], },
-      { label: "Leave & festivals", href: "/employee/leave-festival", roles: [], },
-      { label: "Leave privacy", href: "/employee/privacy", roles: [], },
+      {
+        label: "Punch in / out",
+        href: "/employee/punch",
+        roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
+      },
+      {
+        label: "Overtime & approvals",
+        href: "/employee/overtime",
+        roles: [SUPER_ADMIN, HR_MANAGER],
+      },
+      {
+        label: "Salary slips",
+        href: "/employee/salary-slips",
+        roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
+      },
+      { label: "Complaints", href: "/employee/complaints", roles: [] },
+      {
+        label: "Attendance history",
+        href: "/employee/attendance",
+        roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
+      },
+      { label: "Leave & festivals", href: "/employee/leave-festival", roles: [] },
+      { label: "Leave privacy", href: "/employee/privacy", roles: [] },
     ],
   },
   {
@@ -146,7 +158,11 @@ export const navStructure: NavItem[] = [
     roles: [SUPER_ADMIN, HR_MANAGER],
     children: [
       { roles: [SUPER_ADMIN, HR_MANAGER], label: "Overview", href: "/integrations" },
-      { roles: [SUPER_ADMIN, HR_MANAGER], label: "Google Drive", href: "/integrations/google-drive" },
+      {
+        roles: [SUPER_ADMIN, HR_MANAGER],
+        label: "Google Drive",
+        href: "/integrations/google-drive",
+      },
       { roles: [], label: "Slack", href: "/integrations/slack" },
       { roles: [], label: "Media uploads", href: "/integrations/media" },
     ],

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { CalendarIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -78,12 +78,7 @@ export function DateInput({
   const normalizedValue = normalizeDateValue(value);
   const min = toIsoDateBoundary(minYear, 1, 1);
   const max = toIsoDateBoundary(maxYear, 12, 31);
-
-  useEffect(() => {
-    if (!isEditing) {
-      setTextValue(formatIsoToDisplay(value));
-    }
-  }, [value, isEditing]);
+  const displayedText = isEditing ? textValue : formatIsoToDisplay(value);
 
   const commitTextValue = (raw: string) => {
     if (!raw.trim()) {
@@ -122,12 +117,15 @@ export function DateInput({
         inputMode="numeric"
         autoComplete="off"
         placeholder={placeholder}
-        value={textValue}
+        value={displayedText}
         disabled={disabled}
         required={required}
         className="pr-10"
         onChange={(event) => setTextValue(event.target.value)}
-        onFocus={() => setIsEditing(true)}
+        onFocus={() => {
+          setTextValue(formatIsoToDisplay(value));
+          setIsEditing(true);
+        }}
         onBlur={() => {
           setIsEditing(false);
           commitTextValue(textValue);
@@ -161,7 +159,7 @@ export function DateInput({
         disabled={disabled}
         aria-label="Open calendar"
         onClick={openPicker}
-        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-ex-muted transition-colors hover:bg-ex-surface hover:text-ex-primary disabled:pointer-events-none disabled:opacity-50"
+        className="text-ex-muted hover:bg-ex-surface hover:text-ex-primary absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-1 transition-colors disabled:pointer-events-none disabled:opacity-50"
       >
         <CalendarIcon className="size-4" />
       </button>

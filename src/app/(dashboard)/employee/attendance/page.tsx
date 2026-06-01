@@ -26,7 +26,12 @@ function safeFilePart(value: string): string {
 
 function exportCsv(
   rows: AttendanceHistoryRow[],
-  options?: { employeeName?: string; employeeId?: string; month?: number | null; year?: number | null },
+  options?: {
+    employeeName?: string;
+    employeeId?: string;
+    month?: number | null;
+    year?: number | null;
+  },
 ) {
   const headers = [
     "Date",
@@ -63,9 +68,7 @@ function exportCsv(
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  const employeePart = options?.employeeName
-    ? safeFilePart(options.employeeName)
-    : "employee";
+  const employeePart = options?.employeeName ? safeFilePart(options.employeeName) : "employee";
   const employeeIdPart = options?.employeeId ? safeFilePart(options.employeeId) : "";
   const monthPart =
     options?.year != null && options?.month != null
@@ -83,7 +86,7 @@ export default function AttendanceHistoryPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [selectedSheetRow, setSelectedSheetRow] = useState<number | null>(null);
+  const [selectedSheetRow, setSelectedSheetRow] = useState<number | null>(user?.sheetRow ?? null);
   const [periods, setPeriods] = useState<AttendancePeriod[]>([]);
   const [year, setYear] = useState<number | null>(null);
   const [month, setMonth] = useState<number | null>(null);
@@ -95,13 +98,8 @@ export default function AttendanceHistoryPage() {
   const [importMessage, setImportMessage] = useState<string | null>(null);
 
   const targetSheetRow = isHr
-    ? selectedSheetRow ?? user?.sheetRow ?? null
-    : user?.sheetRow ?? null;
-
-  useEffect(() => {
-    if (!user?.sheetRow) return;
-    setSelectedSheetRow(user.sheetRow);
-  }, [user?.sheetRow]);
+    ? (selectedSheetRow ?? user?.sheetRow ?? null)
+    : (user?.sheetRow ?? null);
 
   useEffect(() => {
     if (!isHr) return;
@@ -111,33 +109,57 @@ export default function AttendanceHistoryPage() {
       .catch(() => {});
   }, [isHr]);
 
+  const applyPeriods = useCallback((data: AttendancePeriod[]) => {
+    setPeriods(data);
+    const first = data[0];
+    if (first) {
+      setYear(first.year);
+      const lastMonth = first.months[first.months.length - 1];
+      setMonth(lastMonth?.month ?? null);
+    } else {
+      setYear(null);
+      setMonth(null);
+      setRows([]);
+    }
+  }, []);
+
   const loadPeriods = useCallback(async () => {
     if (targetSheetRow == null) return;
     setLoading(true);
     setError(null);
     try {
       const data = await fetchAttendancePeriods(targetSheetRow);
-      setPeriods(data);
-      const first = data[0];
-      if (first) {
-        setYear(first.year);
-        const lastMonth = first.months[first.months.length - 1];
-        setMonth(lastMonth?.month ?? null);
-      } else {
-        setYear(null);
-        setMonth(null);
-        setRows([]);
-      }
+      applyPeriods(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load periods");
     } finally {
       setLoading(false);
     }
-  }, [targetSheetRow]);
+  }, [targetSheetRow, applyPeriods]);
 
   useEffect(() => {
-    void loadPeriods();
-  }, [loadPeriods]);
+    if (targetSheetRow == null) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await fetchAttendancePeriods(targetSheetRow);
+        if (cancelled) return;
+        applyPeriods(data);
+        setError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load periods");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [targetSheetRow, applyPeriods]);
 
   const loadHistory = useCallback(async () => {
     if (year == null || month == null || targetSheetRow == null) return;
@@ -154,15 +176,31 @@ export default function AttendanceHistoryPage() {
   }, [year, month, targetSheetRow]);
 
   useEffect(() => {
-    if (year != null && month != null) {
-      void loadHistory();
-    }
-  }, [loadHistory, year, month]);
+    if (year == null || month == null || targetSheetRow == null) return;
 
-  const sortedRows = useMemo(
-    () => [...rows].sort((a, b) => b.date.localeCompare(a.date)),
-    [rows],
-  );
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await fetchAttendanceHistory(year, month, targetSheetRow);
+        if (!cancelled) {
+          setRows(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load attendance");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [year, month, targetSheetRow]);
+
+  const sortedRows = useMemo(() => [...rows].sort((a, b) => b.date.localeCompare(a.date)), [rows]);
   const selectedEmployee = useMemo(
     () => employees.find((e) => Number(e.sheetRow) === targetSheetRow) ?? null,
     [employees, targetSheetRow],

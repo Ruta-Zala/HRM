@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  CalendarDays,
-  Download,
-  Loader2,
-  TrendingDown,
-  TrendingUp,
-  Upload,
-} from "lucide-react";
+import { CalendarDays, Download, Loader2, TrendingDown, TrendingUp, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -67,20 +60,6 @@ function formatOvertimeCell(row: AttendanceHistoryRow) {
     );
   }
   return <span className="font-medium text-emerald-700 dark:text-emerald-400">{value}</span>;
-}
-
-function overtimeApprovalLabel(value?: string): string {
-  if (value === "Pending") return "Requested";
-  if (value === "Accepted") return "Approved";
-  if (value === "Rejected") return "Rejected";
-  return "Not requested";
-}
-
-function overtimeApprovalVariant(value?: string) {
-  if (value === "Accepted") return "success" as const;
-  if (value === "Rejected") return "danger" as const;
-  if (value === "Pending") return "warning" as const;
-  return "default" as const;
 }
 
 function canRequestOvertime(row: AttendanceHistoryRow): boolean {
@@ -260,23 +239,21 @@ export function AttendanceHistoryView({
   }
 
   const tableEmpty =
-    !loading &&
-    filteredRows.length === 0 &&
-    (rows.length === 0 || statusFilter !== "all");
+    !loading && filteredRows.length === 0 && (rows.length === 0 || statusFilter !== "all");
 
   return (
     <div className="space-y-6">
-      <div className="overflow-hidden rounded-2xl border border-ex-border bg-gradient-to-br from-teal-500/10 via-ex-elevated to-ex-elevated p-5 sm:p-6">
+      <div className="border-ex-border via-ex-elevated to-ex-elevated overflow-hidden rounded-2xl border bg-gradient-to-br from-teal-500/10 p-5 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-ex-muted">
+            <div className="text-ex-muted flex items-center gap-2">
               <CalendarDays className="size-4" aria-hidden />
               <span className="text-sm font-medium">Attendance history</span>
             </div>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-ex-primary sm:text-3xl">
+            <h1 className="text-ex-primary mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
               {monthLabel && year != null ? `${monthLabel} ${year}` : "Your attendance"}
             </h1>
-            <p className="mt-1 max-w-xl text-sm text-ex-muted">
+            <p className="text-ex-muted mt-1 max-w-xl text-sm">
               {isHr
                 ? "Review punch times, work hours, and daily updates. Import legacy CSV when needed."
                 : `Monthly log of punch in/out, break, daily updates, and ${IDEAL_WORKING_HOURS}h work target.`}
@@ -302,7 +279,7 @@ export function AttendanceHistoryView({
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2 bg-ex-elevated/80"
+                className="bg-ex-elevated/80 gap-2"
                 disabled={importing || selectedSheetRow == null}
                 onClick={onImportClick}
                 title={
@@ -322,7 +299,7 @@ export function AttendanceHistoryView({
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 bg-ex-elevated/80"
+              className="bg-ex-elevated/80 gap-2"
               disabled={!canExport}
               onClick={onExport}
               title={
@@ -337,10 +314,10 @@ export function AttendanceHistoryView({
           </div>
         </div>
 
-        <div className="mt-5 flex flex-col gap-3 border-t border-ex-border/60 pt-5 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="border-ex-border/60 mt-5 flex flex-col gap-3 border-t pt-5 sm:flex-row sm:flex-wrap sm:items-end">
           {isHr ? (
             <div className="min-w-[200px] flex-1 sm:max-w-xs">
-              <label className="mb-1 block text-xs font-medium text-ex-muted">Employee</label>
+              <label className="text-ex-muted mb-1 block text-xs font-medium">Employee</label>
               <Select
                 value={selectedSheetRow ?? ""}
                 onChange={(e) => {
@@ -359,7 +336,7 @@ export function AttendanceHistoryView({
           ) : null}
           <div className="flex flex-wrap gap-3">
             <div className="min-w-[120px]">
-              <label className="mb-1 block text-xs font-medium text-ex-muted">Year</label>
+              <label className="text-ex-muted mb-1 block text-xs font-medium">Year</label>
               <Select
                 value={year ?? ""}
                 onChange={(e) => {
@@ -376,7 +353,7 @@ export function AttendanceHistoryView({
               </Select>
             </div>
             <div className="min-w-[120px]">
-              <label className="mb-1 block text-xs font-medium text-ex-muted">Month</label>
+              <label className="text-ex-muted mb-1 block text-xs font-medium">Month</label>
               <Select
                 value={month ?? ""}
                 onChange={(e) => {
@@ -394,7 +371,6 @@ export function AttendanceHistoryView({
             </div>
           </div>
         </div>
-
       </div>
 
       {importMessage ? (
@@ -422,7 +398,11 @@ export function AttendanceHistoryView({
             value={summary.approvedOvertime}
             hint="Accepted this month"
           />
-          <StatCard label="OT approved days" value={String(summary.overtimeApproved)} hint="Rows approved" />
+          <StatCard
+            label="OT approved days"
+            value={String(summary.overtimeApproved)}
+            hint="Rows approved"
+          />
         </div>
       ) : null}
 
@@ -489,9 +469,7 @@ export function AttendanceHistoryView({
               key: "date",
               header: "Date",
               sortable: true,
-              render: (r) => (
-                <span className="font-medium">{formatTableDate(r.date)}</span>
-              ),
+              render: (r) => <span className="font-medium">{formatTableDate(r.date)}</span>,
             },
             {
               key: "workMode",
@@ -545,7 +523,7 @@ export function AttendanceHistoryView({
               className: "min-w-[150px] max-w-[220px] whitespace-normal",
               render: (r) =>
                 r.earlyLeaveReason?.trim() ? (
-                  <span className="line-clamp-2 text-sm text-ex-muted" title={r.earlyLeaveReason}>
+                  <span className="text-ex-muted line-clamp-2 text-sm" title={r.earlyLeaveReason}>
                     {r.earlyLeaveReason}
                   </span>
                 ) : (
@@ -559,7 +537,7 @@ export function AttendanceHistoryView({
               className: "min-w-[150px] max-w-[280px] whitespace-normal",
               render: (r) =>
                 r.dailyUpdate?.trim() ? (
-                  <span className="line-clamp-2 text-sm text-ex-muted" title={r.dailyUpdate}>
+                  <span className="text-ex-muted line-clamp-2 text-sm" title={r.dailyUpdate}>
                     {r.dailyUpdate}
                   </span>
                 ) : (

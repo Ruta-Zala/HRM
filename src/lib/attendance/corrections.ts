@@ -77,9 +77,7 @@ async function ensureCorrectionSheet(): Promise<void> {
     fields: "sheets.properties.title",
   });
 
-  const exists = meta.data.sheets?.some(
-    (s) => s.properties?.title === CORRECTION_SHEET_TITLE,
-  );
+  const exists = meta.data.sheets?.some((s) => s.properties?.title === CORRECTION_SHEET_TITLE);
 
   if (exists) {
     await applySheetHeaderFormatByTitle(

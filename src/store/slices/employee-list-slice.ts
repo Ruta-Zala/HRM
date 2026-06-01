@@ -1,8 +1,4 @@
-import {
-  createAsyncThunk,
-  createSlice,
-  type PayloadAction,
-} from "@reduxjs/toolkit";
+import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 import { ROLES, STATUS } from "@/app/consts/common";
 import {
@@ -77,29 +73,24 @@ export const offboardEmployee = createAsyncThunk(
   },
 );
 
-export const fetchEmployeeList = createAsyncThunk(
-  "employeeList/fetchAll",
-  async () => {
-    const pageSize = 100;
-    const first = await fetchEmployeeListPage(1, pageSize);
-    const allItems = [...first.items];
+export const fetchEmployeeList = createAsyncThunk("employeeList/fetchAll", async () => {
+  const pageSize = 100;
+  const first = await fetchEmployeeListPage(1, pageSize);
+  const allItems = [...first.items];
 
-    for (let page = 2; page <= first.totalPages; page++) {
-      const next = await fetchEmployeeListPage(page, pageSize);
-      allItems.push(...next.items);
-    }
+  for (let page = 2; page <= first.totalPages; page++) {
+    const next = await fetchEmployeeListPage(page, pageSize);
+    allItems.push(...next.items);
+  }
 
-    return allItems;
-  },
-);
+  return allItems;
+});
 
 function canViewInactiveEmployees(role: UserRole | null | undefined): boolean {
   return role === ROLES.HR_MANAGER || role === ROLES.SUPER_ADMIN;
 }
 
-export function selectEmployeeListItems(
-  state: EmployeeListRootState,
-): Employee[] {
+export function selectEmployeeListItems(state: EmployeeListRootState): Employee[] {
   return state.employeeList.items;
 }
 
@@ -141,7 +132,7 @@ const employeeListSlice = createSlice({
     clearEmployeeListError(state) {
       state.error = null;
     },
-    resetEmployeeList(state) {
+    resetEmployeeList() {
       return initialState;
     },
   },
@@ -151,19 +142,13 @@ const employeeListSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(
-        fetchEmployeeList.fulfilled,
-        (state, action: PayloadAction<Employee[]>) => {
-          state.loading = false;
-          state.items = action.payload;
-        },
-      )
+      .addCase(fetchEmployeeList.fulfilled, (state, action: PayloadAction<Employee[]>) => {
+        state.loading = false;
+        state.items = action.payload;
+      })
       .addCase(fetchEmployeeList.rejected, (state, action) => {
         state.loading = false;
-        if (
-          isAccountInactiveRedirectPending() ||
-          isAccountInactiveRedirectError(action.error)
-        ) {
+        if (isAccountInactiveRedirectPending() || isAccountInactiveRedirectError(action.error)) {
           return;
         }
         state.error = action.error.message ?? "Failed to load employees";
@@ -182,10 +167,7 @@ const employeeListSlice = createSlice({
       })
       .addCase(offboardEmployee.rejected, (state, action) => {
         state.offboarding = false;
-        if (
-          isAccountInactiveRedirectPending() ||
-          isAccountInactiveRedirectError(action.error)
-        ) {
+        if (isAccountInactiveRedirectPending() || isAccountInactiveRedirectError(action.error)) {
           return;
         }
         state.error = action.error.message ?? "Failed to offboard employee";
@@ -193,6 +175,5 @@ const employeeListSlice = createSlice({
   },
 });
 
-export const { clearEmployeeListError, resetEmployeeList } =
-  employeeListSlice.actions;
+export const { clearEmployeeListError, resetEmployeeList } = employeeListSlice.actions;
 export default employeeListSlice.reducer;

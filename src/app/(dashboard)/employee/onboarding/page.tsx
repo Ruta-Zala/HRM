@@ -25,11 +25,7 @@ import {
   selectOffboardingEmployeeOptions,
 } from "@/store/slices/employee-list-slice";
 
-function formatEmployeeOptionLabel(
-  name: string,
-  employeeId: string,
-  role: string,
-): string {
+function formatEmployeeOptionLabel(name: string, employeeId: string, role: string): string {
   const idPart = employeeId ? ` (${employeeId})` : "";
   const rolePart = role ? ` — ${formatEmployeeRole(role)}` : "";
   return `${name}${idPart}${rolePart}`;
@@ -47,18 +43,13 @@ export default function OnboardingPage() {
   const loading = useAppSelector(selectEmployeeListLoading);
   const offboarding = useAppSelector(selectEmployeeOffboarding);
   const listError = useAppSelector(selectEmployeeListError);
-  const employees = useAppSelector((state) =>
-    selectOffboardingEmployeeOptions(state, user?.role),
-  );
+  const employees = useAppSelector((state) => selectOffboardingEmployeeOptions(state, user?.role));
 
-  const canViewInactive =
-    user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
+  const canViewInactive = user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
 
   const { activeEmployees, inactiveEmployees } = useMemo(() => {
     const active = employees.filter((e) => !isEmployeeInactive(e.status));
-    const inactive = canViewInactive
-      ? employees.filter((e) => isEmployeeInactive(e.status))
-      : [];
+    const inactive = canViewInactive ? employees.filter((e) => isEmployeeInactive(e.status)) : [];
     return { activeEmployees: active, inactiveEmployees: inactive };
   }, [employees, canViewInactive]);
 
@@ -98,9 +89,7 @@ export default function OnboardingPage() {
       setReason("");
       void dispatch(fetchEmployeeList());
     } catch (err) {
-      setFormError(
-        err instanceof Error ? err.message : "Failed to offboard employee.",
-      );
+      setFormError(err instanceof Error ? err.message : "Failed to offboard employee.");
     }
   };
 
@@ -138,11 +127,7 @@ export default function OnboardingPage() {
               </option>
               {activeEmployees.map((employee) => (
                 <option key={employee.sheetRow} value={employee.sheetRow}>
-                  {formatEmployeeOptionLabel(
-                    employee.name,
-                    employee.employeeId,
-                    employee.role,
-                  )}
+                  {formatEmployeeOptionLabel(employee.name, employee.employeeId, employee.role)}
                 </option>
               ))}
               {inactiveEmployees.length > 0 ? (
@@ -168,7 +153,7 @@ export default function OnboardingPage() {
               <p className="text-sm text-red-600 dark:text-red-400">{listError}</p>
             ) : null}
             {!loading && !listError && employees.length === 0 ? (
-              <p className="text-sm text-ex-muted">No employees found.</p>
+              <p className="text-ex-muted text-sm">No employees found.</p>
             ) : null}
           </div>
           <div className="space-y-2">
@@ -194,13 +179,9 @@ export default function OnboardingPage() {
               required
             />
           </div>
-          {formError ? (
-            <p className="text-sm text-red-600 dark:text-red-400">{formError}</p>
-          ) : null}
+          {formError ? <p className="text-sm text-red-600 dark:text-red-400">{formError}</p> : null}
           {successMessage ? (
-            <p className="text-sm text-green-700 dark:text-green-400">
-              {successMessage}
-            </p>
+            <p className="text-sm text-green-700 dark:text-green-400">{successMessage}</p>
           ) : null}
           <Button
             type="button"

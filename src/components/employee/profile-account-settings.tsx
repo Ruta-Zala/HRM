@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -55,14 +55,7 @@ export function ProfileAccountSettings({
   const [mode, setMode] = useState<"view" | "verify" | "change" | "create">(
     hasPassword ? "view" : "create",
   );
-
-  useEffect(() => {
-    if (!hasPassword) {
-      setMode("create");
-    } else if (mode === "create") {
-      setMode("view");
-    }
-  }, [hasPassword, mode]);
+  const resolvedMode = !hasPassword ? "create" : mode === "create" ? "view" : mode;
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -154,8 +147,8 @@ export function ProfileAccountSettings({
       <CardHeader>
         <CardTitle>Sign-in account</CardTitle>
         <CardDescription>
-          Use your username and password to sign in. For security, your saved
-          password cannot be shown — you can verify or change it below.
+          Use your username and password to sign in. For security, your saved password cannot be
+          shown — you can verify or change it below.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -169,22 +162,22 @@ export function ProfileAccountSettings({
             className="disabled:opacity-100"
           />
           {!username ? (
-            <p className="text-xs text-ex-muted">
+            <p className="text-ex-muted text-xs">
               No username on file. Contact HR to set one before you can sign in.
             </p>
           ) : null}
         </div>
 
-        {mode === "view" && hasPassword ? (
+        {resolvedMode === "view" && hasPassword ? (
           <div className="space-y-4">
-            <div className="flex items-start gap-3 rounded-lg border border-ex-border bg-ex-surface/50 px-4 py-3">
+            <div className="border-ex-border bg-ex-surface/50 flex items-start gap-3 rounded-lg border px-4 py-3">
               <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
               <div className="space-y-1">
-                <p className="text-sm font-medium text-ex-primary">Password is set</p>
-                <p className="text-xs text-ex-muted">
-                  Your password is stored encrypted. It cannot be displayed here.
-                  Use &quot;Check current password&quot; to confirm you remember it, or
-                  &quot;Change password&quot; only when you want a new one.
+                <p className="text-ex-primary text-sm font-medium">Password is set</p>
+                <p className="text-ex-muted text-xs">
+                  Your password is stored encrypted. It cannot be displayed here. Use &quot;Check
+                  current password&quot; to confirm you remember it, or &quot;Change password&quot;
+                  only when you want a new one.
                 </p>
               </div>
             </div>
@@ -215,12 +208,12 @@ export function ProfileAccountSettings({
           </div>
         ) : null}
 
-        {mode === "verify" ? (
+        {resolvedMode === "verify" ? (
           <form className="space-y-4" onSubmit={(e) => void onVerify(e)}>
-            <p className="text-sm font-medium text-ex-primary">Check current password</p>
-            <p className="text-xs text-ex-muted">
-              Enter your current password to confirm it is correct. This does not change
-              your password.
+            <p className="text-ex-primary text-sm font-medium">Check current password</p>
+            <p className="text-ex-muted text-xs">
+              Enter your current password to confirm it is correct. This does not change your
+              password.
             </p>
             <PasswordField
               id="verify-current-password"
@@ -251,16 +244,13 @@ export function ProfileAccountSettings({
           </form>
         ) : null}
 
-        {mode === "change" || mode === "create" ? (
-          <form
-            className="space-y-4"
-            onSubmit={(e) => void onChangePassword(e)}
-          >
-            <p className="text-sm font-medium text-ex-primary">
-              {mode === "create" ? "Create password" : "Change password"}
+        {resolvedMode === "change" || resolvedMode === "create" ? (
+          <form className="space-y-4" onSubmit={(e) => void onChangePassword(e)}>
+            <p className="text-ex-primary text-sm font-medium">
+              {resolvedMode === "create" ? "Create password" : "Change password"}
             </p>
 
-            {mode === "change" ? (
+            {resolvedMode === "change" ? (
               <PasswordField
                 id="current-password"
                 label="Current password"
@@ -270,14 +260,14 @@ export function ProfileAccountSettings({
                 required
               />
             ) : (
-              <p className="text-xs text-ex-muted">
+              <p className="text-ex-muted text-xs">
                 You do not have a password yet. Set one below to enable sign-in.
               </p>
             )}
 
             <PasswordField
               id="new-password"
-              label={mode === "change" ? "New password" : "Password"}
+              label={resolvedMode === "change" ? "New password" : "Password"}
               autoComplete="new-password"
               value={newPassword}
               onChange={setNewPassword}
@@ -311,7 +301,7 @@ export function ProfileAccountSettings({
               <Button type="submit" disabled={pending || !username}>
                 {pending
                   ? "Saving…"
-                  : mode === "create"
+                  : resolvedMode === "create"
                     ? "Create password"
                     : "Update password"}
               </Button>

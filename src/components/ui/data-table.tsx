@@ -19,18 +19,18 @@ function TableEmptyState({
     <div
       role="status"
       className={cn(
-        "flex flex-col items-center justify-center rounded-xl border border-dashed border-ex-border bg-ex-elevated px-6 py-16 text-center shadow-sm dark:shadow-none",
+        "border-ex-border bg-ex-elevated flex flex-col items-center justify-center rounded-xl border border-dashed px-6 py-16 text-center shadow-sm dark:shadow-none",
         className,
       )}
     >
       <div
-        className="mb-4 flex size-14 items-center justify-center rounded-full bg-ex-surface ring-1 ring-ex-border"
+        className="bg-ex-surface ring-ex-border mb-4 flex size-14 items-center justify-center rounded-full ring-1"
         aria-hidden
       >
-        <Inbox className="size-6 text-ex-muted" />
+        <Inbox className="text-ex-muted size-6" />
       </div>
-      <h3 className="text-sm font-semibold text-ex-primary">{title}</h3>
-      <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-ex-muted">{description}</p>
+      <h3 className="text-ex-primary text-sm font-semibold">{title}</h3>
+      <p className="text-ex-muted mt-1.5 max-w-sm text-sm leading-relaxed">{description}</p>
       {action ? <div className="mt-6">{action}</div> : null}
     </div>
   );
@@ -90,13 +90,13 @@ export function DataTable<T extends { id: string }>({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-xl border border-ex-border bg-ex-elevated shadow-sm dark:shadow-none",
+        "border-ex-border bg-ex-elevated overflow-hidden rounded-xl border shadow-sm dark:shadow-none",
         className,
       )}
     >
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="bg-ex-surface text-xs uppercase tracking-wide text-ex-muted">
+          <thead className="bg-ex-surface text-ex-muted text-xs tracking-wide uppercase">
             <tr>
               {columns.map((c) => {
                 const key = String(c.key);
@@ -107,7 +107,7 @@ export function DataTable<T extends { id: string }>({
                   <th
                     key={key}
                     className={cn(
-                      "whitespace-nowrap px-4 py-3 font-medium",
+                      "px-4 py-3 font-medium whitespace-nowrap",
                       c.sticky && stickyColumnClasses[c.sticky].header,
                       c.className,
                     )}
@@ -117,7 +117,7 @@ export function DataTable<T extends { id: string }>({
                         type="button"
                         onClick={() => onSort(key)}
                         className={cn(
-                          "inline-flex items-center gap-1 transition hover:text-ex-primary",
+                          "hover:text-ex-primary inline-flex items-center gap-1 transition",
                           isActive && "text-ex-primary",
                         )}
                       >
@@ -140,7 +140,7 @@ export function DataTable<T extends { id: string }>({
               })}
             </tr>
           </thead>
-          <tbody className="divide-y divide-ex-border">
+          <tbody className="divide-ex-border divide-y">
             {rows.map((row) => (
               <tr key={row.id} className="group hover:bg-ex-surface/80">
                 {columns.map((c) => {
@@ -152,7 +152,7 @@ export function DataTable<T extends { id: string }>({
                       key={String(c.key)}
                       title={value ?? undefined}
                       className={cn(
-                        "whitespace-nowrap px-4 py-3 text-ex-primary",
+                        "text-ex-primary px-4 py-3 whitespace-nowrap",
                         c.sticky && stickyColumnClasses[c.sticky].cell,
                         c.className,
                       )}

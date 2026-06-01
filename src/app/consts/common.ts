@@ -1,24 +1,24 @@
 export const STATUS = {
-    ACTIVE: 'Active',
-    INACTIVE: 'Inactive'
-}
+  ACTIVE: "Active",
+  INACTIVE: "Inactive",
+};
 
 export const ROLES: Record<string, string> = {
-    SUPER_ADMIN: "super_admin",
-    HR_MANAGER: "hr",
-    EMPLOYEE: "employee",
+  SUPER_ADMIN: "super_admin",
+  HR_MANAGER: "hr",
+  EMPLOYEE: "employee",
 };
 
 export const POSITIONS: Record<string, string> = {
-    TRAINEE: "trainee",
-    FRONTEND_DEVELOPER: "frontend_developer",
-    SENIOR_FRONTEND_DEVELOPER: "senior_frontend_developer",
-    BACKEND_DEVELOPER: "backend_developer",
-    SENIOR_BACKEND_DEVELOPER: "senior_backend_developer",
-    FULLSTACK_DEVELOPER: "fullstack_developer",
-    SENIOR_FULLSTACK_DEVELOPER: "senior_fullstack_developer",
-    HR_MANAGER: "hr_manager",
-    TEAM_LEAD: "team_lead",
-    CEO: "ceo",
-    OTHER: "other",
-}
+  TRAINEE: "trainee",
+  FRONTEND_DEVELOPER: "frontend_developer",
+  SENIOR_FRONTEND_DEVELOPER: "senior_frontend_developer",
+  BACKEND_DEVELOPER: "backend_developer",
+  SENIOR_BACKEND_DEVELOPER: "senior_backend_developer",
+  FULLSTACK_DEVELOPER: "fullstack_developer",
+  SENIOR_FULLSTACK_DEVELOPER: "senior_fullstack_developer",
+  HR_MANAGER: "hr_manager",
+  TEAM_LEAD: "team_lead",
+  CEO: "ceo",
+  OTHER: "other",
+};

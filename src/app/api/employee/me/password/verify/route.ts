@@ -49,8 +49,7 @@ export const POST = withActiveSession(async (req, user) => {
     });
   } catch (error: unknown) {
     console.error("POST employee/me/password/verify error:", error);
-    const message =
-      error instanceof Error ? error.message : "Failed to verify password.";
+    const message = error instanceof Error ? error.message : "Failed to verify password.";
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });

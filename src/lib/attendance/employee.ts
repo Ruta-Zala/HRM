@@ -1,7 +1,6 @@
 import {
   getSheetHeaders,
   headerToFormKey,
-  mergeRowWithFormFields,
   sheetRowToForm,
   sheetRowToRange,
   withSheetRowUpdatedAt,
@@ -12,10 +11,7 @@ import {
   findAttendanceSpreadsheetInFolder,
   getOrCreateEmployeeAttendanceSpreadsheet,
 } from "@/lib/google/attendance-sheets";
-import {
-  createEmployeeFolderStructure,
-  getParentFolderId,
-} from "@/lib/google/drive";
+import { createEmployeeFolderStructure, getParentFolderId } from "@/lib/google/drive";
 import { getDrive } from "@/lib/google/drive-auth";
 import {
   EMPLOYEE_SHEET_RANGE,
@@ -33,13 +29,8 @@ export type AttendanceEmployeeContext = {
   sheetRow: number;
 };
 
-export function getAttendanceSpreadsheetIdFromRow(
-  headers: string[],
-  row: string[],
-): string {
-  const directIndex = headers.findIndex(
-    (h) => headerToFormKey(h) === "attendanceSpreadsheetId",
-  );
+export function getAttendanceSpreadsheetIdFromRow(headers: string[], row: string[]): string {
+  const directIndex = headers.findIndex((h) => headerToFormKey(h) === "attendanceSpreadsheetId");
   if (directIndex >= 0) {
     return String(row[directIndex] ?? "").trim();
   }
@@ -50,11 +41,7 @@ export function getAttendanceSpreadsheetIdFromRow(
       .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
       .replace(/\s+/g, "_")
       .toLowerCase();
-    return (
-      key.includes("attendance") &&
-      key.includes("spreadsheet") &&
-      key.includes("id")
-    );
+    return key.includes("attendance") && key.includes("spreadsheet") && key.includes("id");
   });
 
   return fallbackIndex >= 0 ? String(row[fallbackIndex] ?? "").trim() : "";
@@ -85,10 +72,7 @@ export async function resolveAttendanceEmployee(
   const form = sheetRowToForm(record.headers, record.row);
   const employeeId = form.employeeId.trim();
   const employeeName = form.name.trim() || user.name;
-  let attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(
-    record.headers,
-    record.row,
-  );
+  let attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(record.headers, record.row);
   if (attendanceSpreadsheetId && !(await isActiveSpreadsheet(attendanceSpreadsheetId))) {
     attendanceSpreadsheetId = "";
   }
@@ -100,11 +84,7 @@ export async function resolveAttendanceEmployee(
 
   if (!attendanceSpreadsheetId && parentFolderId) {
     attendanceSpreadsheetId =
-      (await findAttendanceSpreadsheetInFolder(
-        parentFolderId,
-        employeeId,
-        employeeName,
-      )) ?? "";
+      (await findAttendanceSpreadsheetInFolder(parentFolderId, employeeId, employeeName)) ?? "";
   }
 
   if (!attendanceSpreadsheetId) {
@@ -117,25 +97,15 @@ export async function resolveAttendanceEmployee(
     );
   }
 
-  const persistedId = getAttendanceSpreadsheetIdFromRow(
-    record.headers,
-    record.row,
-  );
+  const persistedId = getAttendanceSpreadsheetIdFromRow(record.headers, record.row);
   if (persistedId !== attendanceSpreadsheetId) {
     const headers = await getSheetHeadersData();
     const updatedRow = withSheetRowUpdatedAt(
       record.headers,
-      setAttendanceSpreadsheetIdOnRow(
-        record.headers,
-        record.row,
-        attendanceSpreadsheetId,
-      ),
+      setAttendanceSpreadsheetIdOnRow(record.headers, record.row, attendanceSpreadsheetId),
     );
 
-    await updateSheetRow(
-      sheetRowToRange(record.sheetRow, headers.length),
-      [updatedRow],
-    );
+    await updateSheetRow(sheetRowToRange(record.sheetRow, headers.length), [updatedRow]);
   }
 
   return {
@@ -157,10 +127,7 @@ async function resolveEmployeeFolderId(
 
   if (!employee.employeeId.trim()) return null;
 
-  const folders = await createEmployeeFolderStructure(
-    employee.employeeId,
-    employee.employeeName,
-  );
+  const folders = await createEmployeeFolderStructure(employee.employeeId, employee.employeeName);
   return folders.employeeFolderId ?? null;
 }
 
@@ -197,11 +164,7 @@ export async function resolveAttendanceEmployeeForTarget(
 
   if (!attendanceSpreadsheetId && parentFolderId) {
     attendanceSpreadsheetId =
-      (await findAttendanceSpreadsheetInFolder(
-        parentFolderId,
-        employeeId,
-        employeeName,
-      )) ?? "";
+      (await findAttendanceSpreadsheetInFolder(parentFolderId, employeeId, employeeName)) ?? "";
   }
 
   if (!attendanceSpreadsheetId) {
@@ -220,10 +183,7 @@ export async function resolveAttendanceEmployeeForTarget(
       headers,
       setAttendanceSpreadsheetIdOnRow(headers, row, attendanceSpreadsheetId),
     );
-    await updateSheetRow(
-      sheetRowToRange(targetSheetRow, sheetHeaders.length),
-      [updatedRow],
-    );
+    await updateSheetRow(sheetRowToRange(targetSheetRow, sheetHeaders.length), [updatedRow]);
   }
 
   return {

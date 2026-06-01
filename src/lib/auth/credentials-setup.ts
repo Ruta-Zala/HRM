@@ -21,7 +21,7 @@ function slugify(value: string): string {
 
 /** Derive a default username from name or email local-part. */
 export function deriveDefaultUsername(name: string, email: string): string {
-  const fromEmail = email.includes("@") ? email.split("@")[0] ?? "" : email;
+  const fromEmail = email.includes("@") ? (email.split("@")[0] ?? "") : email;
   const fromEmailSlug = slugify(fromEmail);
   if (fromEmailSlug) return fromEmailSlug;
 
@@ -37,8 +37,7 @@ export function deriveDefaultUsername(name: string, email: string): string {
 }
 
 export function generateSecurePassword(length = 12): string {
-  const chars =
-    "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%";
+  const chars = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%";
   let result = "";
   for (let i = 0; i < length; i++) {
     result += chars[Math.floor(Math.random() * chars.length)];
@@ -72,8 +71,7 @@ export async function prepareEmployeeCredentialsForSave(
   const nameIndex = getColumnIndex(headers, "name");
 
   if (options.isCreate) {
-    const email =
-      emailIndex >= 0 ? String(copy[emailIndex] ?? "").trim() : "";
+    const email = emailIndex >= 0 ? String(copy[emailIndex] ?? "").trim() : "";
     const name = nameIndex >= 0 ? String(copy[nameIndex] ?? "").trim() : "";
 
     if (usernameIndex >= 0 && !String(copy[usernameIndex] ?? "").trim()) {
@@ -87,11 +85,7 @@ export async function prepareEmployeeCredentialsForSave(
     }
   }
 
-  const rowValuesWithHash = await applyPasswordToRowValues(
-    headers,
-    copy,
-    options.existingRow,
-  );
+  const rowValuesWithHash = await applyPasswordToRowValues(headers, copy, options.existingRow);
 
   return {
     rowValues: rowValuesWithHash,

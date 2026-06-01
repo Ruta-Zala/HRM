@@ -122,17 +122,17 @@ export default function DashboardPage() {
               <div key={row.type} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-ex-muted">{row.type}</span>
-                  <span className="font-medium tabular-nums text-ex-primary">{row.value}</span>
+                  <span className="text-ex-primary font-medium tabular-nums">{row.value}</span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-ex-surface">
+                <div className="bg-ex-surface h-2 overflow-hidden rounded-full">
                   <div
-                    className="h-full rounded-full bg-ex-secondary"
+                    className="bg-ex-secondary h-full rounded-full"
                     style={{ width: `${(row.value / leaveMax) * 100}%` }}
                   />
                 </div>
               </div>
             ))}
-            <p className="pt-2 text-xs text-ex-muted">
+            <p className="text-ex-muted pt-2 text-xs">
               Paid / sick / casual / unpaid flows include half-day and full-day with configurable
               approval chains.
             </p>

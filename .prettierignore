@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+build
+coverage
+.vercel
+.langgraph_api
+.data
+package-lock.json
+*.patch

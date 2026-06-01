@@ -48,10 +48,7 @@ export const POST = withActiveSession(async (req, user) => {
 
     const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
     if (sheetRow > raw.length) {
-      return NextResponse.json(
-        { success: false, message: "Employee not found." },
-        { status: 404 },
-      );
+      return NextResponse.json({ success: false, message: "Employee not found." }, { status: 404 });
     }
 
     const headers = getSheetHeaders(raw);
@@ -74,8 +71,7 @@ export const POST = withActiveSession(async (req, user) => {
     });
   } catch (error: unknown) {
     console.error("Offboard employee error:", error);
-    const message =
-      error instanceof Error ? error.message : "Failed to offboard employee.";
+    const message = error instanceof Error ? error.message : "Failed to offboard employee.";
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });

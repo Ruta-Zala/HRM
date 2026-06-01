@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   clearSessionTabState,
   finalizePendingSessionLogout,
@@ -17,6 +10,7 @@ import {
   isAccountInactiveRedirectError,
   redirectToAccountInactive,
 } from "@/lib/account-inactive-client";
+import { clearSupportChatHistory } from "@/components/support/support-chat-history";
 import type { SessionUser } from "@/types/auth";
 
 type AuthContextValue = {
@@ -28,18 +22,25 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+async function fetchSessionUser(): Promise<{
+  user: SessionUser | null;
+  inactive?: boolean;
+}> {
+  await finalizePendingSessionLogout();
+  const res = await fetch("/api/auth/me", { credentials: "include" });
+  return (await res.json()) as {
+    user: SessionUser | null;
+    inactive?: boolean;
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
-      await finalizePendingSessionLogout();
-      const res = await fetch("/api/auth/me", { credentials: "include" });
-      const data = (await res.json()) as {
-        user: SessionUser | null;
-        inactive?: boolean;
-      };
+      const data = await fetchSessionUser();
 
       if (data.inactive) {
         setUser(null);
@@ -58,10 +59,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await fetchSessionUser();
+        if (cancelled) return;
+
+        if (data.inactive) {
+          setUser(null);
+          setLoading(false);
+          redirectToAccountInactive();
+          return;
+        }
+
+        setUser(data.user ?? null);
+        setLoading(false);
+      } catch (error) {
+        if (cancelled || isAccountInactiveRedirectError(error)) return;
+        setUser(null);
+        setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const logout = useCallback(async () => {
+    await clearSupportChatHistory();
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     clearSessionTabState();
     setUser(null);

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -10,10 +10,25 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginPageFallback />}>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageFallback() {
+  return (
+    <div className="bg-ex-bg flex min-h-screen items-center justify-center px-4 py-12">
+      <p className="text-ex-muted text-sm">Loading…</p>
+    </div>
+  );
+}
+
+function LoginPageContent() {
   const searchParams = useSearchParams();
   const fromRaw = searchParams.get("from") ?? "/dashboard";
-  const from =
-    fromRaw.startsWith("/") && !fromRaw.startsWith("//") ? fromRaw : "/dashboard";
+  const from = fromRaw.startsWith("/") && !fromRaw.startsWith("//") ? fromRaw : "/dashboard";
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -38,8 +53,7 @@ export default function LoginPage() {
       }
       window.location.assign(from);
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "An unexpected error occurred";
+      const message = error instanceof Error ? error.message : "An unexpected error occurred";
       setError(message);
     } finally {
       setPending(false);
@@ -47,14 +61,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-ex-bg px-4 py-12">
+    <div className="bg-ex-bg relative flex min-h-screen flex-col items-center justify-center px-4 py-12">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-ex-secondary/8 via-transparent to-transparent"
+        className="from-ex-secondary/8 pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] via-transparent to-transparent"
       />
-      <Card className="relative z-10 w-full max-w-md border-ex-border shadow-lg dark:shadow-none">
+      <Card className="border-ex-border relative z-10 w-full max-w-md shadow-lg dark:shadow-none">
         <CardHeader className="space-y-4 text-center">
-          <div className="mx-auto relative size-16 overflow-hidden rounded-2xl bg-white ring-1 ring-ex-border dark:bg-ex-surface">
+          <div className="ring-ex-border dark:bg-ex-surface relative mx-auto size-16 overflow-hidden rounded-2xl bg-white ring-1">
             <Image
               src="https://exhibytesolution.com/wp-content/uploads/2023/06/cropped-Exhibyte_Logo_Black_Logo-removebg-preview-1.png"
               alt="Exhibyte Solutions"

@@ -31,7 +31,7 @@ export function AttendanceWidget() {
       </CardHeader>
       <CardContent className="space-y-3">
         {loading ? (
-          <p className="text-sm text-ex-muted">Loading attendance…</p>
+          <p className="text-ex-muted text-sm">Loading attendance…</p>
         ) : !today?.hasPunchedIn ? (
           <PunchInBanner />
         ) : (
@@ -39,42 +39,37 @@ export function AttendanceWidget() {
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-ex-muted">Punch In</dt>
-                <dd className="font-medium text-ex-primary">{today.punchIn || "—"}</dd>
+                <dd className="text-ex-primary font-medium">{today.punchIn || "—"}</dd>
               </div>
               <div>
                 <dt className="text-ex-muted">Current Break</dt>
-                <dd className="font-medium text-ex-primary">
-                  {today.onBreak ? "Yes" : "No"}
-                </dd>
+                <dd className="text-ex-primary font-medium">{today.onBreak ? "Yes" : "No"}</dd>
               </div>
               <div>
                 <dt className="text-ex-muted">Work goal</dt>
-                <dd className="font-medium text-ex-primary">
+                <dd className="text-ex-primary font-medium">
                   {IDEAL_WORKING_HOURS}h work + {IDEAL_BREAK_HOURS}h break
                 </dd>
               </div>
               <div>
                 <dt className="text-ex-muted">Work left</dt>
-                <dd className="font-medium text-ex-primary">
+                <dd className="text-ex-primary font-medium">
                   {today.hasPunchedOut ? "—" : formatDuration(remainingMs)}
                 </dd>
               </div>
               <div>
                 <dt className="text-ex-muted">Break used</dt>
-                <dd className="font-medium text-ex-primary">
-                  {today.breakAllowanceFormatted ??
-                    `0h / ${IDEAL_BREAK_HOURS}h`}
+                <dd className="text-ex-primary font-medium">
+                  {today.breakAllowanceFormatted ?? `0h / ${IDEAL_BREAK_HOURS}h`}
                 </dd>
               </div>
               <div>
                 <dt className="text-ex-muted">Typical day</dt>
-                <dd className="font-medium text-ex-primary">{IDEAL_SHIFT_HOURS}h total</dd>
+                <dd className="text-ex-primary font-medium">{IDEAL_SHIFT_HOURS}h total</dd>
               </div>
             </dl>
             <WorkTimer workedMs={liveWorkedMs} />
-            {today.status ? (
-              <p className="text-xs text-ex-muted">Status: {today.status}</p>
-            ) : null}
+            {today.status ? <p className="text-ex-muted text-xs">Status: {today.status}</p> : null}
           </>
         )}
       </CardContent>

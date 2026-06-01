@@ -11,11 +11,7 @@ const split = [
   { name: "WFH", value: 36 },
 ];
 
-const COLORS = [
-  "var(--ex-secondary)",
-  "var(--ex-accent)",
-  "var(--ex-chart-4)",
-];
+const COLORS = ["var(--ex-secondary)", "var(--ex-accent)", "var(--ex-chart-4)"];
 
 export default function LeaveDashboardPage() {
   return (

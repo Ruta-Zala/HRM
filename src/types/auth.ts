@@ -1,7 +1,6 @@
 import { ROLES } from "@/app/consts/common";
-const { SUPER_ADMIN, HR_MANAGER, EMPLOYEE } = ROLES;
 
-export type UserRole = typeof SUPER_ADMIN | typeof HR_MANAGER | typeof EMPLOYEE;
+export type UserRole = (typeof ROLES)[keyof typeof ROLES];
 
 export type SessionUser = {
   id: string;

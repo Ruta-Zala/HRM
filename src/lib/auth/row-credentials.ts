@@ -7,9 +7,7 @@ export function redactPasswordsFromSheetData(data: string[][]): string[][] {
   if (!data.length) return data;
 
   const headers = getSheetHeaders(data);
-  const passwordIndex = headers.findIndex(
-    (h) => headerToFormKey(h) === "password",
-  );
+  const passwordIndex = headers.findIndex((h) => headerToFormKey(h) === "password");
   if (passwordIndex < 0) return data;
 
   return data.map((row, rowIndex) => {
@@ -21,13 +19,8 @@ export function redactPasswordsFromSheetData(data: string[][]): string[][] {
 }
 
 /** Clear password column before sending a row to the client. */
-export function redactPasswordFromRow(
-  headers: string[],
-  row: string[],
-): string[] {
-  const passwordIndex = headers.findIndex(
-    (h) => headerToFormKey(h) === "password",
-  );
+export function redactPasswordFromRow(headers: string[], row: string[]): string[] {
+  const passwordIndex = headers.findIndex((h) => headerToFormKey(h) === "password");
   if (passwordIndex < 0) return row;
 
   const copy = [...row];
@@ -43,9 +36,7 @@ export async function applyPasswordToRowValues(
   rowValues: string[],
   existingRow?: string[],
 ): Promise<string[]> {
-  const passwordIndex = headers.findIndex(
-    (h) => headerToFormKey(h) === "password",
-  );
+  const passwordIndex = headers.findIndex((h) => headerToFormKey(h) === "password");
   if (passwordIndex < 0) return rowValues;
 
   const copy = [...rowValues];

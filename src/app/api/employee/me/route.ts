@@ -37,8 +37,7 @@ export const GET = withActiveSession(async (_request, user) => {
     });
   } catch (error: unknown) {
     console.error("GET employee/me error:", error);
-    const message =
-      error instanceof Error ? error.message : "Failed to load your profile.";
+    const message = error instanceof Error ? error.message : "Failed to load your profile.";
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });

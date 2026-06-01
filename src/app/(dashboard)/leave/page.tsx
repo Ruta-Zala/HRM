@@ -43,7 +43,7 @@ export default function LeaveDeskPage() {
               <Label>Reason</Label>
               <Textarea rows={3} placeholder="Context for approvers" />
             </div>
-            <Button className="sm:col-span-2 w-fit" variant="secondary">
+            <Button className="w-fit sm:col-span-2" variant="secondary">
               Submit for approval
             </Button>
           </CardContent>
@@ -61,9 +61,9 @@ export default function LeaveDeskPage() {
               <span className="text-ex-muted">Used (YTD)</span>
               <Badge variant="accent">11 days</Badge>
             </div>
-            <p className="text-xs text-ex-muted">
-              Auto-absent: if no punch by configured cut-off, attendance marks absent unless leave is
-              approved for that window.
+            <p className="text-ex-muted text-xs">
+              Auto-absent: if no punch by configured cut-off, attendance marks absent unless leave
+              is approved for that window.
             </p>
           </CardContent>
         </Card>

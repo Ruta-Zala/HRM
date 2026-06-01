@@ -48,9 +48,7 @@ export async function authenticateFromSheet(
 
     const email = form.email.trim().toLowerCase();
     const username = form.username.trim().toLowerCase();
-    const matchesLogin =
-      (email && email === loginNorm) ||
-      (username && username === loginNorm);
+    const matchesLogin = (email && email === loginNorm) || (username && username === loginNorm);
     if (!matchesLogin) continue;
 
     const storedPassword = form.password.trim();
@@ -59,11 +57,8 @@ export async function authenticateFromSheet(
     const valid = await verifyPassword(password, storedPassword);
     if (!valid) continue;
 
-    const statusIndex = headers.findIndex(
-      (h) => headerToFormKey(h) === "status",
-    );
-    const rawStatus =
-      statusIndex >= 0 ? String(row[statusIndex] ?? "") : "";
+    const statusIndex = headers.findIndex((h) => headerToFormKey(h) === "status");
+    const rawStatus = statusIndex >= 0 ? String(row[statusIndex] ?? "") : "";
     if (!isEmployeeStatusActive(rawStatus)) {
       inactiveMatch = true;
       continue;
@@ -89,10 +84,7 @@ export async function authenticateFromSheet(
     if (!role) continue;
 
     const name = form.name.trim() || username || email;
-    const id =
-      form.employeeId.trim() ||
-      (email ? email : username) ||
-      `row-${index + 1}`;
+    const id = form.employeeId.trim() || (email ? email : username) || `row-${index + 1}`;
 
     return {
       ok: true,

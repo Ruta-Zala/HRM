@@ -40,7 +40,7 @@ export default function AnnouncementsPage() {
             <Label>Body</Label>
             <Textarea rows={6} />
           </div>
-          <Button className="md:col-span-2 w-fit" variant="secondary">
+          <Button className="w-fit md:col-span-2" variant="secondary">
             Schedule announcement
           </Button>
         </CardContent>

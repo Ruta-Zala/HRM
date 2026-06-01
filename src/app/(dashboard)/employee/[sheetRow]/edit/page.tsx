@@ -19,8 +19,7 @@ export default function EditEmployeePage() {
   const sheetRow = Number(params.sheetRow);
   const validRow = Number.isFinite(sheetRow) && sheetRow >= 2;
 
-  const canManage =
-    user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
+  const canManage = user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
 
   useEffect(() => {
     if (authLoading) return;

@@ -40,7 +40,7 @@ export default function PrivacyLeavesPage() {
           <CardHeader>
             <CardTitle>Privacy controls</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm text-ex-muted">
+          <CardContent className="text-ex-muted space-y-3 text-sm">
             <p>
               <strong className="text-ex-primary">Hidden from peers:</strong> future dated leave,
               half-day details, medical notes, and approval chain comments.

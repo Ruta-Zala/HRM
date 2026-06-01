@@ -34,8 +34,7 @@ export default function EmployeeProfilePage() {
 
       const headers = (result.headers as string[]) ?? [];
       setForm(sheetRowToForm(headers, (result.row as string[]) ?? []));
-      const resolvedSheetRow =
-        typeof result.sheetRow === "number" ? result.sheetRow : null;
+      const resolvedSheetRow = typeof result.sheetRow === "number" ? result.sheetRow : null;
       setSheetRow(resolvedSheetRow);
       setHasPassword(Boolean(result.hasPassword));
     } catch (error) {
@@ -48,16 +47,43 @@ export default function EmployeeProfilePage() {
 
   useEffect(() => {
     if (authLoading || !user) return;
-    void loadProfile();
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch("/api/employee/me");
+        const result = await response.json();
+        if (cancelled) return;
+
+        if (!result.success) {
+          setError(result.message ?? "Failed to load your profile.");
+          return;
+        }
+
+        const headers = (result.headers as string[]) ?? [];
+        setForm(sheetRowToForm(headers, (result.row as string[]) ?? []));
+        const resolvedSheetRow = typeof result.sheetRow === "number" ? result.sheetRow : null;
+        setSheetRow(resolvedSheetRow);
+        setHasPassword(Boolean(result.hasPassword));
+      } catch (error) {
+        if (cancelled || isAccountInactiveRedirectError(error)) return;
+        setError("Failed to load your profile. Please try again.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [authLoading, user]);
 
   if (authLoading || loading) {
     return (
       <div className="space-y-8">
-        <PageHeader
-          title="Employee profile"
-          description="Your basic employment details."
-        />
+        <PageHeader title="Employee profile" description="Your basic employment details." />
         <FormSkeleton label="Loading profile…" fields={8} />
       </div>
     );
@@ -70,10 +96,7 @@ export default function EmployeeProfilePage() {
   if (error || !form) {
     return (
       <div className="space-y-8">
-        <PageHeader
-          title="Employee profile"
-          description="Your basic employment details."
-        />
+        <PageHeader title="Employee profile" description="Your basic employment details." />
         <AccessDenied
           title="Profile unavailable"
           description={
@@ -112,6 +135,7 @@ export default function EmployeeProfilePage() {
           showAccountSettings
           hasPassword={hasPassword}
           onEdit={sheetRow ? () => setIsEditing(true) : undefined}
+          onPasswordUpdated={() => void loadProfile()}
         />
       )}
     </div>

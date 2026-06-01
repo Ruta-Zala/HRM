@@ -14,9 +14,7 @@ export function filterSheetBySearch(
   const keys = headers.map(headerToKey);
 
   const searchColIndexes = keys
-    .map((key, index) =>
-      (EMPLOYEE_SEARCH_KEYS as readonly string[]).includes(key) ? index : -1,
-    )
+    .map((key, index) => ((EMPLOYEE_SEARCH_KEYS as readonly string[]).includes(key) ? index : -1))
     .filter((index) => index >= 0);
 
   if (!searchColIndexes.length) return data;

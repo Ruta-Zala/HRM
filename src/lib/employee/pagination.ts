@@ -17,8 +17,7 @@ export function paginateSheetData(
   const [headerRow, ...bodyRows] = data;
   const total = bodyRows.length;
   const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
-  const safePage =
-    totalPages === 0 ? 1 : Math.min(Math.max(1, page), totalPages);
+  const safePage = totalPages === 0 ? 1 : Math.min(Math.max(1, page), totalPages);
   const start = (safePage - 1) * pageSize;
   const pageRows = bodyRows.slice(start, start + pageSize);
 

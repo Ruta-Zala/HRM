@@ -19,8 +19,7 @@ export async function POST(req: Request) {
     if (result.reason === "account_inactive") {
       return NextResponse.json(
         {
-          error:
-            "Your account is inactive. You cannot sign in. Contact HR or your administrator.",
+          error: "Your account is inactive. You cannot sign in. Contact HR or your administrator.",
           code: "ACCOUNT_INACTIVE",
         },
         { status: 403 },

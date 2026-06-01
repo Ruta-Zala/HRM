@@ -25,7 +25,7 @@ export default function NotificationRulesPage() {
               <Label>Lead time (days)</Label>
               <Input type="number" defaultValue={2} min={0} />
             </div>
-            <p className="text-xs text-ex-muted">
+            <p className="text-ex-muted text-xs">
               Sends in-app + email. Optional Slack DM via bot token.
             </p>
             <Button variant="outline" size="sm">
@@ -43,7 +43,7 @@ export default function NotificationRulesPage() {
               <Label>Lead time (months)</Label>
               <Input type="number" defaultValue={1} min={0} step={0.5} />
             </div>
-            <p className="text-xs text-ex-muted">
+            <p className="text-ex-muted text-xs">
               Surfaces to HR calendar and notifies employee manager thread in Slack.
             </p>
             <Button variant="outline" size="sm">
@@ -56,7 +56,7 @@ export default function NotificationRulesPage() {
             <CardTitle>Birthday notifications</CardTitle>
             <Badge variant="success">On</Badge>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm text-ex-muted">
+          <CardContent className="text-ex-muted space-y-2 text-sm">
             Daily cron posts celebratory card to <code>#social</code> with privacy opt-out per
             employee.
           </CardContent>
@@ -66,7 +66,7 @@ export default function NotificationRulesPage() {
             <CardTitle>Leave approve / reject</CardTitle>
             <Badge variant="success">On</Badge>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm text-ex-muted">
+          <CardContent className="text-ex-muted space-y-2 text-sm">
             Dual write: transactional email + mirrored in-app notification with deep link back to
             Leave desk.
           </CardContent>

@@ -26,10 +26,7 @@ export function inactiveAccountResponse() {
 }
 
 export function unauthorizedResponse() {
-  return NextResponse.json(
-    { success: false, message: "Not authenticated." },
-    { status: 401 },
-  );
+  return NextResponse.json({ success: false, message: "Not authenticated." }, { status: 401 });
 }
 
 /** Require a signed-in, Active employee before handling an API route. */
@@ -48,10 +45,7 @@ export async function requireActiveSession(): Promise<
   return { ok: true, user };
 }
 
-type ActiveSessionHandler<
-  TRequest extends Request = NextRequest,
-  TContext = ApiRouteContext,
-> = (
+type ActiveSessionHandler<TRequest extends Request = NextRequest, TContext = ApiRouteContext> = (
   request: TRequest,
   user: SessionUser,
   context: TContext,
@@ -67,10 +61,7 @@ export function withActiveSession<
   TRequest extends Request = NextRequest,
   TContext = ApiRouteContext,
 >(handler: ActiveSessionHandler<TRequest, TContext>) {
-  return async (
-    request: TRequest,
-    context: TContext,
-  ): Promise<Response> => {
+  return async (request: TRequest, context: TContext): Promise<Response> => {
     const auth = await requireActiveSession();
     if (!auth.ok) return auth.response;
     return handler(request, auth.user, context);

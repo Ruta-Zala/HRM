@@ -42,14 +42,29 @@ export default function OvertimePage() {
   }
 
   useEffect(() => {
-    void load();
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await fetchOvertimeRequests();
+        if (!cancelled) setRows(data);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load overtime requests");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function decide(row: OvertimeRequestDto, status: "Approved" | "Rejected") {
     const remarks =
       status === "Rejected"
-        ? window.prompt("Rejection remarks (required):") ?? ""
-        : window.prompt("Approval remarks (optional):") ?? "";
+        ? (window.prompt("Rejection remarks (required):") ?? "")
+        : (window.prompt("Approval remarks (optional):") ?? "");
     setActingId(row.id);
     setError(null);
     try {
@@ -62,10 +77,7 @@ export default function OvertimePage() {
     }
   }
 
-  const pendingCount = useMemo(
-    () => rows.filter((r) => r.status === "Pending").length,
-    [rows],
-  );
+  const pendingCount = useMemo(() => rows.filter((r) => r.status === "Pending").length, [rows]);
 
   return (
     <div className="space-y-8">
@@ -73,9 +85,7 @@ export default function OvertimePage() {
         title="Overtime approvals"
         description="Employees submit overtime for approval. HR can review requests, while super admin can approve or reject."
         actions={
-          <Badge variant={pendingCount > 0 ? "warning" : "default"}>
-            {pendingCount} pending
-          </Badge>
+          <Badge variant={pendingCount > 0 ? "warning" : "default"}>{pendingCount} pending</Badge>
         }
       />
       {error ? (
@@ -97,8 +107,8 @@ export default function OvertimePage() {
                 header: "Employee",
                 render: (r) => (
                   <div>
-                    <p className="font-medium text-ex-primary">{r.employeeName}</p>
-                    <p className="text-xs text-ex-muted">{r.employeeId}</p>
+                    <p className="text-ex-primary font-medium">{r.employeeName}</p>
+                    <p className="text-ex-muted text-xs">{r.employeeId}</p>
                   </div>
                 ),
               },
@@ -109,7 +119,7 @@ export default function OvertimePage() {
                 header: "Employee note",
                 render: (r) =>
                   r.comment?.trim() ? (
-                    <span className="line-clamp-2 text-sm text-ex-muted" title={r.comment}>
+                    <span className="text-ex-muted line-clamp-2 text-sm" title={r.comment}>
                       {r.comment}
                     </span>
                   ) : (
@@ -119,14 +129,13 @@ export default function OvertimePage() {
               {
                 key: "status",
                 header: "State",
-                render: (r) => (
-                  <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
-                ),
+                render: (r) => <Badge variant={statusVariant(r.status)}>{r.status}</Badge>,
               },
               {
                 key: "remarks",
                 header: "Review remarks",
-                render: (r) => (r.remarks?.trim() ? r.remarks : <span className="text-ex-muted">—</span>),
+                render: (r) =>
+                  r.remarks?.trim() ? r.remarks : <span className="text-ex-muted">—</span>,
               },
               {
                 key: "actions",

@@ -14,13 +14,13 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "rounded-xl border border-ex-border bg-ex-elevated p-4 shadow-sm transition hover:border-ex-secondary/20 dark:shadow-none",
+        "border-ex-border bg-ex-elevated hover:border-ex-secondary/20 rounded-xl border p-4 shadow-sm transition dark:shadow-none",
         className,
       )}
     >
-      <p className="text-xs font-medium uppercase tracking-wide text-ex-muted">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tabular-nums text-ex-primary">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-ex-muted">{hint}</p> : null}
+      <p className="text-ex-muted text-xs font-medium tracking-wide uppercase">{label}</p>
+      <p className="text-ex-primary mt-2 text-2xl font-semibold tabular-nums">{value}</p>
+      {hint ? <p className="text-ex-muted mt-1 text-xs">{hint}</p> : null}
     </div>
   );
 }

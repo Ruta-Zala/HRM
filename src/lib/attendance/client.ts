@@ -173,10 +173,7 @@ export async function updateDailyUpdate(
   };
 }
 
-function attendanceSearchParams(
-  base: Record<string, string>,
-  employeeSheetRow?: number,
-): string {
+function attendanceSearchParams(base: Record<string, string>, employeeSheetRow?: number): string {
   const params = new URLSearchParams(base);
   if (employeeSheetRow != null) {
     params.set("employeeSheetRow", String(employeeSheetRow));
@@ -263,7 +260,7 @@ export async function importAttendanceCsv(
     throw new Error(
       data.errors?.length
         ? `${data.message}: ${data.errors.join("; ")}`
-        : data.message ?? "Import failed",
+        : (data.message ?? "Import failed"),
     );
   }
   return {

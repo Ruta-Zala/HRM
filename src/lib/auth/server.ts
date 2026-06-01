@@ -21,4 +21,3 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!(await isSessionUserActive(user))) return null;
   return user;
 }
-

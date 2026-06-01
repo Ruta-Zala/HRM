@@ -13,14 +13,14 @@ export default function AccountInactivePage() {
   const { logout, loading } = useAuth();
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-ex-bg px-4 py-12">
+    <div className="bg-ex-bg relative flex min-h-screen flex-col items-center justify-center px-4 py-12">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-ex-secondary/8 via-transparent to-transparent"
+        className="from-ex-secondary/8 pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] via-transparent to-transparent"
       />
-      <Card className="relative z-10 w-full max-w-lg border-ex-border shadow-lg dark:shadow-none">
+      <Card className="border-ex-border relative z-10 w-full max-w-lg shadow-lg dark:shadow-none">
         <CardContent className="pt-8">
-          <div className="mx-auto mb-6 relative size-14 overflow-hidden rounded-2xl bg-white ring-1 ring-ex-border dark:bg-ex-surface">
+          <div className="ring-ex-border dark:bg-ex-surface relative mx-auto mb-6 size-14 overflow-hidden rounded-2xl bg-white ring-1">
             <Image
               src="https://exhibytesolution.com/wp-content/uploads/2023/06/cropped-Exhibyte_Logo_Black_Logo-removebg-preview-1.png"
               alt="Exhibyte Solutions"
@@ -42,11 +42,7 @@ export default function AccountInactivePage() {
                 >
                   Back to sign in
                 </Button>
-                <Button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => void logout()}
-                >
+                <Button type="button" disabled={loading} onClick={() => void logout()}>
                   Sign out
                 </Button>
               </div>

@@ -1,0 +1,7 @@
+{
+  "node_version": "22",
+  "graphs": {
+    "support_agent": "./src/langgraph/agents/agent.ts:agent"
+  },
+  "env": ".env.local"
+}

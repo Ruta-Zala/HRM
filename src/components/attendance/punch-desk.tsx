@@ -21,10 +21,7 @@ import {
   IDEAL_WORKING_HOURS,
   WORK_MODE,
 } from "@/lib/attendance/constants";
-import {
-  formatBreakAllowance,
-  parseDurationToMs,
-} from "@/lib/attendance/time";
+import { formatBreakAllowance, parseDurationToMs } from "@/lib/attendance/time";
 import type { TodayAttendance } from "@/lib/attendance/client";
 import { cn } from "@/lib/utils";
 
@@ -71,24 +68,21 @@ const phaseConfig: Record<
   working: {
     title: "You’re on the clock",
     subtitle: "Stay focused — your live timer is running below.",
-    gradient:
-      "from-teal-500/20 via-cyan-500/10 to-transparent dark:from-teal-400/25",
+    gradient: "from-teal-500/20 via-cyan-500/10 to-transparent dark:from-teal-400/25",
     icon: Sparkles,
     iconClass: "text-ex-secondary",
   },
   break: {
     title: "Enjoy your break",
     subtitle: "Timer is paused. Hit “Back to work” when you’re ready.",
-    gradient:
-      "from-amber-500/15 via-orange-500/10 to-transparent dark:from-amber-400/20",
+    gradient: "from-amber-500/15 via-orange-500/10 to-transparent dark:from-amber-400/20",
     icon: Coffee,
     iconClass: "text-amber-600 dark:text-amber-400",
   },
   done: {
     title: "Day complete",
     subtitle: "Great work today — see you tomorrow!",
-    gradient:
-      "from-emerald-500/15 via-teal-500/10 to-transparent dark:from-emerald-400/20",
+    gradient: "from-emerald-500/15 via-teal-500/10 to-transparent dark:from-emerald-400/20",
     icon: PartyPopper,
     iconClass: "text-emerald-600 dark:text-emerald-400",
   },
@@ -108,8 +102,7 @@ const doneOutcomeConfig: Record<
   short: {
     title: "Left early today",
     subtitle: "You punched out before completing your 8-hour work target.",
-    gradient:
-      "from-amber-500/15 via-orange-500/10 to-transparent dark:from-amber-400/20",
+    gradient: "from-amber-500/15 via-orange-500/10 to-transparent dark:from-amber-400/20",
     icon: LogOut,
     iconClass: "text-amber-600 dark:text-amber-400",
     totalBorder: "border-amber-300/60 dark:border-amber-700/50",
@@ -117,8 +110,7 @@ const doneOutcomeConfig: Record<
   overtime: {
     title: "Day complete — overtime",
     subtitle: "You went beyond your 8-hour work target today. Nice effort!",
-    gradient:
-      "from-emerald-500/15 via-teal-500/10 to-transparent dark:from-emerald-400/20",
+    gradient: "from-emerald-500/15 via-teal-500/10 to-transparent dark:from-emerald-400/20",
     icon: TrendingUp,
     iconClass: "text-emerald-600 dark:text-emerald-400",
     totalBorder: "border-emerald-300/50 dark:border-emerald-700/40",
@@ -126,8 +118,7 @@ const doneOutcomeConfig: Record<
   complete: {
     title: "Day complete",
     subtitle: "Great work today — see you tomorrow!",
-    gradient:
-      "from-emerald-500/15 via-teal-500/10 to-transparent dark:from-emerald-400/20",
+    gradient: "from-emerald-500/15 via-teal-500/10 to-transparent dark:from-emerald-400/20",
     icon: PartyPopper,
     iconClass: "text-emerald-600 dark:text-emerald-400",
     totalBorder: "border-ex-border",
@@ -170,19 +161,17 @@ function StatPill({
       className={cn(
         "rounded-xl border px-3 py-2.5 text-center transition",
         tone === "warning" &&
-        "border-amber-300/60 bg-amber-50/80 dark:border-amber-700/50 dark:bg-amber-950/40",
+          "border-amber-300/60 bg-amber-50/80 dark:border-amber-700/50 dark:bg-amber-950/40",
         tone === "success" &&
-        "border-emerald-300/50 bg-emerald-50/70 dark:border-emerald-700/40 dark:bg-emerald-950/35",
+          "border-emerald-300/50 bg-emerald-50/70 dark:border-emerald-700/40 dark:bg-emerald-950/35",
         tone !== "warning" &&
-        tone !== "success" &&
-        (highlight
-          ? "border-ex-secondary/30 bg-ex-secondary/10"
-          : "border-ex-border bg-ex-elevated/80"),
+          tone !== "success" &&
+          (highlight
+            ? "border-ex-secondary/30 bg-ex-secondary/10"
+            : "border-ex-border bg-ex-elevated/80"),
       )}
     >
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-ex-muted">
-        {label}
-      </p>
+      <p className="text-ex-muted text-[10px] font-semibold tracking-wider uppercase">{label}</p>
       <p
         className={cn(
           "mt-0.5 text-sm font-semibold tabular-nums",
@@ -228,60 +217,53 @@ export function PunchDesk({
   const dayOutcome = getDayOutcome(today);
   const shortfallAmount = parseShortfallAmount(today?.overtime);
   const config =
-    phase === "done" && dayOutcome
-      ? doneOutcomeConfig[dayOutcome]
-      : phaseConfig[phase];
+    phase === "done" && dayOutcome ? doneOutcomeConfig[dayOutcome] : phaseConfig[phase];
   const doneTotalBorder =
     phase === "done" && dayOutcome ? doneOutcomeConfig[dayOutcome].totalBorder : undefined;
   const PhaseIcon = config.icon;
   const firstName = userName?.split(" ")[0] ?? "there";
 
-  const fourthStat =
-    !hasPunchedOut
-      ? { label: "Overtime", value: "—", tone: "default" as const }
-      : dayOutcome === "short" && shortfallAmount
-        ? {
+  const fourthStat = !hasPunchedOut
+    ? { label: "Overtime", value: "—", tone: "default" as const }
+    : dayOutcome === "short" && shortfallAmount
+      ? {
           label: "Early out",
           value: shortfallAmount,
           tone: "warning" as const,
         }
-        : dayOutcome === "overtime" && today?.overtime && today.overtime !== "—"
-          ? { label: "Overtime", value: today.overtime, tone: "success" as const }
-          : { label: "Overtime", value: "—", tone: "default" as const };
+      : dayOutcome === "overtime" && today?.overtime && today.overtime !== "—"
+        ? { label: "Overtime", value: today.overtime, tone: "success" as const }
+        : { label: "Overtime", value: "—", tone: "default" as const };
 
-  const breakUsedMs =
-    parseDurationToMs(today?.totalBreakTime ?? "");
+  const breakUsedMs = parseDurationToMs(today?.totalBreakTime ?? "");
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-ex-border bg-ex-elevated shadow-sm dark:shadow-none">
+    <div className="border-ex-border bg-ex-elevated overflow-hidden rounded-2xl border shadow-sm dark:shadow-none">
       <div
-        className={cn(
-          "relative bg-gradient-to-br px-6 pb-8 pt-6 sm:px-8 sm:pt-8",
-          config.gradient,
-        )}
+        className={cn("relative bg-gradient-to-br px-6 pt-6 pb-8 sm:px-8 sm:pt-8", config.gradient)}
       >
-        <div className="pointer-events-none absolute -right-8 -top-8 size-40 rounded-full bg-ex-secondary/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-12 -left-8 size-32 rounded-full bg-ex-accent/10 blur-2xl" />
+        <div className="bg-ex-secondary/10 pointer-events-none absolute -top-8 -right-8 size-40 rounded-full blur-3xl" />
+        <div className="bg-ex-accent/10 pointer-events-none absolute -bottom-12 -left-8 size-32 rounded-full blur-2xl" />
 
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
-            <p className="text-sm font-medium text-ex-muted">
+            <p className="text-ex-muted text-sm font-medium">
               {getGreeting()}, <span className="text-ex-primary">{firstName}</span>
             </p>
             <div className="flex items-start gap-3">
               <div
                 className={cn(
-                  "flex size-12 shrink-0 items-center justify-center rounded-2xl bg-ex-elevated shadow-sm ring-1 ring-ex-border",
+                  "bg-ex-elevated ring-ex-border flex size-12 shrink-0 items-center justify-center rounded-2xl shadow-sm ring-1",
                   phase === "working" && "animate-pulse",
                 )}
               >
                 <PhaseIcon className={cn("size-6", config.iconClass)} aria-hidden />
               </div>
               <div>
-                <h2 className="text-xl font-bold tracking-tight text-ex-primary sm:text-2xl">
+                <h2 className="text-ex-primary text-xl font-bold tracking-tight sm:text-2xl">
                   {config.title}
                 </h2>
-                <p className="mt-1 max-w-md text-sm leading-relaxed text-ex-muted">
+                <p className="text-ex-muted mt-1 max-w-md text-sm leading-relaxed">
                   {config.subtitle}
                 </p>
               </div>
@@ -302,7 +284,7 @@ export function PunchDesk({
 
           {loading ? (
             <div className="flex h-40 items-center justify-center lg:w-48">
-              <Loader2 className="size-8 animate-spin text-ex-muted" />
+              <Loader2 className="text-ex-muted size-8 animate-spin" />
             </div>
           ) : phase === "working" || phase === "break" ? (
             <WorkTimer
@@ -313,14 +295,14 @@ export function PunchDesk({
           ) : phase === "done" ? (
             <div
               className={cn(
-                "flex flex-col items-center rounded-2xl border bg-ex-elevated/90 px-6 py-5 text-center shadow-sm backdrop-blur-sm",
+                "bg-ex-elevated/90 flex flex-col items-center rounded-2xl border px-6 py-5 text-center shadow-sm backdrop-blur-sm",
                 doneTotalBorder ?? "border-ex-border",
               )}
             >
-              <p className="text-xs font-semibold uppercase tracking-wider text-ex-muted">
+              <p className="text-ex-muted text-xs font-semibold tracking-wider uppercase">
                 Today&apos;s total
               </p>
-              <p className="mt-1 font-mono text-3xl font-bold tabular-nums text-ex-primary">
+              <p className="text-ex-primary mt-1 font-mono text-3xl font-bold tabular-nums">
                 {today?.workingHours ?? "—"}
               </p>
               {dayOutcome === "short" && shortfallAmount ? (
@@ -337,9 +319,9 @@ export function PunchDesk({
           ) : (
             <div className="hidden items-center justify-center lg:flex lg:w-40">
               <div className="relative">
-                <div className="absolute inset-0 animate-ping rounded-full bg-ex-secondary/20" />
-                <div className="relative flex size-24 items-center justify-center rounded-full border-2 border-dashed border-ex-secondary/40 bg-ex-elevated/80">
-                  <Timer className="size-10 text-ex-secondary/60" aria-hidden />
+                <div className="bg-ex-secondary/20 absolute inset-0 animate-ping rounded-full" />
+                <div className="border-ex-secondary/40 bg-ex-elevated/80 relative flex size-24 items-center justify-center rounded-full border-2 border-dashed">
+                  <Timer className="text-ex-secondary/60 size-10" aria-hidden />
                 </div>
               </div>
             </div>
@@ -347,7 +329,7 @@ export function PunchDesk({
         </div>
       </div>
 
-      <div className="space-y-4 border-t border-ex-border bg-ex-elevated p-4 sm:p-6">
+      <div className="border-ex-border bg-ex-elevated space-y-4 border-t p-4 sm:p-6">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <StatPill
             label="Punch in"
@@ -366,11 +348,7 @@ export function PunchDesk({
                 : `0h / ${today?.idealBreakHours ?? IDEAL_BREAK_HOURS}h`
             }
           />
-          <StatPill
-            label={fourthStat.label}
-            value={fourthStat.value}
-            tone={fourthStat.tone}
-          />
+          <StatPill label={fourthStat.label} value={fourthStat.value} tone={fourthStat.tone} />
         </div>
 
         {dayOutcome === "short" && shortfallAmount ? (
@@ -386,9 +364,8 @@ export function PunchDesk({
                 Punched out early
               </p>
               <p className="text-sm leading-relaxed text-amber-900/85 dark:text-amber-100/85">
-                You left{" "}
-                <span className="font-semibold tabular-nums">{shortfallAmount}</span> before your{" "}
-                {IDEAL_WORKING_HOURS}h work goal
+                You left <span className="font-semibold tabular-nums">{shortfallAmount}</span>{" "}
+                before your {IDEAL_WORKING_HOURS}h work goal
                 {today?.punchOut ? (
                   <>
                     {" "}
@@ -411,15 +388,11 @@ export function PunchDesk({
           {phase === "idle" ? (
             <Button
               size="lg"
-              className="min-h-12 min-w-[200px] flex-1 gap-2 text-base font-semibold shadow-md shadow-ex-secondary/20 sm:flex-none"
+              className="shadow-ex-secondary/20 min-h-12 min-w-[200px] flex-1 gap-2 text-base font-semibold shadow-md sm:flex-none"
               disabled={acting || loading}
               onClick={onPunchIn}
             >
-              {acting ? (
-                <Loader2 className="size-5 animate-spin" />
-              ) : (
-                <LogIn className="size-5" />
-              )}
+              {acting ? <Loader2 className="size-5 animate-spin" /> : <LogIn className="size-5" />}
               {acting ? "Starting your day…" : "Punch in — start my day"}
             </Button>
           ) : null}
@@ -476,11 +449,14 @@ export function PunchDesk({
           {phase === "done" ? (
             dayOutcome === "short" ? (
               <p className="flex flex-1 items-center gap-2 text-sm text-amber-900/80 dark:text-amber-100/80">
-                <LogOut className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+                <LogOut
+                  className="size-4 shrink-0 text-amber-600 dark:text-amber-400"
+                  aria-hidden
+                />
                 If your punch times are wrong, request a correction below.
               </p>
             ) : (
-              <p className="flex flex-1 items-center gap-2 text-sm text-ex-muted">
+              <p className="text-ex-muted flex flex-1 items-center gap-2 text-sm">
                 <PartyPopper className="size-4 shrink-0 text-emerald-600" aria-hidden />
                 You&apos;re all set for today. Rest well!
               </p>
@@ -500,10 +476,16 @@ export function PunchDesk({
         </div>
 
         {hasPunchedIn && !hasPunchedOut ? (
-          <p className="text-center text-xs text-ex-muted sm:text-left">
-            Your day: <strong className="text-ex-primary">{today?.idealHours ?? IDEAL_WORKING_HOURS}h work</strong>
-            {" "}+ <strong className="text-ex-primary">{today?.idealBreakHours ?? IDEAL_BREAK_HOURS}h break</strong>
-            {" "}= {today?.idealShiftHours ?? IDEAL_SHIFT_HOURS}h target.
+          <p className="text-ex-muted text-center text-xs sm:text-left">
+            Your day:{" "}
+            <strong className="text-ex-primary">
+              {today?.idealHours ?? IDEAL_WORKING_HOURS}h work
+            </strong>{" "}
+            +{" "}
+            <strong className="text-ex-primary">
+              {today?.idealBreakHours ?? IDEAL_BREAK_HOURS}h break
+            </strong>{" "}
+            = {today?.idealShiftHours ?? IDEAL_SHIFT_HOURS}h target.
           </p>
         ) : null}
       </div>

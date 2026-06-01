@@ -67,7 +67,7 @@ export function MultiSelect({
         aria-controls={listboxId}
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
-          "flex min-h-10 w-full items-center justify-between gap-2 rounded-lg border border-ex-border bg-ex-bg px-3 py-2 text-left text-sm shadow-inner focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ex-ring dark:bg-ex-surface",
+          "border-ex-border bg-ex-bg focus-visible:ring-ex-ring dark:bg-ex-surface flex min-h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm shadow-inner focus-visible:ring-2 focus-visible:outline-none",
           disabled && "cursor-not-allowed opacity-60",
         )}
       >
@@ -76,7 +76,7 @@ export function MultiSelect({
             value.map((item) => (
               <span
                 key={item}
-                className="inline-flex max-w-full items-center gap-1 rounded-md border border-ex-border bg-ex-surface px-2 py-0.5 text-xs text-ex-primary dark:bg-ex-bg"
+                className="border-ex-border bg-ex-surface text-ex-primary dark:bg-ex-bg inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-0.5 text-xs"
               >
                 <span className="truncate">{item}</span>
                 {!disabled ? (
@@ -84,7 +84,7 @@ export function MultiSelect({
                     role="button"
                     tabIndex={0}
                     aria-label={`Remove ${item}`}
-                    className="rounded-sm text-ex-muted hover:text-ex-primary"
+                    className="text-ex-muted hover:text-ex-primary rounded-sm"
                     onClick={(event) => {
                       event.stopPropagation();
                       removeOption(item);
@@ -107,7 +107,7 @@ export function MultiSelect({
           )}
         </span>
         <ChevronDownIcon
-          className={cn("size-4 shrink-0 text-ex-muted transition-transform", open && "rotate-180")}
+          className={cn("text-ex-muted size-4 shrink-0 transition-transform", open && "rotate-180")}
         />
       </button>
 
@@ -116,7 +116,7 @@ export function MultiSelect({
           id={listboxId}
           role="listbox"
           aria-multiselectable="true"
-          className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-ex-border bg-ex-bg p-1 shadow-lg dark:bg-ex-surface"
+          className="border-ex-border bg-ex-bg dark:bg-ex-surface absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border p-1 shadow-lg"
         >
           {options.length > 0 ? (
             options.map((option) => {
@@ -128,13 +128,13 @@ export function MultiSelect({
                     type="button"
                     onClick={() => toggleOption(option)}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-ex-surface dark:hover:bg-ex-bg",
+                      "hover:bg-ex-surface dark:hover:bg-ex-bg flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm",
                       selected && "bg-ex-surface dark:bg-ex-bg",
                     )}
                   >
                     <span
                       className={cn(
-                        "flex size-4 shrink-0 items-center justify-center rounded border border-ex-border",
+                        "border-ex-border flex size-4 shrink-0 items-center justify-center rounded border",
                         selected && "border-ex-accent bg-ex-accent text-white",
                       )}
                     >
@@ -146,7 +146,7 @@ export function MultiSelect({
               );
             })
           ) : (
-            <li className="px-3 py-2 text-sm text-ex-muted">{emptyMessage}</li>
+            <li className="text-ex-muted px-3 py-2 text-sm">{emptyMessage}</li>
           )}
         </ul>
       ) : null}

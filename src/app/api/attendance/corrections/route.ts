@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { CORRECTION_FIELDS, CORRECTION_STATUS } from "@/lib/attendance/constants";
 import {
@@ -17,9 +17,7 @@ export const GET = withActiveSession(async (_req, user) => {
     const isHr = canManageEmployees(user.role);
     const employee = await resolveAttendanceEmployee(user);
 
-    const requests = await listCorrectionRequests(
-      isHr ? {} : { employeeId: employee?.employeeId },
-    );
+    const requests = await listCorrectionRequests(isHr ? {} : { employeeId: employee?.employeeId });
 
     return NextResponse.json({ success: true, requests });
   } catch (error: unknown) {
@@ -57,10 +55,7 @@ export const POST = withActiveSession(async (req, user) => {
       );
     }
     if (!reason) {
-      return NextResponse.json(
-        { success: false, message: "Reason is required" },
-        { status: 400 },
-      );
+      return NextResponse.json({ success: false, message: "Reason is required" }, { status: 400 });
     }
 
     const today = await getTodayAttendance(employee.attendanceSpreadsheetId);
@@ -74,12 +69,12 @@ export const POST = withActiveSession(async (req, user) => {
 
     const originalValue =
       field === "punchIn"
-        ? today?.punchIn ?? ""
+        ? (today?.punchIn ?? "")
         : field === "punchOut"
-          ? today?.punchOut ?? ""
+          ? (today?.punchOut ?? "")
           : field === "breakStart"
-            ? today?.breakStart ?? ""
-            : today?.breakEnd ?? "";
+            ? (today?.breakStart ?? "")
+            : (today?.breakEnd ?? "");
 
     const request = await createCorrectionRequest({
       employee,

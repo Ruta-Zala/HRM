@@ -10,10 +10,7 @@ export async function hashPassword(plain: string): Promise<string> {
   return bcrypt.hash(plain, BCRYPT_ROUNDS);
 }
 
-export async function verifyPassword(
-  plain: string,
-  stored: string,
-): Promise<boolean> {
+export async function verifyPassword(plain: string, stored: string): Promise<boolean> {
   const trimmed = stored.trim();
   if (!trimmed) return false;
   if (isBcryptHash(trimmed)) {

@@ -9,11 +9,7 @@ import {
 } from "@/lib/account-inactive-client";
 
 /** Globally redirect to /account-inactive when any API returns ACCOUNT_INACTIVE. */
-export function InactiveAccountFetchGuard({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function InactiveAccountFetchGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {

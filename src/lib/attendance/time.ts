@@ -35,9 +35,7 @@ export function parseMonthlySheetTitle(title: string): { month: number; year: nu
   const match = title.trim().match(/^([A-Za-z]{3})-(\d{4})$/);
   if (!match) return null;
 
-  const monthIndex = MONTH_NAMES.findIndex(
-    (m) => m.toLowerCase() === match[1].toLowerCase(),
-  );
+  const monthIndex = MONTH_NAMES.findIndex((m) => m.toLowerCase() === match[1].toLowerCase());
   if (monthIndex < 0) return null;
 
   const year = parseInt(match[2], 10);
@@ -155,13 +153,10 @@ export function parseSheetClockTime(
   const hours = parseInt(match[1], 10);
   const minutes = parseInt(match[2], 10);
 
-  const punchInMs = options?.punchIn
-    ? parseTimeOnDate(options.punchIn, baseDate)
-    : null;
+  const punchInMs = options?.punchIn ? parseTimeOnDate(options.punchIn, baseDate) : null;
 
   const treatAsPm =
-    options?.role === "out" ||
-    (punchInMs != null && ms <= punchInMs && hours >= 1 && hours <= 11);
+    options?.role === "out" || (punchInMs != null && ms <= punchInMs && hours >= 1 && hours <= 11);
 
   if (treatAsPm && hours < 12) {
     const result = new Date(baseDate);
@@ -275,16 +270,11 @@ export function computeAttendanceMetrics(params: {
   punchedOut?: boolean;
   workMode?: string;
 }): AttendanceMetrics {
-  const totalBreakMs = resolveAttendanceBreakMs(
-    params.totalBreakTime,
-    params.workMode,
-  );
+  const totalBreakMs = resolveAttendanceBreakMs(params.totalBreakTime, params.workMode);
   const hasOut = Boolean(params.punchOut.trim());
   const punchedOut = params.punchedOut ?? hasOut;
   const requiredMs =
-    params.workMode === WORK_MODE.HALF_DAY_LEAVE
-      ? 4 * 60 * 60 * 1000
-      : idealWorkingMs();
+    params.workMode === WORK_MODE.HALF_DAY_LEAVE ? 4 * 60 * 60 * 1000 : idealWorkingMs();
 
   if (!params.punchIn.trim() || !hasOut) {
     return {
@@ -307,8 +297,7 @@ export function computeAttendanceMetrics(params: {
   const status = workingStatusFromHours(workingMs, punchedOut, requiredMs);
   const overtimeMs = computeOvertimeMs(workingMs, requiredMs);
   const shortfallMs = Math.max(0, requiredMs - workingMs);
-  const consideredOvertimeMs =
-    overtimeMs >= OVERTIME_REVIEW_THRESHOLD_MS ? overtimeMs : 0;
+  const consideredOvertimeMs = overtimeMs >= OVERTIME_REVIEW_THRESHOLD_MS ? overtimeMs : 0;
 
   let overtime = "—";
   if (punchedOut) {
@@ -333,10 +322,7 @@ export function idealBreakMs(): number {
   return IDEAL_BREAK_HOURS * 60 * 60 * 1000;
 }
 
-export function resolveAttendanceBreakMs(
-  totalBreakTime: string,
-  workMode?: string,
-): number {
+export function resolveAttendanceBreakMs(totalBreakTime: string, workMode?: string): number {
   if (workMode === WORK_MODE.HALF_DAY_LEAVE) return 0;
   const parsed = parseDurationToMs(totalBreakTime);
   return parsed > 0 ? parsed : idealBreakMs();
@@ -350,10 +336,7 @@ export function resolveLiveBreakMs(
 ): number {
   if (workMode === WORK_MODE.HALF_DAY_LEAVE) return 0;
   const trimmed = totalBreakTime.trim();
-  if (
-    options?.inProgress &&
-    trimmed.toLowerCase() === IMPORT_DEFAULT_BREAK.toLowerCase()
-  ) {
+  if (options?.inProgress && trimmed.toLowerCase() === IMPORT_DEFAULT_BREAK.toLowerCase()) {
     return 0;
   }
   return parseDurationToMs(trimmed);
@@ -414,7 +397,10 @@ export function formatBreakAllowance(usedMs: number): string {
   return `${formatDuration(usedMs)} / ${allowed}h`;
 }
 
-export function computeOvertimeMs(workingMs: number, requiredMs: number = idealWorkingMs()): number {
+export function computeOvertimeMs(
+  workingMs: number,
+  requiredMs: number = idealWorkingMs(),
+): number {
   return Math.max(0, workingMs - requiredMs);
 }
 
@@ -437,7 +423,9 @@ export function workingStatusFromHours(
   if (workingMs < requiredMs) return WORKING_STATUS.SHORT;
   if (workingMs > requiredMs) {
     const overtimeMs = computeOvertimeMs(workingMs, requiredMs);
-    return overtimeMs >= OVERTIME_REVIEW_THRESHOLD_MS ? WORKING_STATUS.OVERTIME : WORKING_STATUS.COMPLETED;
+    return overtimeMs >= OVERTIME_REVIEW_THRESHOLD_MS
+      ? WORKING_STATUS.OVERTIME
+      : WORKING_STATUS.COMPLETED;
   }
   return WORKING_STATUS.COMPLETED;
 }
@@ -465,10 +453,10 @@ export function computeLiveWorkedMsFromFields(params: {
 
   const now = params.now ?? new Date();
   const endMs = params.punchOut.trim()
-    ? parseSheetClockTime(params.punchOut, baseDate, {
+    ? (parseSheetClockTime(params.punchOut, baseDate, {
         punchIn: params.punchIn,
         role: "out",
-      }) ?? now.getTime()
+      }) ?? now.getTime())
     : now.getTime();
 
   const skipBreak = params.workMode === WORK_MODE.HALF_DAY_LEAVE;

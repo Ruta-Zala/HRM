@@ -24,9 +24,7 @@ export function sortSheetData(
 
   let colIndex = keys.indexOf(sortKey);
   if (colIndex === -1) {
-    colIndex = headers.findIndex(
-      (h) => h.trim().toLowerCase() === sortBy.trim().toLowerCase(),
-    );
+    colIndex = headers.findIndex((h) => h.trim().toLowerCase() === sortBy.trim().toLowerCase());
   }
   if (colIndex === -1) return data;
 

@@ -1,15 +1,7 @@
 import { cn } from "@/lib/utils";
 
-export function Skeleton({
-  className,
-}: {
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn("animate-pulse rounded-md bg-ex-border/60", className)}
-    />
-  );
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={cn("bg-ex-border/60 animate-pulse rounded-md", className)} />;
 }
 
 const TABLE_SKELETON_COLS = 5;
@@ -18,7 +10,7 @@ const SKELETON_CELL_WIDTHS = ["w-24", "w-32", "w-20", "w-28", "w-24"] as const;
 
 export function TableSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border border-ex-border bg-ex-elevated shadow-sm dark:shadow-none">
+    <div className="border-ex-border bg-ex-elevated overflow-hidden rounded-xl border shadow-sm dark:shadow-none">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="bg-ex-surface">
@@ -30,7 +22,7 @@ export function TableSkeleton() {
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-ex-border">
+          <tbody className="divide-ex-border divide-y">
             {Array.from({ length: TABLE_SKELETON_ROWS }).map((_, rowIndex) => (
               <tr key={rowIndex}>
                 {Array.from({ length: TABLE_SKELETON_COLS }).map((_, colIndex) => (

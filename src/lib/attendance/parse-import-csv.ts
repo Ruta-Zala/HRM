@@ -76,14 +76,9 @@ function normalizeHeaderKey(value: string): string {
   return normalizeHeader(value).replace(/\s+/g, "");
 }
 
-function resolveHeaderIndex(
-  headerCells: string[],
-  candidates: string[],
-): number {
+function resolveHeaderIndex(headerCells: string[], candidates: string[]): number {
   const normalizedCandidates = candidates.map(normalizeHeader);
-  const compactCandidates = normalizedCandidates.map((candidate) =>
-    candidate.replace(/\s+/g, ""),
-  );
+  const compactCandidates = normalizedCandidates.map((candidate) => candidate.replace(/\s+/g, ""));
 
   for (let index = 0; index < headerCells.length; index++) {
     const normalized = normalizeHeader(headerCells[index] ?? "");
@@ -175,7 +170,11 @@ export function parseLegacyAttendanceCsv(content: string): ParseLegacyCsvResult 
   const skipped = 0;
 
   if (lines.length < 2) {
-    return { rows: [], errors: ["CSV must include a header row and at least one data row."], skipped: 0 };
+    return {
+      rows: [],
+      errors: ["CSV must include a header row and at least one data row."],
+      skipped: 0,
+    };
   }
 
   const DATE_ALIASES = ["date", "attendance date", "work date"];
@@ -210,8 +209,7 @@ export function parseLegacyAttendanceCsv(content: string): ParseLegacyCsvResult 
       headerMap.set(normalizeHeaderKey(cell), index);
     });
 
-    const dateIdx =
-      headerMap.get("date") ?? resolveHeaderIndex(headerCells, DATE_ALIASES);
+    const dateIdx = headerMap.get("date") ?? resolveHeaderIndex(headerCells, DATE_ALIASES);
     const inIdx =
       headerMap.get("in time") ??
       headerMap.get("intime") ??

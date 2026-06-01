@@ -27,9 +27,7 @@ export const POST = withActiveSession(async (req, user) => {
     }
 
     const targetSheetRow =
-      employeeSheetRowParam != null
-        ? parseInt(String(employeeSheetRowParam), 10)
-        : user.sheetRow;
+      employeeSheetRowParam != null ? parseInt(String(employeeSheetRowParam), 10) : user.sheetRow;
 
     if (!Number.isFinite(targetSheetRow) || targetSheetRow! < 2) {
       return NextResponse.json(
@@ -71,10 +69,7 @@ export const POST = withActiveSession(async (req, user) => {
         workMode: r.workMode,
       }));
 
-    const result = await importAttendanceRecords(
-      employee.attendanceSpreadsheetId,
-      toImport,
-    );
+    const result = await importAttendanceRecords(employee.attendanceSpreadsheetId, toImport);
 
     return NextResponse.json({
       success: true,

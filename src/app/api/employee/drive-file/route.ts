@@ -13,10 +13,7 @@ export const GET = withActiveSession(async (req) => {
   const fileId = req.nextUrl.searchParams.get("fileId")?.trim();
 
   if (!fileId || !FILE_ID_PATTERN.test(fileId)) {
-    return NextResponse.json(
-      { success: false, message: "Invalid file id" },
-      { status: 400 },
-    );
+    return NextResponse.json({ success: false, message: "Invalid file id" }, { status: 400 });
   }
 
   try {
@@ -53,9 +50,6 @@ export const GET = withActiveSession(async (req) => {
     });
   } catch (error) {
     const err = formatDriveError(error);
-    return NextResponse.json(
-      { success: false, message: err.message },
-      { status: 500 },
-    );
+    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
   }
 });

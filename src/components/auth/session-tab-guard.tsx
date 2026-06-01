@@ -10,9 +10,7 @@ const STALE_MS = 8000;
 
 function readOpenTabs(): Record<string, number> {
   try {
-    return JSON.parse(
-      localStorage.getItem(OPEN_TABS_KEY) ?? "{}",
-    ) as Record<string, number>;
+    return JSON.parse(localStorage.getItem(OPEN_TABS_KEY) ?? "{}") as Record<string, number>;
   } catch {
     return {};
   }
@@ -51,10 +49,6 @@ function unregisterTab(tabId: string) {
   pruneStaleTabs(tabs, Date.now());
   writeOpenTabs(tabs);
   return tabs;
-}
-
-function logoutBeacon() {
-  navigator.sendBeacon("/api/auth/logout");
 }
 
 /** Ends session when the user closed all tabs and opened the app again. */

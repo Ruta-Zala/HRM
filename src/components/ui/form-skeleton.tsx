@@ -34,12 +34,7 @@ export function FormSkeleton({
   className,
 }: FormSkeletonProps) {
   return (
-    <div
-      role="status"
-      aria-busy="true"
-      aria-label={label}
-      className={cn("space-y-4", className)}
-    >
+    <div role="status" aria-busy="true" aria-label={label} className={cn("space-y-4", className)}>
       <span className="sr-only">{label}</span>
 
       <Card>
@@ -49,12 +44,7 @@ export function FormSkeleton({
           </CardHeader>
         ) : null}
         <CardContent>
-          <div
-            className={cn(
-              "grid gap-4",
-              columns === 2 && "sm:grid-cols-2",
-            )}
-          >
+          <div className={cn("grid gap-4", columns === 2 && "sm:grid-cols-2")}>
             {Array.from({ length: fields }).map((_, index) => (
               <FieldSkeleton key={index} />
             ))}

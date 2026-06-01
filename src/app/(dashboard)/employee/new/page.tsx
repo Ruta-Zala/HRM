@@ -13,8 +13,7 @@ import { ROLES } from "@/app/consts/common";
 export default function AddEmployeePage() {
   const { user, loading: authLoading } = useAuth();
 
-  const canManage =
-    user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
+  const canManage = user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
 
   if (authLoading) {
     return null;

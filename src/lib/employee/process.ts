@@ -29,10 +29,7 @@ export function indexSheetBody(data: string[][]): {
   };
 }
 
-export function indexedRowsToSheetData(
-  headers: string[],
-  rows: IndexedSheetRow[],
-): string[][] {
+export function indexedRowsToSheetData(headers: string[], rows: IndexedSheetRow[]): string[][] {
   return [headers, ...rows.map((r) => r.values)];
 }
 
@@ -72,15 +69,10 @@ export function filterIndexedRowsActiveOnly(
   const statusColIndex = headers.map(headerToKey).indexOf("status");
   if (statusColIndex === -1) return rows;
 
-  return rows.filter((row) =>
-    isEmployeeStatusActive(String(row.values[statusColIndex] ?? "")),
-  );
+  return rows.filter((row) => isEmployeeStatusActive(String(row.values[statusColIndex] ?? "")));
 }
 
-export function isIndexedRowInactive(
-  headers: string[],
-  row: IndexedSheetRow,
-): boolean {
+export function isIndexedRowInactive(headers: string[], row: IndexedSheetRow): boolean {
   const statusColIndex = headers.map(headerToKey).indexOf("status");
   if (statusColIndex === -1) return false;
   return !isEmployeeStatusActive(String(row.values[statusColIndex] ?? ""));
@@ -96,9 +88,7 @@ function filterIndexedRowsByStatus(
   const statusColIndex = headers.map(headerToKey).indexOf("status");
   if (statusColIndex === -1) return rows;
 
-  return rows.filter((row) =>
-    matchesStatus(String(row.values[statusColIndex] ?? ""), status),
-  );
+  return rows.filter((row) => matchesStatus(String(row.values[statusColIndex] ?? ""), status));
 }
 
 function filterIndexedRows(
@@ -110,9 +100,7 @@ function filterIndexedRows(
 
   const keys = headers.map(headerToKey);
   const searchColIndexes = keys
-    .map((key, index) =>
-      (EMPLOYEE_SEARCH_KEYS as readonly string[]).includes(key) ? index : -1,
-    )
+    .map((key, index) => ((EMPLOYEE_SEARCH_KEYS as readonly string[]).includes(key) ? index : -1))
     .filter((index) => index >= 0);
 
   if (!searchColIndexes.length) return rows;
@@ -140,9 +128,7 @@ function sortIndexedRows(
 
   let colIndex = keys.indexOf(sortKey);
   if (colIndex === -1) {
-    colIndex = headers.findIndex(
-      (h) => h.trim().toLowerCase() === sortBy.trim().toLowerCase(),
-    );
+    colIndex = headers.findIndex((h) => h.trim().toLowerCase() === sortBy.trim().toLowerCase());
   }
   if (colIndex === -1) return rows;
 
@@ -179,7 +165,8 @@ export function processEmployeeSheet(params: {
     excludeInactive = false,
   } = params;
 
-  let { headers, rows } = indexSheetBody(data);
+  const { headers, rows: indexedRows } = indexSheetBody(data);
+  let rows = indexedRows;
   rows = filterIndexedRows(headers, rows, search);
   if (excludeInactive) {
     rows = filterIndexedRowsActiveOnly(headers, rows);
@@ -189,8 +176,7 @@ export function processEmployeeSheet(params: {
 
   const total = rows.length;
   const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
-  const safePage =
-    totalPages === 0 ? 1 : Math.min(Math.max(1, page), totalPages);
+  const safePage = totalPages === 0 ? 1 : Math.min(Math.max(1, page), totalPages);
   const start = (safePage - 1) * pageSize;
   const pageRows = rows.slice(start, start + pageSize);
 

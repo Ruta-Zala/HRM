@@ -78,15 +78,12 @@ export const PATCH = withActiveSession(async (req, user) => {
       }
     }
 
-    const passwordIndex = headers.findIndex(
-      (h) => headerToFormKey(h) === "password",
-    );
+    const passwordIndex = headers.findIndex((h) => headerToFormKey(h) === "password");
     if (passwordIndex < 0) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Password column is missing from the employee sheet. Contact HR.",
+          message: "Password column is missing from the employee sheet. Contact HR.",
         },
         { status: 500 },
       );
@@ -97,20 +94,15 @@ export const PATCH = withActiveSession(async (req, user) => {
     updatedRow[passwordIndex] = hashed;
 
     const range = sheetRowToRange(sheetRow, headers.length);
-    await updateSheetRow(range, [
-      withSheetRowUpdatedAt(headers, updatedRow),
-    ]);
+    await updateSheetRow(range, [withSheetRowUpdatedAt(headers, updatedRow)]);
 
     return NextResponse.json({
       success: true,
-      message: hasPassword
-        ? "Password updated successfully."
-        : "Password created successfully.",
+      message: hasPassword ? "Password updated successfully." : "Password created successfully.",
     });
   } catch (error: unknown) {
     console.error("PATCH employee/me/password error:", error);
-    const message =
-      error instanceof Error ? error.message : "Failed to update password.";
+    const message = error instanceof Error ? error.message : "Failed to update password.";
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -22,11 +23,7 @@ import {
 import { POSITIONS, ROLES } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
-import {
-  ALL_TECH_SKILLS,
-  joinSkillsValue,
-  parseSkillsValue,
-} from "@/app/consts/tech-skills";
+import { ALL_TECH_SKILLS, joinSkillsValue, parseSkillsValue } from "@/app/consts/tech-skills";
 import { Select } from "../ui/select";
 import { resolveProfileImageSrc } from "@/lib/employee/documents";
 import { type DocumentField, FileUploaderField } from "../ui/file-uploader";
@@ -34,7 +31,6 @@ import { IndianPhoneInput } from "../ui/indian-phone-input";
 import { MultiSelect } from "../ui/multi-select";
 import { DateInput } from "../ui/date-input";
 import { FormSkeleton } from "../ui/form-skeleton";
-
 
 function FormField({
   label,
@@ -77,8 +73,7 @@ export function EmployeeForm({
   const router = useRouter();
   const { user } = useAuth();
   const canManage = user ? canManageEmployees(user.role) : false;
-  const canEditRole =
-    user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
+  const canEditRole = user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
   const canEditLastIncrement = user?.role !== ROLES.EMPLOYEE;
   const isEdit = mode === "edit";
 
@@ -88,21 +83,10 @@ export function EmployeeForm({
   const [headersLoading, setHeadersLoading] = useState(!isEdit);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [documentFiles, setDocumentFiles] = useState<
-    Partial<Record<DocumentField, File>>
-  >({});
-  const [profileImagePreview, setProfileImagePreview] = useState<string | null>(
-    null,
-  );
+  const [documentFiles, setDocumentFiles] = useState<Partial<Record<DocumentField, File>>>({});
+  const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
 
-  const profileImageSrc = resolveProfileImageSrc(
-    form.profileImage,
-    profileImagePreview,
-  );
-
-  useEffect(() => {
-    void loadForm();
-  }, [mode, sheetRow, useOwnProfileEndpoint]);
+  const profileImageSrc = resolveProfileImageSrc(form.profileImage, profileImagePreview);
 
   useEffect(() => {
     return () => {
@@ -119,93 +103,96 @@ export function EmployeeForm({
     });
   };
 
-  const loadForm = async () => {
-    try {
-      if (isEdit) {
-        setLoading(true);
-      } else {
-        setHeadersLoading(true);
-      }
-      setError(null);
-      clearProfileImagePreview();
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        setError(null);
+        clearProfileImagePreview();
 
-      if (isEdit && useOwnProfileEndpoint) {
-        const response = await fetch("/api/employee/me");
-        const result = await response.json();
+        if (isEdit && useOwnProfileEndpoint) {
+          const response = await fetch("/api/employee/me");
+          const result = await response.json();
+          if (cancelled) return;
 
-        if (!result.success) {
-          setError(result.message || "Employee not found");
-          return;
-        }
+          if (!result.success) {
+            setError(result.message || "Employee not found");
+            return;
+          }
 
-        const headers = (result.headers as string[]) ?? [];
-        setSheetHeaders(headers);
-        setForm(sheetRowToForm(headers, (result.row as string[]) ?? []));
-        return;
-      }
-
-      if (isEdit && sheetRow) {
-        const response = await fetch(`/api/employee?row=${sheetRow}`);
-        const result = await response.json();
-
-        if (!result.success) {
-          setError(result.message || "Employee not found");
-          return;
-        }
-
-        const headers = (result.headers as string[]) ?? [];
-        setSheetHeaders(headers);
-        setForm(sheetRowToForm(headers, (result.row as string[]) ?? []));
-        return;
-      }
-
-      const response = await fetch("/api/employee?headersOnly=true");
-      const result = await response.json();
-
-      if (result.success) {
-        const headers = (result.headers as string[]) ?? [];
-        if (headers.length === 0) {
-          setError("No columns found in the employee sheet.");
-        } else {
+          const headers = (result.headers as string[]) ?? [];
           setSheetHeaders(headers);
+          setForm(sheetRowToForm(headers, (result.row as string[]) ?? []));
+          return;
         }
-      } else {
-        setError(result.message || "Failed to load sheet columns");
+
+        if (isEdit && sheetRow) {
+          const response = await fetch(`/api/employee?row=${sheetRow}`);
+          const result = await response.json();
+          if (cancelled) return;
+
+          if (!result.success) {
+            setError(result.message || "Employee not found");
+            return;
+          }
+
+          const headers = (result.headers as string[]) ?? [];
+          setSheetHeaders(headers);
+          setForm(sheetRowToForm(headers, (result.row as string[]) ?? []));
+          return;
+        }
+
+        const response = await fetch("/api/employee?headersOnly=true");
+        const result = await response.json();
+        if (cancelled) return;
+
+        if (result.success) {
+          const headers = (result.headers as string[]) ?? [];
+          if (headers.length === 0) {
+            setError("No columns found in the employee sheet.");
+          } else {
+            setSheetHeaders(headers);
+          }
+        } else {
+          setError(result.message || "Failed to load sheet columns");
+        }
+      } catch {
+        if (!cancelled) {
+          setError(isEdit ? "Failed to load employee" : "Failed to load sheet columns");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setHeadersLoading(false);
+        }
       }
-    } catch {
-      setError(
-        isEdit ? "Failed to load employee" : "Failed to load sheet columns",
-      );
-    } finally {
-      setLoading(false);
-      setHeadersLoading(false);
-    }
-  };
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, sheetRow, useOwnProfileEndpoint]);
 
   const update =
     (field: keyof EmployeeFormState) =>
-      (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        setForm((prev) => ({ ...prev, [field]: e.target.value }));
-      };
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      setForm((prev) => ({ ...prev, [field]: e.target.value }));
+    };
 
-  const handleFile =
-    (field: DocumentField) =>
-      (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+  const handleFile = (field: DocumentField) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-        setDocumentFiles((prev) => ({ ...prev, [field]: file }));
-        setForm((prev) => ({ ...prev, [field]: file.name }));
+    setDocumentFiles((prev) => ({ ...prev, [field]: file }));
+    setForm((prev) => ({ ...prev, [field]: file.name }));
 
-        if (field === "profileImage") {
-          setProfileImagePreview((prev) => {
-            if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
-            return file.type.startsWith("image/")
-              ? URL.createObjectURL(file)
-              : null;
-          });
-        }
-      };
+    if (field === "profileImage") {
+      setProfileImagePreview((prev) => {
+        if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+        return file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
+      });
+    }
+  };
 
   const saveEmployee = async (formData: EmployeeFormState) => {
     if (!sheetHeaders.length) {
@@ -215,7 +202,6 @@ export function EmployeeForm({
 
     setError(null);
     setSubmitting(true);
-
 
     const rowValues = formToSheetRow(formData, sheetHeaders);
 
@@ -245,17 +231,11 @@ export function EmployeeForm({
         const credentials = result.credentials as
           | { username?: string; initialPassword?: string }
           | undefined;
-        if (
-          !isEdit &&
-          credentials &&
-          (credentials.username || credentials.initialPassword)
-        ) {
+        if (!isEdit && credentials && (credentials.username || credentials.initialPassword)) {
           const lines = [
             "Employee saved. Share these sign-in details once (they are stored encrypted in the sheet):",
             credentials.username ? `Username: ${credentials.username}` : null,
-            credentials.initialPassword
-              ? `Password: ${credentials.initialPassword}`
-              : null,
+            credentials.initialPassword ? `Password: ${credentials.initialPassword}` : null,
           ].filter(Boolean);
           window.alert(lines.join("\n"));
         }
@@ -268,10 +248,7 @@ export function EmployeeForm({
         return;
       }
 
-      setError(
-        result.message ||
-        (isEdit ? "Failed to update employee" : "Failed to add employee"),
-      );
+      setError(result.message || (isEdit ? "Failed to update employee" : "Failed to add employee"));
     } catch {
       setError(
         isEdit
@@ -293,9 +270,9 @@ export function EmployeeForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} >
-      <div className="flex flex-col xl:flex-row gap-4 mb-4">
-        <div className="space-y-6 w-full xl:w-1/2 max-w-3xl">
+    <form onSubmit={handleSubmit}>
+      <div className="mb-4 flex flex-col gap-4 xl:flex-row">
+        <div className="w-full max-w-3xl space-y-6 xl:w-1/2">
           <Card>
             <CardHeader>
               <CardTitle>Employee details</CardTitle>
@@ -341,9 +318,7 @@ export function EmployeeForm({
                 <DateInput
                   id="birthdayDate"
                   value={form.birthdayDate}
-                  onChange={(birthdayDate) =>
-                    setForm((prev) => ({ ...prev, birthdayDate }))
-                  }
+                  onChange={(birthdayDate) => setForm((prev) => ({ ...prev, birthdayDate }))}
                   maxYear={new Date().getFullYear()}
                 />
               </FormField>
@@ -365,9 +340,7 @@ export function EmployeeForm({
                     autoComplete="off"
                   />
                   {form.panNumber ? (
-                    <p className="text-xs text-ex-muted">
-                      Displayed as {maskPan(form.panNumber)}
-                    </p>
+                    <p className="text-ex-muted text-xs">Displayed as {maskPan(form.panNumber)}</p>
                   ) : null}
                 </FormField>
 
@@ -381,7 +354,7 @@ export function EmployeeForm({
                     autoComplete="off"
                   />
                   {form.aadharNumber ? (
-                    <p className="text-xs text-ex-muted">
+                    <p className="text-ex-muted text-xs">
                       Displayed as {maskAadhar(form.aadharNumber)}
                     </p>
                   ) : null}
@@ -419,7 +392,7 @@ export function EmployeeForm({
               <CardTitle>Parent / guardian information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2 mb-4">
+              <div className="mb-4 grid gap-4 sm:grid-cols-2">
                 <FormField label="Parent / Guardian Name" id="parentName">
                   <Input
                     id="parentName"
@@ -451,22 +424,23 @@ export function EmployeeForm({
             </CardContent>
           </Card>
 
-          {error ? (
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          ) : null}
+          {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
         </div>
-        <div className="space-y-6 w-full xl:w-1/2 max-w-3xl">
+        <div className="w-full max-w-3xl space-y-6 xl:w-1/2">
           <Card>
             <CardHeader>
               <CardTitle>Profile</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex justify-center items-center mb-4">
+              <div className="mb-4 flex items-center justify-center">
                 {profileImageSrc ? (
-                  <img
+                  <Image
                     src={profileImageSrc}
                     alt="Profile"
-                    className="size-24 rounded-full border border-ex-border object-cover"
+                    width={96}
+                    height={96}
+                    unoptimized
+                    className="border-ex-border size-24 rounded-full border object-cover"
                   />
                 ) : null}
               </div>
@@ -493,17 +467,28 @@ export function EmployeeForm({
                       {[
                         { value: POSITIONS.TRAINEE, label: "Trainee" },
                         { value: POSITIONS.FRONTEND_DEVELOPER, label: "Frontend Developer" },
-                        { value: POSITIONS.SENIOR_FRONTEND_DEVELOPER, label: "Senior Frontend Developer" },
+                        {
+                          value: POSITIONS.SENIOR_FRONTEND_DEVELOPER,
+                          label: "Senior Frontend Developer",
+                        },
                         { value: POSITIONS.BACKEND_DEVELOPER, label: "Backend Developer" },
-                        { value: POSITIONS.SENIOR_BACKEND_DEVELOPER, label: "Senior Backend Developer" },
+                        {
+                          value: POSITIONS.SENIOR_BACKEND_DEVELOPER,
+                          label: "Senior Backend Developer",
+                        },
                         { value: POSITIONS.FULLSTACK_DEVELOPER, label: "Fullstack Developer" },
-                        { value: POSITIONS.SENIOR_FULLSTACK_DEVELOPER, label: "Senior Fullstack Developer" },
+                        {
+                          value: POSITIONS.SENIOR_FULLSTACK_DEVELOPER,
+                          label: "Senior Fullstack Developer",
+                        },
                         { value: POSITIONS.HR_MANAGER, label: "HR Manager" },
                         { value: POSITIONS.TEAM_LEAD, label: "Team Lead" },
                         { value: POSITIONS.CEO, label: "CEO" },
-                        { value: POSITIONS.OTHER, label: "Other" }
+                        { value: POSITIONS.OTHER, label: "Other" },
                       ].map((position) => (
-                        <option key={position.value} value={position.value}>{position.label}</option>
+                        <option key={position.value} value={position.value}>
+                          {position.label}
+                        </option>
                       ))}
                     </Select>
                   </FormField>
@@ -547,7 +532,7 @@ export function EmployeeForm({
                       }
                       autoComplete="new-password"
                     />
-                    <p className="text-xs text-ex-muted">
+                    <p className="text-ex-muted text-xs">
                       {isEdit
                         ? "Passwords are stored encrypted in the sheet. Enter a new value only to change it."
                         : "Saved as bcrypt in Google Sheets — never stored as plain text. Leave empty for a secure auto-generated password."}
@@ -583,9 +568,7 @@ export function EmployeeForm({
                     <DateInput
                       id="joiningDate"
                       value={form.joiningDate}
-                      onChange={(joiningDate) =>
-                        setForm((prev) => ({ ...prev, joiningDate }))
-                      }
+                      onChange={(joiningDate) => setForm((prev) => ({ ...prev, joiningDate }))}
                     />
                   </FormField>
                 </div>
@@ -615,13 +598,12 @@ export function EmployeeForm({
                         placeholder="e.g. 50000 or 5,00,000"
                         autoComplete="off"
                       />
-                      <p className="text-xs text-ex-muted">
+                      <p className="text-ex-muted text-xs">
                         Visible only to HR and super admin — stored in the employee sheet.
                       </p>
                     </FormField>
                   </div>
                 ) : null}
-
               </div>
             </CardContent>
           </Card>
@@ -648,25 +630,12 @@ export function EmployeeForm({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="submit"
-          disabled={submitting || headersLoading || !sheetHeaders.length}
-        >
-          {submitting
-            ? "Saving…"
-            : isEdit
-              ? "Save changes"
-              : "Add employee"}
-
+        <Button type="submit" disabled={submitting || headersLoading || !sheetHeaders.length}>
+          {submitting ? "Saving…" : isEdit ? "Save changes" : "Add employee"}
         </Button>
 
         {onCancel ? (
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={submitting}
-            onClick={onCancel}
-          >
+          <Button type="button" variant="ghost" disabled={submitting} onClick={onCancel}>
             Cancel
           </Button>
         ) : (

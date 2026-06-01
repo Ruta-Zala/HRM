@@ -51,7 +51,7 @@ export default function ComplaintsPage() {
             <Label>Details</Label>
             <Textarea rows={4} />
           </div>
-          <Button className="md:col-span-2 w-fit">Submit</Button>
+          <Button className="w-fit md:col-span-2">Submit</Button>
         </CardContent>
       </Card>
       <DataTable

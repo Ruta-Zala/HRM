@@ -45,3 +45,5 @@ next-env.d.ts
 
 hrm-system-496809-923c516e41b6.json
 client_secret_356034774619-05qhdnufnaie21dhu9o10r04hauprave.apps.googleusercontent.com.json
+# LangGraph API
+.langgraph_api

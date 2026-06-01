@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Eye, Pencil, Search, User } from "lucide-react";
 
@@ -41,7 +42,7 @@ function buildListColumns(canManage: boolean): Column<EmployeeRow>[] {
           if (!src) {
             return (
               <span
-                className="inline-flex size-10 items-center justify-center rounded-full border border-ex-border bg-ex-surface text-ex-muted"
+                className="border-ex-border bg-ex-surface text-ex-muted inline-flex size-10 items-center justify-center rounded-full border"
                 aria-label="No profile photo"
               >
                 <User className="size-5" />
@@ -49,21 +50,20 @@ function buildListColumns(canManage: boolean): Column<EmployeeRow>[] {
             );
           }
           return (
-            <img
+            <Image
               src={src}
               alt="Profile"
-              className="size-10 rounded-full border border-ex-border object-cover"
+              width={40}
+              height={40}
+              unoptimized
+              className="border-ex-border size-10 rounded-full border object-cover"
             />
           );
         },
       }),
       ...(key === "status" && {
         render: (row: EmployeeRow) => (
-          <Badge
-            variant={row.status === STATUS.ACTIVE ? "success" : "danger"}
-          >
-            {row.status}
-          </Badge>
+          <Badge variant={row.status === STATUS.ACTIVE ? "success" : "danger"}>{row.status}</Badge>
         ),
       }),
       ...(key === "role" && {
@@ -78,7 +78,9 @@ function buildListColumns(canManage: boolean): Column<EmployeeRow>[] {
       }),
       ...(key === "contactNumber" && {
         render: (row: EmployeeRow) => (
-          <span className="capitalize">+91 {row.contactNumber.replace(/(\d{5})(\d{5})/, "$1 $2")}</span>
+          <span className="capitalize">
+            +91 {row.contactNumber.replace(/(\d{5})(\d{5})/, "$1 $2")}
+          </span>
         ),
       }),
     }),
@@ -130,8 +132,8 @@ export default function EmployeeDirectoryPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [pagination, setPagination] = useState<SheetPagination>(emptyPagination);
 
-  const canManage =
-    user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
+  const canManage = user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
+  const effectiveStatusFilter = !canManage && statusFilter === STATUS.INACTIVE ? "" : statusFilter;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -141,54 +143,49 @@ export default function EmployeeDirectoryPage() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  const fetchEmployees = useCallback(async () => {
-    try {
-      setLoading(true);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const params = new URLSearchParams({
+          sortBy,
+          order: sortOrder,
+          page: String(page),
+          pageSize: String(DEFAULT_PAGE_SIZE),
+        });
+        if (debouncedSearch) params.set("search", debouncedSearch);
+        if (effectiveStatusFilter) params.set("status", effectiveStatusFilter);
+        const response = await fetch(`/api/employee?${params}`);
+        const result = await response.json();
 
-      const params = new URLSearchParams({
-        sortBy,
-        order: sortOrder,
-        page: String(page),
-        pageSize: String(DEFAULT_PAGE_SIZE),
-      });
-      if (debouncedSearch) params.set("search", debouncedSearch);
-      if (statusFilter) params.set("status", statusFilter);
-      const response = await fetch(`/api/employee?${params}`);
-      const result = await response.json();
+        if (cancelled) return;
 
-      if (result.success) {
-        const sheetData = result.data || [];
-        const headers = (sheetData[0] as string[]) ?? [];
-        const dataRows = sheetData.slice(1);
-        const pageInfo: SheetPagination = result.pagination ?? emptyPagination;
-        const sheetRows: number[] = result.sheetRows ?? [];
+        if (result.success) {
+          const sheetData = result.data || [];
+          const headers = (sheetData[0] as string[]) ?? [];
+          const dataRows = sheetData.slice(1);
+          const pageInfo: SheetPagination = result.pagination ?? emptyPagination;
+          const sheetRows: number[] = result.sheetRows ?? [];
 
-        const formattedData = dataRows.map((row: string[], index: number) => ({
-          id: String(sheetRows[index] ?? index + 1),
-          ...pickSheetRowFields(headers, row, LIST_FIELD_KEYS),
-        })) as EmployeeRow[];
+          const formattedData = dataRows.map((row: string[], index: number) => ({
+            id: String(sheetRows[index] ?? index + 1),
+            ...pickSheetRowFields(headers, row, LIST_FIELD_KEYS),
+          })) as EmployeeRow[];
 
-        setColumns(buildListColumns(canManage));
-        setRows(formattedData);
-        setPagination(pageInfo);
+          setColumns(buildListColumns(canManage));
+          setRows(formattedData);
+          setPagination(pageInfo);
+        }
+      } catch (error) {
+        if (!cancelled) console.error("Fetch Employee Error:", error);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    } catch (error) {
-      console.error("Fetch Employee Error:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [sortBy, sortOrder, page, debouncedSearch, statusFilter, canManage]);
-
-  useEffect(() => {
-    if (!canManage && statusFilter === STATUS.INACTIVE) {
-      setStatusFilter("");
-      setPage(1);
-    }
-  }, [canManage, statusFilter]);
-
-  useEffect(() => {
-    void fetchEmployees();
-  }, [fetchEmployees]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sortBy, sortOrder, page, debouncedSearch, effectiveStatusFilter, canManage]);
 
   const handleSort = (key: string) => {
     setPage(1);
@@ -215,7 +212,7 @@ export default function EmployeeDirectoryPage() {
       <div className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="relative max-w-md flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ex-muted" />
+            <Search className="text-ex-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input
               type="search"
               value={search}
@@ -253,9 +250,7 @@ export default function EmployeeDirectoryPage() {
           onSort={handleSort}
         />
 
-        {!loading && (
-          <Pagination pagination={pagination} onPageChange={handlePageChange} />
-        )}
+        {!loading && <Pagination pagination={pagination} onPageChange={handlePageChange} />}
       </div>
     </div>
   );

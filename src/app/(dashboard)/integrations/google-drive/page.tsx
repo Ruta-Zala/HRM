@@ -16,7 +16,7 @@ type DriveStatus = {
 
 export default function GoogleDriveIntegrationPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-ex-muted">Loading…</p>}>
+    <Suspense fallback={<p className="text-ex-muted text-sm">Loading…</p>}>
       <GoogleDriveIntegrationContent />
     </Suspense>
   );
@@ -48,8 +48,7 @@ function GoogleDriveIntegrationContent() {
     })();
   }, [connected]);
 
-  const isConnected =
-    status?.oauthConnected || status?.impersonation || false;
+  const isConnected = status?.oauthConnected || status?.impersonation || false;
 
   return (
     <div className="space-y-8">
@@ -76,19 +75,14 @@ function GoogleDriveIntegrationContent() {
             <>
               <p>
                 Status:{" "}
-                <span
-                  className={
-                    isConnected ? "text-green-600" : "text-amber-600"
-                  }
-                >
+                <span className={isConnected ? "text-green-600" : "text-amber-600"}>
                   {isConnected ? "Ready" : "Not connected"}
                 </span>
               </p>
 
               {connected ? (
                 <p className="text-green-600">
-                  Connected. Employee document uploads will use your Gmail
-                  storage.
+                  Connected. Employee document uploads will use your Gmail storage.
                 </p>
               ) : null}
 
@@ -97,28 +91,27 @@ function GoogleDriveIntegrationContent() {
                   <p>Failed: {decodeURIComponent(error)}</p>
 
                   {error.includes("missing_code") && (
-                    <p className="text-sm text-ex-muted">
-                      Finish the full flow: click Connect → Continue on Google
-                      → Allow. Do not open the callback URL directly.
+                    <p className="text-ex-muted text-sm">
+                      Finish the full flow: click Connect → Continue on Google → Allow. Do not open
+                      the callback URL directly.
                     </p>
                   )}
                 </div>
               ) : null}
 
               {!status?.oauthConfigured ? (
-                <div className="space-y-2 text-ex-muted">
+                <div className="text-ex-muted space-y-2">
                   <p>
-                    In Google Cloud Console, create an OAuth 2.0 Web client and
-                    add to <code>.env.local</code>:
+                    In Google Cloud Console, create an OAuth 2.0 Web client and add to{" "}
+                    <code>.env.local</code>:
                   </p>
-                  <pre className="overflow-x-auto rounded-md bg-ex-surface-2 p-3 text-xs">
+                  <pre className="bg-ex-surface-2 overflow-x-auto rounded-md p-3 text-xs">
                     {`GOOGLE_OAUTH_CLIENT_ID=...
 GOOGLE_OAUTH_CLIENT_SECRET=...
 GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/api/integrations/google-drive/callback`}
                   </pre>
                   <p>
-                    Enable Drive API. Add your Gmail as a test user if the app
-                    is in Testing mode.
+                    Enable Drive API. Add your Gmail as a test user if the app is in Testing mode.
                   </p>
                 </div>
               ) : !isConnected ? (

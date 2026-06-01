@@ -1,7 +1,4 @@
-import {
-  EMPLOYEE_DOCUMENT_FIELDS,
-  type EmployeeDocumentField,
-} from "./documents";
+import { EMPLOYEE_DOCUMENT_FIELDS, type EmployeeDocumentField } from "./documents";
 
 export type EmployeeSubmitPayload = {
   values: string[];
@@ -9,9 +6,7 @@ export type EmployeeSubmitPayload = {
   files: Partial<Record<EmployeeDocumentField, File>>;
 };
 
-export async function parseEmployeeSubmit(
-  req: Request,
-): Promise<EmployeeSubmitPayload> {
+export async function parseEmployeeSubmit(req: Request): Promise<EmployeeSubmitPayload> {
   const contentType = req.headers.get("content-type") ?? "";
 
   if (contentType.includes("multipart/form-data")) {
@@ -42,9 +37,7 @@ export async function parseEmployeeSubmit(
     return {
       values,
       sheetRow:
-        sheetRowRaw != null && String(sheetRowRaw).trim() !== ""
-          ? Number(sheetRowRaw)
-          : undefined,
+        sheetRowRaw != null && String(sheetRowRaw).trim() !== "" ? Number(sheetRowRaw) : undefined,
       files,
     };
   }
@@ -65,19 +58,9 @@ export async function parseEmployeeSubmit(
 
 export async function filesToUploadBuffers(
   files: Partial<Record<EmployeeDocumentField, File>>,
-): Promise<
-  Partial<
-    Record<
-      EmployeeDocumentField,
-      { name: string; type: string; buffer: Buffer }
-    >
-  >
-> {
+): Promise<Partial<Record<EmployeeDocumentField, { name: string; type: string; buffer: Buffer }>>> {
   const result: Partial<
-    Record<
-      EmployeeDocumentField,
-      { name: string; type: string; buffer: Buffer }
-    >
+    Record<EmployeeDocumentField, { name: string; type: string; buffer: Buffer }>
   > = {};
 
   for (const field of EMPLOYEE_DOCUMENT_FIELDS) {

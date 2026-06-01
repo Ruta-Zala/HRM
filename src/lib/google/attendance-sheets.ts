@@ -48,8 +48,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const isQuotaError = (error: unknown): boolean => {
   const text = String(
     (error as { message?: string })?.message ??
-    (error as { errors?: Array<{ message?: string }> })?.errors?.[0]?.message ??
-    "",
+      (error as { errors?: Array<{ message?: string }> })?.errors?.[0]?.message ??
+      "",
   ).toLowerCase();
   return text.includes("quota") || text.includes("rate limit") || text.includes("429");
 };
@@ -130,10 +130,7 @@ async function getAttendanceSpreadsheetMeta(spreadsheetId: string): Promise<{
   return meta;
 }
 
-async function resolveYearSpreadsheetId(
-  baseSpreadsheetId: string,
-  year: number,
-): Promise<string> {
+async function resolveYearSpreadsheetId(baseSpreadsheetId: string, year: number): Promise<string> {
   const cacheKey = `${baseSpreadsheetId}:${year}`;
   const cached = yearSpreadsheetIdCache.get(cacheKey);
   if (cached) return cached;
@@ -220,10 +217,7 @@ async function resolveYearSpreadsheetId(
   return createdId;
 }
 
-async function resolveSpreadsheetForDate(
-  baseSpreadsheetId: string,
-  date: Date,
-): Promise<string> {
+async function resolveSpreadsheetForDate(baseSpreadsheetId: string, date: Date): Promise<string> {
   const year = date.getFullYear();
   if (!Number.isFinite(year)) return baseSpreadsheetId;
   return resolveYearSpreadsheetId(baseSpreadsheetId, year);
@@ -363,14 +357,12 @@ function rowFromValues(values: string[], sheetRow: number): AttendanceRow {
     overtime: punchedOut ? metrics.overtime : "—",
     earlyLeaveReason: values[ATTENDANCE_COL.earlyLeaveReason] ?? "",
     dailyUpdate: values[ATTENDANCE_COL.dailyUpdate] ?? "",
-    isOvertimeApproved: values[ATTENDANCE_COL.isOvertimeApproved] ?? OVERTIME_APPROVAL.NOT_CONSIDERED,
+    isOvertimeApproved:
+      values[ATTENDANCE_COL.isOvertimeApproved] ?? OVERTIME_APPROVAL.NOT_CONSIDERED,
   };
 }
 
-export function attendanceSpreadsheetFileName(
-  employeeId: string,
-  employeeName: string,
-): string {
+export function attendanceSpreadsheetFileName(employeeId: string, employeeName: string): string {
   return `${employeeId} - ${employeeName} - Attendance`;
 }
 
@@ -434,17 +426,9 @@ export async function getOrCreateEmployeeAttendanceSpreadsheet(
   if (existing) return existing;
 
   const promise = (async () => {
-    const found = await findAttendanceSpreadsheetInFolder(
-      parentFolderId,
-      employeeId,
-      employeeName,
-    );
+    const found = await findAttendanceSpreadsheetInFolder(parentFolderId, employeeId, employeeName);
     if (found) return found;
-    return createEmployeeAttendanceSpreadsheet(
-      employeeId,
-      employeeName,
-      parentFolderId,
-    );
+    return createEmployeeAttendanceSpreadsheet(employeeId, employeeName, parentFolderId);
   })();
 
   attendanceSpreadsheetLocks.set(lockKey, promise);
@@ -512,16 +496,9 @@ export async function createEmployeeAttendanceSpreadsheet(
       },
     });
 
-    const sheetId =
-      defaultSheetId ??
-      (await getSheetId(spreadsheetId, sheetName));
+    const sheetId = defaultSheetId ?? (await getSheetId(spreadsheetId, sheetName));
     if (sheetId != null) {
-      await applySheetHeaderRowFormat(
-        sheetsApi,
-        spreadsheetId,
-        sheetId,
-        ATTENDANCE_HEADERS.length,
-      );
+      await applySheetHeaderRowFormat(sheetsApi, spreadsheetId, sheetId, ATTENDANCE_HEADERS.length);
     }
     await applyWorkModeDropdownByTitle(spreadsheetId, sheetName);
     await applyOvertimeApprovalDropdownByTitle(spreadsheetId, sheetName);
@@ -532,10 +509,7 @@ export async function createEmployeeAttendanceSpreadsheet(
   }
 }
 
-async function getSheetId(
-  spreadsheetId: string,
-  title: string,
-): Promise<number | null> {
+async function getSheetId(spreadsheetId: string, title: string): Promise<number | null> {
   const sheetsApi = await getSheetsClient();
   const meta = await sheetsApi.spreadsheets.get({
     spreadsheetId,
@@ -610,30 +584,30 @@ async function applyWorkModeDropdownByTitle(
     },
     ...(!hasRulesAlready
       ? WORK_MODE_OPTIONS.map((mode, index) => ({
-        addConditionalFormatRule: {
-          index,
-          rule: {
-            ranges: [
-              {
-                sheetId,
-                startRowIndex: 1,
-                startColumnIndex: workModeColumnStart,
-                endColumnIndex: workModeColumnEnd,
-              },
-            ],
-            booleanRule: {
-              condition: {
-                type: "TEXT_EQ",
-                values: [{ userEnteredValue: mode }],
-              },
-              format: {
-                backgroundColor: workModeColors[mode],
-                textFormat: { bold: true },
+          addConditionalFormatRule: {
+            index,
+            rule: {
+              ranges: [
+                {
+                  sheetId,
+                  startRowIndex: 1,
+                  startColumnIndex: workModeColumnStart,
+                  endColumnIndex: workModeColumnEnd,
+                },
+              ],
+              booleanRule: {
+                condition: {
+                  type: "TEXT_EQ",
+                  values: [{ userEnteredValue: mode }],
+                },
+                format: {
+                  backgroundColor: workModeColors[mode],
+                  textFormat: { bold: true },
+                },
               },
             },
           },
-        },
-      }))
+        }))
       : []),
   ];
 
@@ -691,9 +665,7 @@ async function applyOvertimeApprovalDropdownByTitle(
   });
 }
 
-export async function listMonthlySheets(
-  spreadsheetId: string,
-): Promise<string[]> {
+export async function listMonthlySheets(spreadsheetId: string): Promise<string[]> {
   const sheetsApi = await getSheetsClient();
   const meta = await sheetsApi.spreadsheets.get({
     spreadsheetId,
@@ -707,10 +679,7 @@ export async function listMonthlySheets(
   );
 }
 
-async function ensureAttendanceHeaderRow(
-  spreadsheetId: string,
-  sheetTitle: string,
-): Promise<void> {
+async function ensureAttendanceHeaderRow(spreadsheetId: string, sheetTitle: string): Promise<void> {
   const sheetsApi = await getSheetsClient();
   const response = await sheetsApi.spreadsheets.values.get({
     spreadsheetId,
@@ -756,9 +725,7 @@ async function ensureAttendanceHeaderRow(
           range: `'${sheetTitle}'!B2:B${existingDataRows + 1}`,
           valueInputOption: "USER_ENTERED",
           requestBody: {
-            values: Array.from({ length: existingDataRows }, () => [
-              WORK_MODE.FULL_DAY_ONSITE,
-            ]),
+            values: Array.from({ length: existingDataRows }, () => [WORK_MODE.FULL_DAY_ONSITE]),
           },
         });
       }
@@ -783,11 +750,7 @@ async function ensureAttendanceHeaderRow(
     });
   }
 
-  await applySheetHeaderFormatByTitle(
-    spreadsheetId,
-    sheetTitle,
-    ATTENDANCE_HEADERS.length,
-  );
+  await applySheetHeaderFormatByTitle(spreadsheetId, sheetTitle, ATTENDANCE_HEADERS.length);
   await applyWorkModeDropdownByTitle(spreadsheetId, sheetTitle);
   await applyOvertimeApprovalDropdownByTitle(spreadsheetId, sheetTitle);
 }
@@ -856,11 +819,7 @@ export async function ensureMonthlySheet(
     },
   });
 
-  await applySheetHeaderFormatByTitle(
-    spreadsheetId,
-    title,
-    ATTENDANCE_HEADERS.length,
-  );
+  await applySheetHeaderFormatByTitle(spreadsheetId, title, ATTENDANCE_HEADERS.length);
   await applyWorkModeDropdownByTitle(spreadsheetId, title);
   await applyOvertimeApprovalDropdownByTitle(spreadsheetId, title);
 
@@ -868,26 +827,17 @@ export async function ensureMonthlySheet(
 }
 
 /** Apply standard header styling to every monthly tab (existing + new). */
-export async function formatAllAttendanceMonthlyHeaders(
-  spreadsheetId: string,
-): Promise<void> {
+export async function formatAllAttendanceMonthlyHeaders(spreadsheetId: string): Promise<void> {
   const titles = await listMonthlySheets(spreadsheetId);
   for (const sheetTitle of titles) {
     await ensureAttendanceHeaderRow(spreadsheetId, sheetTitle);
   }
   if (titles.length > 0) {
-    await applySheetHeaderFormatForTitles(
-      spreadsheetId,
-      titles,
-      ATTENDANCE_HEADERS.length,
-    );
+    await applySheetHeaderFormatForTitles(spreadsheetId, titles, ATTENDANCE_HEADERS.length);
   }
 }
 
-async function readMonthlyRows(
-  spreadsheetId: string,
-  sheetTitle: string,
-): Promise<string[][]> {
+async function readMonthlyRows(spreadsheetId: string, sheetTitle: string): Promise<string[][]> {
   const sheetsApi = await getSheetsClient();
   const response = await sheetsApi.spreadsheets.values.get({
     spreadsheetId,
@@ -897,10 +847,7 @@ async function readMonthlyRows(
   return response.data.values ?? [];
 }
 
-function findTodayRow(
-  rows: string[][],
-  today: string,
-): { row: string[]; sheetRow: number } | null {
+function findTodayRow(rows: string[][], today: string): { row: string[]; sheetRow: number } | null {
   const target = normalizeSheetDate(today);
 
   for (let i = 1; i < rows.length; i++) {
@@ -1028,12 +975,7 @@ export async function punchIn(
   rowValues[ATTENDANCE_COL.totalBreakTime] = "";
 
   const targetRow = found?.sheetRow ?? Math.max(rows.length + 1, 2);
-  await updateAttendanceRow(
-    targetSpreadsheetId,
-    sheetTitle,
-    targetRow,
-    rowValues,
-  );
+  await updateAttendanceRow(targetSpreadsheetId, sheetTitle, targetRow, rowValues);
 
   return rowFromValues(rowValues, targetRow);
 }
@@ -1082,12 +1024,7 @@ export async function punchOut(
   }
   rowValues[ATTENDANCE_COL.dailyUpdate] = options?.dailyUpdate?.trim() ?? "";
 
-  await updateAttendanceRow(
-    targetSpreadsheetId,
-    sheetTitle,
-    found.sheetRow,
-    rowValues,
-  );
+  await updateAttendanceRow(targetSpreadsheetId, sheetTitle, found.sheetRow, rowValues);
 
   return rowFromValues(rowValues, found.sheetRow);
 }
@@ -1121,12 +1058,7 @@ export async function startBreak(
   rowValues[ATTENDANCE_COL.breakStart] = formatClockTime(date);
   rowValues[ATTENDANCE_COL.breakEnd] = "";
 
-  await updateAttendanceRow(
-    targetSpreadsheetId,
-    sheetTitle,
-    found.sheetRow,
-    rowValues,
-  );
+  await updateAttendanceRow(targetSpreadsheetId, sheetTitle, found.sheetRow, rowValues);
 
   return rowFromValues(rowValues, found.sheetRow);
 }
@@ -1154,29 +1086,19 @@ export async function endBreak(
   const breakEnd = formatClockTime(date);
   rowValues[ATTENDANCE_COL.breakEnd] = breakEnd;
 
-  const breakStartMs = parseTimeOnDate(
-    rowValues[ATTENDANCE_COL.breakStart],
-    date,
-  );
+  const breakStartMs = parseTimeOnDate(rowValues[ATTENDANCE_COL.breakStart], date);
   const breakEndMs = parseTimeOnDate(breakEnd, date);
   const breakMs =
     breakStartMs != null && breakEndMs != null && breakEndMs > breakStartMs
       ? breakEndMs - breakStartMs
       : 0;
 
-  const existingBreakMs = parseDurationToMs(
-    rowValues[ATTENDANCE_COL.totalBreakTime] ?? "",
-  );
+  const existingBreakMs = parseDurationToMs(rowValues[ATTENDANCE_COL.totalBreakTime] ?? "");
   rowValues[ATTENDANCE_COL.totalBreakTime] = formatDuration(existingBreakMs + breakMs);
   rowValues[ATTENDANCE_COL.breakStart] = "";
   rowValues[ATTENDANCE_COL.breakEnd] = "";
 
-  await updateAttendanceRow(
-    targetSpreadsheetId,
-    sheetTitle,
-    found.sheetRow,
-    rowValues,
-  );
+  await updateAttendanceRow(targetSpreadsheetId, sheetTitle, found.sheetRow, rowValues);
 
   return rowFromValues(rowValues, found.sheetRow);
 }
@@ -1231,12 +1153,7 @@ export async function updateAttendanceField(
     applyAttendanceMetrics(rowValues, new Date(dateIso));
   }
 
-  await updateAttendanceRow(
-    targetSpreadsheetId,
-    sheetTitle,
-    found.sheetRow,
-    rowValues,
-  );
+  await updateAttendanceRow(targetSpreadsheetId, sheetTitle, found.sheetRow, rowValues);
 
   return rowFromValues(rowValues, found.sheetRow);
 }
@@ -1246,12 +1163,7 @@ export async function updateDailyUpdate(
   dateIso: string,
   dailyUpdate: string,
 ): Promise<AttendanceRow> {
-  return updateAttendanceField(
-    spreadsheetId,
-    dateIso,
-    "dailyUpdate",
-    dailyUpdate.trim(),
-  );
+  return updateAttendanceField(spreadsheetId, dateIso, "dailyUpdate", dailyUpdate.trim());
 }
 
 export async function updateOvertimeApproval(
@@ -1306,8 +1218,9 @@ export async function importAttendanceRecords(
   for (const record of records) {
     const [year, month] = record.dateIso.split("-");
     const yearNum = parseInt(year, 10);
-    const targetSpreadsheetId =
-      Number.isFinite(yearNum) ? await resolveYearSpreadsheetId(spreadsheetId, yearNum) : spreadsheetId;
+    const targetSpreadsheetId = Number.isFinite(yearNum)
+      ? await resolveYearSpreadsheetId(spreadsheetId, yearNum)
+      : spreadsheetId;
     const key = `${targetSpreadsheetId}:${year}-${month}`;
     const group = grouped.get(key) ?? { targetSpreadsheetId, records: [] };
     const list = group.records;
@@ -1397,9 +1310,7 @@ export async function importAttendanceRecords(
       return Math.max(max, row);
     }, 0);
     if (maxTargetRow > 0) {
-      await withQuotaRetry(() =>
-        ensureSheetHasRows(targetSpreadsheetId, sheetTitle, maxTargetRow),
-      );
+      await withQuotaRetry(() => ensureSheetHasRows(targetSpreadsheetId, sheetTitle, maxTargetRow));
     }
 
     await withQuotaRetry(() =>
@@ -1432,10 +1343,7 @@ export async function listAttendanceMonthlySheetsAcrossYears(
   return [...unique];
 }
 
-export function computeLiveWorkedMs(
-  record: AttendanceRow,
-  now: Date = new Date(),
-): number {
+export function computeLiveWorkedMs(record: AttendanceRow, now: Date = new Date()): number {
   if (!record.punchIn.trim()) return 0;
 
   const baseDate = new Date(record.date);

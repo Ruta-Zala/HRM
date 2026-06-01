@@ -19,9 +19,7 @@ type EmployeeListApiResponse = {
 };
 
 /** Parse paginated `/api/employee` payload into picker list items. */
-export function parseEmployeeListApiResponse(
-  result: EmployeeListApiResponse,
-): Employee[] {
+export function parseEmployeeListApiResponse(result: EmployeeListApiResponse): Employee[] {
   if (!result.success || !result.data?.length) return [];
 
   const sheetData = result.data;

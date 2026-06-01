@@ -28,8 +28,7 @@ export function filterEmployeeSheetForViewer(
     return [headers.map((h) => h)];
   }
 
-  const pickCells = (row: string[]) =>
-    keepIndices.map((colIndex) => row[colIndex] ?? "");
+  const pickCells = (row: string[]) => keepIndices.map((colIndex) => row[colIndex] ?? "");
 
   return [pickCells(headers), ...data.slice(1).map(pickCells)];
 }
@@ -71,10 +70,7 @@ export function preserveHrOnlyFieldsOnUpdate(
 
   return incomingRow.map((cell, index) => {
     const key = formKeyByIndex[index];
-    if (
-      key != null &&
-      (HR_ONLY_FIELD_SET.has(key) || LOCKED_FOR_NON_MANAGERS_SET.has(key))
-    ) {
+    if (key != null && (HR_ONLY_FIELD_SET.has(key) || LOCKED_FOR_NON_MANAGERS_SET.has(key))) {
       return existingRow[index] ?? "";
     }
     return cell;

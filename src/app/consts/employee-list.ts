@@ -7,10 +7,7 @@ export type EmployeeListColumn = {
   sortable?: boolean;
 };
 
-const LIST_COLUMN_HEADERS: Record<
-  (typeof EMPLOYEE_LIST_PUBLIC_FIELDS)[number],
-  string
-> = {
+const LIST_COLUMN_HEADERS: Record<(typeof EMPLOYEE_LIST_PUBLIC_FIELDS)[number], string> = {
   profileImage: "",
   name: "Name",
   role: "Role",
@@ -19,9 +16,10 @@ const LIST_COLUMN_HEADERS: Record<
 };
 
 /** Columns shown on the employee directory table (all roles). */
-export const EMPLOYEE_LIST_COLUMNS: EmployeeListColumn[] =
-  EMPLOYEE_LIST_PUBLIC_FIELDS.map((key) => ({
+export const EMPLOYEE_LIST_COLUMNS: EmployeeListColumn[] = EMPLOYEE_LIST_PUBLIC_FIELDS.map(
+  (key) => ({
     key,
     header: LIST_COLUMN_HEADERS[key],
     sortable: key !== "profileImage" && key !== "status",
-  }));
+  }),
+);

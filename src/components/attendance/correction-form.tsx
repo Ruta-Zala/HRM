@@ -31,9 +31,7 @@ export function CorrectionForm({
     setError(null);
     try {
       const [hours, minutes] = requestedTime.split(":").map((p) => parseInt(p, 10));
-      const clock = formatClockTime(
-        new Date(2000, 0, 1, hours || 0, minutes || 0),
-      );
+      const clock = formatClockTime(new Date(2000, 0, 1, hours || 0, minutes || 0));
 
       await submitCorrectionRequest({
         field,
@@ -50,14 +48,13 @@ export function CorrectionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-ex-border bg-ex-elevated p-4">
+    <form
+      onSubmit={handleSubmit}
+      className="border-ex-border bg-ex-elevated space-y-4 rounded-xl border p-4"
+    >
       <div className="space-y-2">
         <Label htmlFor="correction-field">Field</Label>
-        <Select
-          id="correction-field"
-          value={field}
-          onChange={(e) => setField(e.target.value)}
-        >
+        <Select id="correction-field" value={field} onChange={(e) => setField(e.target.value)}>
           <option value="punchIn">Punch In</option>
           <option value="punchOut">Punch Out</option>
           <option value="breakStart">Break Start</option>

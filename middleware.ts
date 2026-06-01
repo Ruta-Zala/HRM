@@ -15,9 +15,7 @@ const PUBLIC_PATHS = [
 ];
 
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 async function fetchAccountStatus(req: NextRequest): Promise<{
@@ -89,8 +87,7 @@ export async function middleware(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "You cannot access this route. Your account is deactivated.",
+          message: "You cannot access this route. Your account is deactivated.",
           code: "ACCOUNT_INACTIVE",
         },
         { status: 403 },

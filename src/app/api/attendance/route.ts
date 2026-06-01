@@ -8,11 +8,7 @@ import {
   WORK_MODE,
   WORK_MODE_OPTIONS,
 } from "@/lib/attendance/constants";
-import {
-  formatBreakAllowance,
-  parseDurationToMs,
-  parseTimeOnDate,
-} from "@/lib/attendance/time";
+import { formatBreakAllowance, parseDurationToMs, parseTimeOnDate } from "@/lib/attendance/time";
 import { resolveAttendanceEmployeeForTarget } from "@/lib/attendance/employee";
 import {
   computeLiveWorkedMs,
@@ -55,9 +51,7 @@ export const GET = withActiveSession(async (req, user) => {
     const mode = searchParams.get("mode");
 
     if (mode === "periods") {
-      const sheets = await listAttendanceMonthlySheetsAcrossYears(
-        employee.attendanceSpreadsheetId,
-      );
+      const sheets = await listAttendanceMonthlySheetsAcrossYears(employee.attendanceSpreadsheetId);
       const years = new Set<number>();
       const monthsByYear = new Map<number, number[]>();
 
@@ -99,11 +93,7 @@ export const GET = withActiveSession(async (req, user) => {
         );
       }
 
-      const records = await getMonthAttendance(
-        employee.attendanceSpreadsheetId,
-        year,
-        month,
-      );
+      const records = await getMonthAttendance(employee.attendanceSpreadsheetId, year, month);
 
       return NextResponse.json({
         success: true,
@@ -214,7 +204,10 @@ export const POST = withActiveSession(async (req, user) => {
     let record;
     switch (action) {
       case "punch-in":
-        if (!workMode || !WORK_MODE_OPTIONS.includes(workMode as (typeof WORK_MODE_OPTIONS)[number])) {
+        if (
+          !workMode ||
+          !WORK_MODE_OPTIONS.includes(workMode as (typeof WORK_MODE_OPTIONS)[number])
+        ) {
           return NextResponse.json(
             { success: false, message: "Please select a valid work mode before punch in" },
             { status: 400 },
@@ -235,10 +228,7 @@ export const POST = withActiveSession(async (req, user) => {
         record = await endBreak(employee.attendanceSpreadsheetId);
         break;
       default:
-        return NextResponse.json(
-          { success: false, message: "Invalid action" },
-          { status: 400 },
-        );
+        return NextResponse.json({ success: false, message: "Invalid action" }, { status: 400 });
     }
 
     const workedMs = computeLiveWorkedMs(record);
@@ -265,8 +255,7 @@ export const POST = withActiveSession(async (req, user) => {
         dailyUpdate: record.dailyUpdate ?? "",
         idealHours: record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 4 : IDEAL_WORKING_HOURS,
         idealBreakHours: record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 0 : IDEAL_BREAK_HOURS,
-        idealShiftHours:
-          record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 4 : IDEAL_SHIFT_HOURS,
+        idealShiftHours: record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 4 : IDEAL_SHIFT_HOURS,
       },
     });
   } catch (error: unknown) {
@@ -334,8 +323,7 @@ export const PATCH = withActiveSession(async (req, user) => {
         dailyUpdate: record.dailyUpdate ?? "",
         idealHours: record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 4 : IDEAL_WORKING_HOURS,
         idealBreakHours: record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 0 : IDEAL_BREAK_HOURS,
-        idealShiftHours:
-          record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 4 : IDEAL_SHIFT_HOURS,
+        idealShiftHours: record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 4 : IDEAL_SHIFT_HOURS,
       },
     });
   } catch (error: unknown) {

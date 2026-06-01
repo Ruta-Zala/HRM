@@ -43,9 +43,7 @@ export function EarlyLeaveDialog({
   const trimmed = reason.trim();
   const trimmedDailyUpdate = dailyUpdate.trim();
   const tooShort =
-    requireEarlyLeaveReason &&
-    trimmed.length > 0 &&
-    trimmed.length < EARLY_LEAVE_REASON_MIN_LENGTH;
+    requireEarlyLeaveReason && trimmed.length > 0 && trimmed.length < EARLY_LEAVE_REASON_MIN_LENGTH;
   const hasValidReason =
     !requireEarlyLeaveReason || trimmed.length >= EARLY_LEAVE_REASON_MIN_LENGTH;
   const canSubmit = hasValidReason && trimmedDailyUpdate.length > 0 && !submitting;
@@ -74,17 +72,17 @@ export function EarlyLeaveDialog({
       />
       <form
         onSubmit={handleSubmit}
-        className="relative z-10 w-full max-w-md rounded-2xl border border-ex-border bg-ex-elevated p-5 shadow-xl sm:p-6"
+        className="border-ex-border bg-ex-elevated relative z-10 w-full max-w-md rounded-2xl border p-5 shadow-xl sm:p-6"
       >
         <div className="flex items-start gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
             <LogOut className="size-5 text-amber-700 dark:text-amber-300" aria-hidden />
           </div>
           <div className="min-w-0">
-            <h2 id="early-leave-title" className="text-lg font-semibold text-ex-primary">
+            <h2 id="early-leave-title" className="text-ex-primary text-lg font-semibold">
               Punch out for today?
             </h2>
-            <p className="mt-1 text-sm text-ex-muted">
+            <p className="text-ex-muted mt-1 text-sm">
               {requireEarlyLeaveReason ? (
                 <>
                   You&apos;re about{" "}
@@ -129,7 +127,7 @@ export function EarlyLeaveDialog({
               onChange={(e) => setReason(e.target.value)}
               className="resize-none"
             />
-            <p className="text-xs text-ex-muted">
+            <p className="text-ex-muted text-xs">
               At least {EARLY_LEAVE_REASON_MIN_LENGTH} characters
               {tooShort ? (
                 <span className="text-amber-700 dark:text-amber-400">
@@ -161,12 +159,7 @@ export function EarlyLeaveDialog({
         ) : null}
 
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={submitting}
-            onClick={onCancel}
-          >
+          <Button type="button" variant="outline" disabled={submitting} onClick={onCancel}>
             Stay clocked in
           </Button>
           <Button type="submit" disabled={!canSubmit} className="gap-2">

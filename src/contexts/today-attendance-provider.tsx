@@ -46,8 +46,24 @@ function useTodayAttendanceState(): TodayAttendanceContextValue {
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await fetchTodayAttendance();
+        if (cancelled) return;
+        setToday(data);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Failed to load attendance");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!today?.hasPunchedIn || today.hasPunchedOut) return;

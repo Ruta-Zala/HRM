@@ -23,8 +23,7 @@ import { CORRECTION_STATUS, WORK_MODE, WORK_MODE_OPTIONS } from "@/lib/attendanc
 export default function PunchPage() {
   const { user } = useAuth();
   const isHr = user ? canManageEmployees(user.role) : false;
-  const { today, loading, error, acting, liveWorkedMs, runAction, refresh } =
-    useTodayAttendance();
+  const { today, loading, error, acting, liveWorkedMs, runAction, refresh } = useTodayAttendance();
   const [showCorrection, setShowCorrection] = useState(false);
   const [corrections, setCorrections] = useState<CorrectionRequestDto[]>([]);
   const [reviewing, setReviewing] = useState<{
@@ -47,10 +46,7 @@ export default function PunchPage() {
     setEarlyLeaveOpen(true);
   }
 
-  async function confirmEarlyLeave(payload: {
-    earlyLeaveReason?: string;
-    dailyUpdate: string;
-  }) {
+  async function confirmEarlyLeave(payload: { earlyLeaveReason?: string; dailyUpdate: string }) {
     setEarlyLeaveError(null);
     try {
       await runAction("punch-out", payload);
@@ -83,7 +79,9 @@ export default function PunchPage() {
 
   useEffect(() => {
     if (!isHr) return;
-    void fetchCorrectionRequests().then(setCorrections).catch(() => {});
+    void fetchCorrectionRequests()
+      .then(setCorrections)
+      .catch(() => {});
   }, [isHr]);
 
   async function handleReview(id: string, status: "Approved" | "Rejected") {
@@ -100,8 +98,8 @@ export default function PunchPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight text-ex-primary">Punch desk</h1>
-        <p className="text-sm text-ex-muted">
+        <h1 className="text-ex-primary text-2xl font-bold tracking-tight">Punch desk</h1>
+        <p className="text-ex-muted text-sm">
           Your daily check-in — one tap to start, one tap to finish.
         </p>
       </div>
@@ -129,7 +127,7 @@ export default function PunchPage() {
                 </option>
               ))}
             </Select>
-            <p className="text-xs text-ex-muted">
+            <p className="text-ex-muted text-xs">
               This mode will be saved in today&apos;s attendance row.
             </p>
           </CardContent>
@@ -146,9 +144,7 @@ export default function PunchPage() {
         onPunchOut={() => void handlePunchOut()}
         onBreakStart={() => void runAction("break-start")}
         onBreakEnd={() => void runAction("break-end")}
-        onRequestCorrection={
-          today?.hasPunchedIn ? () => setShowCorrection((v) => !v) : undefined
-        }
+        onRequestCorrection={today?.hasPunchedIn ? () => setShowCorrection((v) => !v) : undefined}
       />
 
       <EarlyLeaveDialog
@@ -179,7 +175,7 @@ export default function PunchPage() {
               onChange={(e) => setDailyUpdateDraft(e.target.value)}
               placeholder="Add completed work for this day"
               rows={4}
-              className="w-full rounded-md border border-ex-border bg-ex-elevated px-3 py-2 text-sm"
+              className="border-ex-border bg-ex-elevated w-full rounded-md border px-3 py-2 text-sm"
               disabled={dailyUpdateSaving}
             />
             {dailyUpdateError ? (
@@ -190,8 +186,7 @@ export default function PunchPage() {
                 size="sm"
                 onClick={() => void handleSaveDailyUpdate()}
                 disabled={
-                  dailyUpdateSaving ||
-                  !(dailyUpdateDraft ?? today?.dailyUpdate ?? "").trim()
+                  dailyUpdateSaving || !(dailyUpdateDraft ?? today?.dailyUpdate ?? "").trim()
                 }
               >
                 {dailyUpdateSaving ? (
@@ -227,16 +222,16 @@ export default function PunchPage() {
               .map((c) => (
                 <div
                   key={c.id}
-                  className="flex flex-col gap-3 rounded-xl border border-ex-border bg-ex-surface/50 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="border-ex-border bg-ex-surface/50 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="text-sm">
-                    <p className="font-medium text-ex-primary">
+                    <p className="text-ex-primary font-medium">
                       {c.employeeName} · {c.date} · {c.field}
                     </p>
                     <p className="text-ex-muted">
                       {c.originalValue || "—"} → {c.requestedValue}
                     </p>
-                    <p className="mt-1 text-ex-muted">{c.reason}</p>
+                    <p className="text-ex-muted mt-1">{c.reason}</p>
                   </div>
                   <div className="flex gap-2">
                     <Button

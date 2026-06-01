@@ -1,9 +1,9 @@
 import { Readable } from "node:stream";
 
 import {
-    driveFileNameForField,
-    EMPLOYEE_DOCUMENT_FIELDS,
-    type EmployeeDocumentField,
+  driveFileNameForField,
+  EMPLOYEE_DOCUMENT_FIELDS,
+  type EmployeeDocumentField,
 } from "@/lib/employee/documents";
 
 import { formatDriveError, getDrive } from "./drive-auth";
@@ -11,68 +11,63 @@ import { formatDriveError, getDrive } from "./drive-auth";
 const HRM_FOLDER_ID = process.env.GOOGLE_HRM_FOLDER_ID!;
 
 const SHARED_DRIVE_OPTIONS = {
-    supportsAllDrives: true,
+  supportsAllDrives: true,
 } as const;
 
 export type { EmployeeDocumentField };
 export { EMPLOYEE_DOCUMENT_FIELDS };
 
 export async function uploadFileToFolder(
-    fileName: string,
-    mimeType: string,
-    buffer: Buffer,
-    parentFolderId: string,
+  fileName: string,
+  mimeType: string,
+  buffer: Buffer,
+  parentFolderId: string,
 ): Promise<string> {
-    const drive = await getDrive();
+  const drive = await getDrive();
 
-    try {
-        const response = await drive.files.create({
-            requestBody: {
-                name: fileName,
-                parents: [parentFolderId],
-            },
-            media: {
-                mimeType: mimeType || "application/octet-stream",
-                body: Readable.from(buffer),
-            },
-            fields: "id, webViewLink",
-            ...SHARED_DRIVE_OPTIONS,
-        });
+  try {
+    const response = await drive.files.create({
+      requestBody: {
+        name: fileName,
+        parents: [parentFolderId],
+      },
+      media: {
+        mimeType: mimeType || "application/octet-stream",
+        body: Readable.from(buffer),
+      },
+      fields: "id, webViewLink",
+      ...SHARED_DRIVE_OPTIONS,
+    });
 
-        const fileId = response.data.id;
-        return (
-            response.data.webViewLink ??
-            (fileId ? `https://drive.google.com/file/d/${fileId}/view` : fileName)
-        );
-    } catch (error) {
-        throw formatDriveError(error);
-    }
+    const fileId = response.data.id;
+    return (
+      response.data.webViewLink ??
+      (fileId ? `https://drive.google.com/file/d/${fileId}/view` : fileName)
+    );
+  } catch (error) {
+    throw formatDriveError(error);
+  }
 }
 
 export async function uploadEmployeeDocuments(
-    documentsFolderId: string,
-    files: Partial<
-        Record<
-            EmployeeDocumentField,
-            { name: string; type: string; buffer: Buffer }
-        >
-    >,
+  documentsFolderId: string,
+  files: Partial<Record<EmployeeDocumentField, { name: string; type: string; buffer: Buffer }>>,
 ): Promise<Partial<Record<EmployeeDocumentField, string>>> {
-    const links: Partial<Record<EmployeeDocumentField, string>> = {};
+  const links: Partial<Record<EmployeeDocumentField, string>> = {};
 
-    for (const field of EMPLOYEE_DOCUMENT_FIELDS) {
-        const file = files[field];
-        if (!file) continue;
+  for (const field of EMPLOYEE_DOCUMENT_FIELDS) {
+    const file = files[field];
+    if (!file) continue;
 
-        links[field] = await uploadFileToFolder(
-            driveFileNameForField(field, file.name, file.type),
-            file.type,
-            file.buffer,
-            documentsFolderId,
-        );
-    }
+    links[field] = await uploadFileToFolder(
+      driveFileNameForField(field, file.name, file.type),
+      file.type,
+      file.buffer,
+      documentsFolderId,
+    );
+  }
 
-    return links;
+  return links;
 }
 
 /** Root under {@link HRM_FOLDER_ID}: `HRM/Employees/{employeeId}_{name}/documents/`. */
@@ -82,106 +77,88 @@ const EMPLOYEES_ROOT_FOLDER_NAME = "Employees";
 const LEGACY_EMPLOYEES_ROOT_FOLDER_NAME = "documents";
 
 export const createFolder = async (name: string, parentFolderId?: string) => {
-    const drive = await getDrive();
+  const drive = await getDrive();
 
-    try {
-        const response = await drive.files.create({
-            requestBody: {
-                name,
-                mimeType: "application/vnd.google-apps.folder",
-                parents: parentFolderId ? [parentFolderId] : [HRM_FOLDER_ID],
-            },
-            fields: "id,name",
-            ...SHARED_DRIVE_OPTIONS,
-        });
-
-        return response.data;
-    } catch (error) {
-        throw formatDriveError(error);
-    }
-};
-
-async function findFolder(
-    name: string,
-    parentFolderId: string,
-): Promise<string | null> {
-    const drive = await getDrive();
-
-    const query = [
-        "mimeType = 'application/vnd.google-apps.folder'",
-        "trashed = false",
-        `name = '${name.replace(/'/g, "\\'")}'`,
-        `'${parentFolderId}' in parents`,
-    ].join(" and ");
-
-    const list = await drive.files.list({
-        q: query,
-        fields: "files(id)",
-        pageSize: 1,
-        ...SHARED_DRIVE_OPTIONS,
+  try {
+    const response = await drive.files.create({
+      requestBody: {
+        name,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: parentFolderId ? [parentFolderId] : [HRM_FOLDER_ID],
+      },
+      fields: "id,name",
+      ...SHARED_DRIVE_OPTIONS,
     });
 
-    return list.data.files?.[0]?.id ?? null;
+    return response.data;
+  } catch (error) {
+    throw formatDriveError(error);
+  }
+};
+
+async function findFolder(name: string, parentFolderId: string): Promise<string | null> {
+  const drive = await getDrive();
+
+  const query = [
+    "mimeType = 'application/vnd.google-apps.folder'",
+    "trashed = false",
+    `name = '${name.replace(/'/g, "\\'")}'`,
+    `'${parentFolderId}' in parents`,
+  ].join(" and ");
+
+  const list = await drive.files.list({
+    q: query,
+    fields: "files(id)",
+    pageSize: 1,
+    ...SHARED_DRIVE_OPTIONS,
+  });
+
+  return list.data.files?.[0]?.id ?? null;
 }
 
-async function getOrCreateFolder(
-    name: string,
-    parentFolderId: string,
-): Promise<string> {
-    try {
-        const existingId = await findFolder(name, parentFolderId);
-        if (existingId) return existingId;
+async function getOrCreateFolder(name: string, parentFolderId: string): Promise<string> {
+  try {
+    const existingId = await findFolder(name, parentFolderId);
+    if (existingId) return existingId;
 
-        const created = await createFolder(name, parentFolderId);
-        if (!created.id) {
-            throw new Error(`Failed to create folder: ${name}`);
-        }
-        return created.id;
-    } catch (error) {
-        throw formatDriveError(error);
+    const created = await createFolder(name, parentFolderId);
+    if (!created.id) {
+      throw new Error(`Failed to create folder: ${name}`);
     }
+    return created.id;
+  } catch (error) {
+    throw formatDriveError(error);
+  }
 }
 
 /** Employees root: prefers `Employees`, falls back to legacy `documents` folder. */
 async function getOrCreateEmployeesRootFolder(): Promise<string> {
-    const preferred = await findFolder(EMPLOYEES_ROOT_FOLDER_NAME, HRM_FOLDER_ID);
-    if (preferred) return preferred;
+  const preferred = await findFolder(EMPLOYEES_ROOT_FOLDER_NAME, HRM_FOLDER_ID);
+  if (preferred) return preferred;
 
-    const legacy = await findFolder(
-        LEGACY_EMPLOYEES_ROOT_FOLDER_NAME,
-        HRM_FOLDER_ID,
-    );
-    if (legacy) return legacy;
+  const legacy = await findFolder(LEGACY_EMPLOYEES_ROOT_FOLDER_NAME, HRM_FOLDER_ID);
+  if (legacy) return legacy;
 
-    return getOrCreateFolder(EMPLOYEES_ROOT_FOLDER_NAME, HRM_FOLDER_ID);
+  return getOrCreateFolder(EMPLOYEES_ROOT_FOLDER_NAME, HRM_FOLDER_ID);
 }
 
 export async function getParentFolderId(folderId: string): Promise<string | null> {
-    const drive = await getDrive();
-    const response = await drive.files.get({
-        fileId: folderId,
-        fields: "parents",
-        supportsAllDrives: true,
-    });
-    return response.data.parents?.[0] ?? null;
+  const drive = await getDrive();
+  const response = await drive.files.get({
+    fileId: folderId,
+    fields: "parents",
+    supportsAllDrives: true,
+  });
+  return response.data.parents?.[0] ?? null;
 }
 
-export const createEmployeeFolderStructure = async (
-    employeeId: string,
-    employeeName: string,
-) => {
-    const documentsRootId = await getOrCreateEmployeesRootFolder();
+export const createEmployeeFolderStructure = async (employeeId: string, employeeName: string) => {
+  const documentsRootId = await getOrCreateEmployeesRootFolder();
 
-    const employeeFolderName = `${employeeId}_${employeeName}`;
-    const employeeFolderId = await getOrCreateFolder(
-        employeeFolderName,
-        documentsRootId,
-    );
+  const employeeFolderName = `${employeeId}_${employeeName}`;
+  const employeeFolderId = await getOrCreateFolder(employeeFolderName, documentsRootId);
 
-    const documentsFolderId = await getOrCreateFolder(
-        "documents",
-        employeeFolderId,
-    );
+  const documentsFolderId = await getOrCreateFolder("documents", employeeFolderId);
 
-    return { employeeFolderId, documentsFolderId };
+  return { employeeFolderId, documentsFolderId };
 };

@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { ExternalLink, Pencil, User } from "lucide-react";
+import Image from "next/image";
 
-import { ROLES, STATUS } from "@/app/consts/common";
+import { ROLES } from "@/app/consts/common";
 import { parseSkillsValue } from "@/app/consts/tech-skills";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,7 +70,7 @@ function DocumentFileRow({
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-ex-secondary hover:underline"
+          className="text-ex-secondary inline-flex items-center gap-1 hover:underline"
         >
           {title}
           <ExternalLink className="size-3.5 shrink-0 opacity-80" aria-hidden />
@@ -106,6 +105,7 @@ export type EmployeeProfileViewProps = {
   showAccountSettings?: boolean;
   hasPassword?: boolean;
   onEdit?: () => void;
+  onPasswordUpdated?: () => void;
 };
 
 export function EmployeeProfileView({
@@ -113,19 +113,14 @@ export function EmployeeProfileView({
   showAccountSettings = false,
   hasPassword: initialHasPassword = false,
   onEdit,
+  onPasswordUpdated,
 }: EmployeeProfileViewProps) {
   const { user } = useAuth();
   const profileSrc = resolveProfileImageSrc(form.profileImage);
   const skills = parseSkillsValue(form.skills);
-  const [hasPassword, setHasPassword] = useState(initialHasPassword);
-  const showDocuments =
-    user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
+  const showDocuments = user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
   const canManage = user ? canManageEmployees(user.role) : false;
   const isInactive = !isEmployeeStatusActive(form.status);
-
-  useEffect(() => {
-    setHasPassword(initialHasPassword);
-  }, [initialHasPassword]);
 
   return (
     <div className="grid gap-4 xl:grid-cols-3">
@@ -145,22 +140,25 @@ export function EmployeeProfileView({
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col items-center gap-3 sm:col-span-2">
               {profileSrc ? (
-                <img
+                <Image
                   src={profileSrc}
                   alt="Profile"
-                  className="size-24 rounded-full border border-ex-border object-cover"
+                  width={96}
+                  height={96}
+                  unoptimized
+                  className="border-ex-border size-24 rounded-full border object-cover"
                 />
               ) : (
                 <span
-                  className="inline-flex size-24 items-center justify-center rounded-full border border-ex-border bg-ex-surface text-ex-muted"
+                  className="border-ex-border bg-ex-surface text-ex-muted inline-flex size-24 items-center justify-center rounded-full border"
                   aria-hidden
                 >
                   <User className="size-10" />
                 </span>
               )}
               <div className="text-center">
-                <p className="text-lg font-semibold text-ex-primary">{form.name || "—"}</p>
-                <p className="text-sm text-ex-muted">{form.employeeId || "—"}</p>
+                <p className="text-ex-primary text-lg font-semibold">{form.name || "—"}</p>
+                <p className="text-ex-muted text-sm">{form.employeeId || "—"}</p>
               </div>
             </div>
 
@@ -172,10 +170,7 @@ export function EmployeeProfileView({
 
             {isInactive ? (
               <>
-                <ReadOnlyField
-                  label="Last working day"
-                  value={formatDate(form.lastWorkingDay)}
-                />
+                <ReadOnlyField label="Last working day" value={formatDate(form.lastWorkingDay)} />
                 <div className="space-y-2 sm:col-span-2">
                   <Label>Offboard reason</Label>
                   <Textarea
@@ -202,14 +197,8 @@ export function EmployeeProfileView({
 
             <ReadOnlyField label="Birthday" value={formatDate(form.birthdayDate)} />
             <ReadOnlyField label="Joining date" value={formatDate(form.joiningDate)} />
-            <ReadOnlyField
-              label="Last increment"
-              value={formatDate(form.lastIncrementDate)}
-            />
-            <ReadOnlyField
-              label="Experience (years)"
-              value={form.experience || "—"}
-            />
+            <ReadOnlyField label="Last increment" value={formatDate(form.lastIncrementDate)} />
+            <ReadOnlyField label="Experience (years)" value={form.experience || "—"} />
 
             {canManage ? (
               <ReadOnlyField
@@ -226,8 +215,8 @@ export function EmployeeProfileView({
         {showAccountSettings ? (
           <ProfileAccountSettings
             username={form.username}
-            hasPassword={hasPassword}
-            onPasswordUpdated={() => setHasPassword(true)}
+            hasPassword={initialHasPassword}
+            onPasswordUpdated={onPasswordUpdated}
           />
         ) : null}
       </div>
@@ -239,10 +228,7 @@ export function EmployeeProfileView({
           </CardHeader>
           <CardContent className="space-y-4">
             <ReadOnlyField label="Parent / guardian" value={form.parentName || "—"} />
-            <ReadOnlyField
-              label="Guardian contact"
-              value={formatPhone(form.parentContact)}
-            />
+            <ReadOnlyField label="Guardian contact" value={formatPhone(form.parentContact)} />
             <div className="space-y-2">
               <Label>Guardian details</Label>
               <Textarea
@@ -253,7 +239,6 @@ export function EmployeeProfileView({
                 className="disabled:opacity-100"
               />
             </div>
-
           </CardContent>
         </Card>
 
@@ -281,21 +266,13 @@ export function EmployeeProfileView({
               <CardTitle>Documents on file</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <DocumentFileRow
-                label="PAN card"
-                field="pancard"
-                storedValue={form.pancard}
-              />
+              <DocumentFileRow label="PAN card" field="pancard" storedValue={form.pancard} />
               <DocumentFileRow
                 label="Aadhaar card"
                 field="aadharCard"
                 storedValue={form.aadharCard}
               />
-              <DocumentFileRow
-                label="Marksheet"
-                field="marksheet"
-                storedValue={form.marksheet}
-              />
+              <DocumentFileRow label="Marksheet" field="marksheet" storedValue={form.marksheet} />
             </CardContent>
           </Card>
         ) : null}

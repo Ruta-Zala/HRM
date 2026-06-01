@@ -96,10 +96,7 @@ export function installInactiveAccountFetchGuard(): () => void {
 
   const originalFetch = window.fetch.bind(window);
 
-  window.fetch = async (
-    input: RequestInfo | URL,
-    init?: RequestInit,
-  ): Promise<Response> => {
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     if (isAccountInactiveRedirectPending()) {
       throw new AccountInactiveRedirectError();
     }

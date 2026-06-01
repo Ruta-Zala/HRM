@@ -17,18 +17,18 @@ export function AccessDenied({
     <div
       role="alert"
       className={cn(
-        "flex flex-col items-center justify-center rounded-xl border border-dashed border-ex-border bg-ex-elevated px-6 py-16 text-center shadow-sm dark:shadow-none",
+        "border-ex-border bg-ex-elevated flex flex-col items-center justify-center rounded-xl border border-dashed px-6 py-16 text-center shadow-sm dark:shadow-none",
         className,
       )}
     >
       <div
-        className="mb-4 flex size-14 items-center justify-center rounded-full bg-ex-surface ring-1 ring-ex-border"
+        className="bg-ex-surface ring-ex-border mb-4 flex size-14 items-center justify-center rounded-full ring-1"
         aria-hidden
       >
-        <ShieldX className="size-6 text-ex-muted" />
+        <ShieldX className="text-ex-muted size-6" />
       </div>
-      <h3 className="text-sm font-semibold text-ex-primary">{title}</h3>
-      <p className="mt-1.5 max-w-md text-sm leading-relaxed text-ex-muted">{description}</p>
+      <h3 className="text-ex-primary text-sm font-semibold">{title}</h3>
+      <p className="text-ex-muted mt-1.5 max-w-md text-sm leading-relaxed">{description}</p>
       {action ? <div className="mt-6">{action}</div> : null}
     </div>
   );

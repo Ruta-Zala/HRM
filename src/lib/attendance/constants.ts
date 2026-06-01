@@ -107,15 +107,9 @@ export const CORRECTION_STATUS = {
   REJECTED: "Rejected",
 } as const;
 
-export type CorrectionStatus =
-  (typeof CORRECTION_STATUS)[keyof typeof CORRECTION_STATUS];
+export type CorrectionStatus = (typeof CORRECTION_STATUS)[keyof typeof CORRECTION_STATUS];
 
-export const CORRECTION_FIELDS = [
-  "punchIn",
-  "punchOut",
-  "breakStart",
-  "breakEnd",
-] as const;
+export const CORRECTION_FIELDS = ["punchIn", "punchOut", "breakStart", "breakEnd"] as const;
 
 export type CorrectionField = (typeof CORRECTION_FIELDS)[number];
 
@@ -145,8 +139,7 @@ export const OVERTIME_APPROVAL = {
   REJECTED: "Rejected",
 } as const;
 
-export type OvertimeApprovalStatus =
-  (typeof OVERTIME_APPROVAL)[keyof typeof OVERTIME_APPROVAL];
+export type OvertimeApprovalStatus = (typeof OVERTIME_APPROVAL)[keyof typeof OVERTIME_APPROVAL];
 
 export const OVERTIME_REQUEST_STATUS = {
   PENDING: "Pending",

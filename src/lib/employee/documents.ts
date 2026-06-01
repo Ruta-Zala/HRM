@@ -10,10 +10,7 @@ export const EMPLOYEE_DOCUMENT_FIELDS = [
 export type EmployeeDocumentField = (typeof EMPLOYEE_DOCUMENT_FIELDS)[number];
 
 /** Base filename on Google Drive (without extension). */
-export const EMPLOYEE_DOCUMENT_DRIVE_NAMES: Record<
-  EmployeeDocumentField,
-  string
-> = {
+export const EMPLOYEE_DOCUMENT_DRIVE_NAMES: Record<EmployeeDocumentField, string> = {
   pancard: "pancard",
   aadharCard: "aadhar",
   marksheet: "marksheet",
@@ -44,9 +41,7 @@ export function driveFileNameForField(
 }
 
 export function isGoogleDriveFileUrl(value: string): boolean {
-  return /^https?:\/\/(?:drive\.google\.com|docs\.google\.com)\//i.test(
-    value.trim(),
-  );
+  return /^https?:\/\/(?:drive\.google\.com|docs\.google\.com)\//i.test(value.trim());
 }
 
 /** Extract Google Drive file id from view/share links. */
@@ -91,10 +86,7 @@ export function resolveProfileImageSrc(
 }
 
 /** Show a short document label instead of a stored Drive URL. */
-export function getDocumentDisplayName(
-  field: EmployeeDocumentField,
-  storedValue: string,
-): string {
+export function getDocumentDisplayName(field: EmployeeDocumentField, storedValue: string): string {
   const trimmed = storedValue.trim();
   if (!trimmed) return "";
 

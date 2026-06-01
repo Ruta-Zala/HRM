@@ -6,24 +6,23 @@ import { getDriveOAuthConsentUrl, isDriveOAuthConfigured } from "@/lib/google/dr
 export const runtime = "nodejs";
 
 export const GET = withActiveSession(async () => {
-    if (!isDriveOAuthConfigured()) {
-        return NextResponse.json(
-            {
-                success: false,
-                message:
-                    "Add GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET to .env.local.",
-            },
-            { status: 400 },
-        );
-    }
+  if (!isDriveOAuthConfigured()) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Add GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET to .env.local.",
+      },
+      { status: 400 },
+    );
+  }
 
-    const url = getDriveOAuthConsentUrl();
-    if (!url) {
-        return NextResponse.json(
-            { success: false, message: "Could not build Google OAuth URL." },
-            { status: 500 },
-        );
-    }
+  const url = getDriveOAuthConsentUrl();
+  if (!url) {
+    return NextResponse.json(
+      { success: false, message: "Could not build Google OAuth URL." },
+      { status: 500 },
+    );
+  }
 
-    return NextResponse.redirect(url);
+  return NextResponse.redirect(url);
 });

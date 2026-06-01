@@ -24,14 +24,12 @@ export function Pagination({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 border-t border-ex-border pt-4 sm:flex-row sm:items-center sm:justify-between",
+        "border-ex-border flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between",
         className,
       )}
     >
-      <p className="text-sm text-ex-muted">
-        {total === 0
-          ? "No records"
-          : `Showing ${start}–${end} of ${total} employees`}
+      <p className="text-ex-muted text-sm">
+        {total === 0 ? "No records" : `Showing ${start}–${end} of ${total} employees`}
       </p>
 
       <div className="flex items-center gap-1">
@@ -50,7 +48,7 @@ export function Pagination({
         <div className="hidden items-center gap-1 sm:flex">
           {pages.map((p, i) =>
             p === "…" ? (
-              <span key={`ellipsis-${i}`} className="px-2 text-ex-muted">
+              <span key={`ellipsis-${i}`} className="text-ex-muted px-2">
                 …
               </span>
             ) : (

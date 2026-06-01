@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 
-import {
-  OVERTIME_REQUEST_STATUS,
-  WORKING_STATUS,
-} from "@/lib/attendance/constants";
+import { OVERTIME_REQUEST_STATUS, WORKING_STATUS } from "@/lib/attendance/constants";
 import {
   createOvertimeRequest,
   listOvertimeRequests,

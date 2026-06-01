@@ -101,9 +101,7 @@ function headerToSheetFormLookupKey(header: string): string {
     .toLowerCase();
 }
 
-export function headerToFormKey(
-  header: string,
-): keyof EmployeeFormState | null {
+export function headerToFormKey(header: string): keyof EmployeeFormState | null {
   const key = headerToSheetFormLookupKey(header);
   return SHEET_KEY_TO_FORM[key] ?? null;
 }
@@ -112,10 +110,7 @@ export function headerToFormKey(
  * Build a sheet row using the live header row order from Google Sheets.
  * Unknown columns are left empty; unmapped form fields are omitted.
  */
-export function formToSheetRow(
-  form: EmployeeFormState,
-  headers: string[],
-): string[] {
+export function formToSheetRow(form: EmployeeFormState, headers: string[]): string[] {
   return headers.map((header) => {
     if (!header.trim()) return "";
     const formKey = headerToFormKey(header);
@@ -124,10 +119,7 @@ export function formToSheetRow(
 }
 
 /** Convert a sheet data row into form state (header order from sheet) */
-export function sheetRowToForm(
-  headers: string[],
-  row: string[],
-): EmployeeFormState {
+export function sheetRowToForm(headers: string[], row: string[]): EmployeeFormState {
   const form: EmployeeFormState = {
     employeeId: "",
     documentsFolderId: "",
@@ -187,8 +179,9 @@ function applyOffboardFieldFallbacks(
   form: EmployeeFormState,
 ): void {
   if (!form.lastWorkingDay.trim()) {
-    const lastDayIndex = findHeaderIndex(headers, (key) =>
-      key.includes("last") && key.includes("working"),
+    const lastDayIndex = findHeaderIndex(
+      headers,
+      (key) => key.includes("last") && key.includes("working"),
     );
     if (lastDayIndex >= 0) {
       form.lastWorkingDay = String(row[lastDayIndex] ?? "").trim();
@@ -208,10 +201,7 @@ function applyOffboardFieldFallbacks(
   }
 }
 
-function findHeaderIndex(
-  headers: string[],
-  matches: (normalizedKey: string) => boolean,
-): number {
+function findHeaderIndex(headers: string[], matches: (normalizedKey: string) => boolean): number {
   return headers.findIndex((header) => matches(headerToSheetFormLookupKey(header)));
 }
 

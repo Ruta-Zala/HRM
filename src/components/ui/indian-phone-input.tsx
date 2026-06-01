@@ -47,13 +47,13 @@ export function IndianPhoneInput({
   return (
     <div
       className={cn(
-        "flex h-10 w-full overflow-hidden rounded-lg border border-ex-border bg-ex-bg shadow-inner focus-within:outline-none focus-within:ring-2 focus-within:ring-ex-ring dark:bg-ex-surface",
+        "border-ex-border bg-ex-bg focus-within:ring-ex-ring dark:bg-ex-surface flex h-10 w-full overflow-hidden rounded-lg border shadow-inner focus-within:ring-2 focus-within:outline-none",
         disabled && "pointer-events-none opacity-60",
         className,
       )}
     >
       <span
-        className="flex shrink-0 items-center border-r border-ex-border bg-ex-surface px-3 text-sm tabular-nums text-ex-muted dark:bg-ex-bg"
+        className="border-ex-border bg-ex-surface text-ex-muted dark:bg-ex-bg flex shrink-0 items-center border-r px-3 text-sm tabular-nums"
         aria-hidden
       >
         +91
@@ -67,7 +67,7 @@ export function IndianPhoneInput({
         value={digits}
         onChange={handleChange}
         disabled={disabled}
-        className="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-ex-muted"
+        className="placeholder:text-ex-muted min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm outline-none"
         aria-label="Indian mobile number (10 digits)"
         {...rest}
       />

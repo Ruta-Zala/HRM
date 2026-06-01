@@ -9,9 +9,7 @@ export function setAttendanceSpreadsheetIdOnRow(
   const updated = [...row];
   while (updated.length < headers.length) updated.push("");
 
-  let index = headers.findIndex(
-    (h) => headerToFormKey(h) === "attendanceSpreadsheetId",
-  );
+  let index = headers.findIndex((h) => headerToFormKey(h) === "attendanceSpreadsheetId");
 
   if (index < 0) {
     index = headers.findIndex((header) => {
@@ -20,11 +18,7 @@ export function setAttendanceSpreadsheetIdOnRow(
         .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
         .replace(/\s+/g, "_")
         .toLowerCase();
-      return (
-        key.includes("attendance") &&
-        key.includes("spreadsheet") &&
-        key.includes("id")
-      );
+      return key.includes("attendance") && key.includes("spreadsheet") && key.includes("id");
     });
   }
 

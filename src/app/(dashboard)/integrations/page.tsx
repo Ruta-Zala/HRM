@@ -37,7 +37,7 @@ export default function IntegrationsHubPage() {
               <CardTitle className="text-base">{l.title}</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-1 flex-col justify-between gap-4">
-              <p className="text-sm text-ex-muted">{l.desc}</p>
+              <p className="text-ex-muted text-sm">{l.desc}</p>
               <Link href={l.href}>
                 <Button variant="outline" size="sm" type="button">
                   Open

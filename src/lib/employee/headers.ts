@@ -1,7 +1,4 @@
-import {
-  headerToFormKey,
-  type EmployeeFormState,
-} from "./form";
+import { headerToFormKey, type EmployeeFormState } from "./form";
 
 /** Header row from sheet; trims trailing blank columns only */
 export function getSheetHeaders(sheetData: string[][]): string[] {
@@ -28,21 +25,14 @@ export function mergeRowWithFormFields(
 }
 
 /** Read employee display name from a sheet row using header mapping. */
-export function getEmployeeNameFromRow(
-  headers: string[],
-  row: string[],
-): string {
+export function getEmployeeNameFromRow(headers: string[], row: string[]): string {
   const nameIndex = headers.findIndex((h) => headerToFormKey(h) === "name");
   const name = nameIndex >= 0 ? String(row[nameIndex] ?? "").trim() : "";
   return name || String(row[0] ?? "").trim() || "Employee";
 }
 
 /** Read employee ID from a sheet row; falls back to sheet row index when missing. */
-export function getEmployeeIdFromRow(
-  headers: string[],
-  row: string[],
-  sheetRow?: number,
-): string {
+export function getEmployeeIdFromRow(headers: string[], row: string[], sheetRow?: number): string {
   const idIndex = headers.findIndex((h) => headerToFormKey(h) === "employeeId");
   const id = idIndex >= 0 ? String(row[idIndex] ?? "").trim() : "";
   if (id) return id;

@@ -16,12 +16,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import {
-  filterNav,
-  isNavChildActive,
-  isNavGroupActive,
-  type NavItem,
-} from "@/lib/rbac";
+import { filterNav, isNavChildActive, isNavGroupActive, type NavItem } from "@/lib/rbac";
 import { useAuth } from "@/contexts/auth-provider";
 
 const iconMap = {
@@ -39,7 +34,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const items = useMemo(() => filterNav(user?.role ?? null), [user?.role]);
 
   return (
-    <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4 max-h-[calc(100vh-64px)]">
+    <nav className="flex max-h-[calc(100vh-64px)] flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
       {items.map((item) => (
         <NavGroup key={item.href} item={item} pathname={pathname} onNavigate={onNavigate} />
       ))}
@@ -97,7 +92,7 @@ function NavGroup({
         <ChevronDown className={cn("size-4 transition", open ? "rotate-180" : "")} />
       </button>
       {open ? (
-        <div className="ml-4 flex flex-col gap-0.5 border-l border-ex-border pl-3">
+        <div className="border-ex-border ml-4 flex flex-col gap-0.5 border-l pl-3">
           {item.children.map((child) => {
             const childActive = isNavChildActive(pathname, child.href, item.href);
             return (
@@ -108,7 +103,7 @@ function NavGroup({
                 className={cn(
                   "rounded-md px-2 py-1.5 text-sm transition",
                   childActive
-                    ? "bg-ex-secondary/12 font-medium text-ex-secondary"
+                    ? "bg-ex-secondary/12 text-ex-secondary font-medium"
                     : "text-ex-muted hover:bg-ex-surface hover:text-ex-primary",
                 )}
               >
@@ -124,7 +119,7 @@ function NavGroup({
 
 export function AppSidebar() {
   return (
-    <aside className="hidden h-[calc(100vh)] w-64 shrink-0 flex-col border-r border-ex-border bg-ex-elevated lg:flex sticky top-0 bottom-0">
+    <aside className="border-ex-border bg-ex-elevated sticky top-0 bottom-0 hidden h-[calc(100vh)] w-64 shrink-0 flex-col border-r lg:flex">
       <SidebarBrand />
       <NavLinks />
     </aside>
@@ -146,8 +141,8 @@ export function MobileDrawer() {
             aria-label="Close menu backdrop"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute left-0 top-0 flex min-h-full w-[min(100%,20rem)] flex-col border-r border-ex-border bg-ex-elevated shadow-xl">
-            <div className="flex items-center justify-between border-b border-ex-border px-3 py-3">
+          <div className="border-ex-border bg-ex-elevated absolute top-0 left-0 flex min-h-full w-[min(100%,20rem)] flex-col border-r shadow-xl">
+            <div className="border-ex-border flex items-center justify-between border-b px-3 py-3">
               <SidebarBrand compact />
               <ButtonIcon onClick={() => setOpen(false)} label="Close menu">
                 <X className="size-5" />
@@ -166,11 +161,11 @@ function SidebarBrand({ compact }: { compact?: boolean }) {
     <Link
       href="/dashboard"
       className={cn(
-        "flex items-center gap-3 border-b border-ex-border px-4 py-3",
+        "border-ex-border flex items-center gap-3 border-b px-4 py-3",
         compact && "border-0 py-2",
       )}
     >
-      <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-ex-bg ring-1 ring-ex-border">
+      <div className="bg-ex-bg ring-ex-border relative size-10 shrink-0 overflow-hidden rounded-lg ring-1">
         <Image
           src="https://exhibytesolution.com/wp-content/uploads/2023/06/cropped-Exhibyte_Logo_Black_Logo-removebg-preview-1.png"
           alt="Exhibyte Solutions"
@@ -181,8 +176,8 @@ function SidebarBrand({ compact }: { compact?: boolean }) {
         />
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-ex-primary">Exhibyte Solutions</p>
-        <p className="truncate text-xs text-ex-muted">HRM Admin</p>
+        <p className="text-ex-primary truncate text-sm font-semibold">Exhibyte Solutions</p>
+        <p className="text-ex-muted truncate text-xs">HRM Admin</p>
       </div>
     </Link>
   );
@@ -202,7 +197,7 @@ function ButtonIcon({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-ex-border bg-ex-elevated text-ex-primary shadow-sm hover:bg-ex-surface"
+      className="border-ex-border bg-ex-elevated text-ex-primary hover:bg-ex-surface inline-flex h-10 w-10 items-center justify-center rounded-lg border shadow-sm"
     >
       {children}
     </button>
