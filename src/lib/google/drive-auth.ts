@@ -21,12 +21,17 @@ type StoredDriveTokens = {
   expiry_date?: number | null;
 };
 
+export function getDriveOAuthRedirectUri(): string {
+  return (
+    process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim() ||
+    `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/integrations/google-drive/callback`
+  );
+}
+
 function getOAuthClientConfig() {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
-  const redirectUri =
-    process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim() ||
-    `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/integrations/google-drive/callback`;
+  const redirectUri = getDriveOAuthRedirectUri();
 
   if (!clientId || !clientSecret) return null;
   return { clientId, clientSecret, redirectUri };

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 type DriveStatus = {
   oauthConfigured: boolean;
   oauthConnected: boolean;
+  oauthRedirectUri: string;
   impersonation: boolean;
 };
 
@@ -39,6 +40,7 @@ function GoogleDriveIntegrationContent() {
           setStatus({
             oauthConfigured: data.oauthConfigured,
             oauthConnected: data.oauthConnected,
+            oauthRedirectUri: data.oauthRedirectUri,
             impersonation: data.impersonation,
           });
         }
@@ -105,11 +107,18 @@ function GoogleDriveIntegrationContent() {
                     In Google Cloud Console, create an OAuth 2.0 Web client and add to{" "}
                     <code>.env.local</code>:
                   </p>
-                  <pre className="bg-ex-surface-2 overflow-x-auto rounded-md p-3 text-xs">
-                    {`GOOGLE_OAUTH_CLIENT_ID=...
+                  {status?.oauthRedirectUri ? (
+                    <pre className="bg-ex-surface-2 overflow-x-auto rounded-md p-3 text-xs">
+                      {`GOOGLE_OAUTH_CLIENT_ID=...
 GOOGLE_OAUTH_CLIENT_SECRET=...
-GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/api/integrations/google-drive/callback`}
-                  </pre>
+GOOGLE_OAUTH_REDIRECT_URI=${status.oauthRedirectUri}`}
+                    </pre>
+                  ) : null}
+                  <p className="text-xs">
+                    If you omit <code>GOOGLE_OAUTH_REDIRECT_URI</code>, set{" "}
+                    <code>NEXT_PUBLIC_APP_URL</code> to your public app origin (same value used
+                    above).
+                  </p>
                   <p>
                     Enable Drive API. Add your Gmail as a test user if the app is in Testing mode.
                   </p>
