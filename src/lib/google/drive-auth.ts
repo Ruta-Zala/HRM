@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -12,8 +13,17 @@ import {
 
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 const DRIVE_AND_SHEETS_SCOPES = [DRIVE_SCOPE, SPREADSHEETS_SCOPE];
-const TOKEN_DIR = path.join(process.cwd(), ".data");
-const TOKEN_FILE = path.join(TOKEN_DIR, "google-drive-oauth.json");
+function isVercelServerless(): boolean {
+  return Boolean(process.env.VERCEL);
+}
+
+/** Vercel lambdas cannot write under /var/task; use /tmp (ephemeral) unless env token is set. */
+function getTokenFilePath(): string {
+  const dir = isVercelServerless()
+    ? path.join("/tmp", "exhibyte-hrm")
+    : path.join(process.cwd(), ".data");
+  return path.join(dir, "google-drive-oauth.json");
+}
 
 type StoredDriveTokens = {
   refresh_token?: string | null;
@@ -29,8 +39,14 @@ function normalizeAppOrigin(url: string | undefined): string | null {
   return trimmed.replace(/\/$/, "");
 }
 
-/** Redirect URI for this deployment — from env only (no hardcoded localhost). */
-export function getDriveOAuthRedirectUri(): string {
+/**
+ * OAuth redirect URI for the current request host (browser flow) or env (status/docs).
+ * Request origin wins so a localhost value in Vercel env cannot break production Connect.
+ */
+export function getDriveOAuthRedirectUri(requestOrigin?: string): string {
+  const fromRequest = normalizeAppOrigin(requestOrigin);
+  if (fromRequest) return `${fromRequest}${DRIVE_OAUTH_CALLBACK_PATH}`;
+
   const explicit = process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim();
   if (explicit) return explicit;
 
@@ -49,24 +65,24 @@ export function getDriveOAuthSetupRedirectUris(): string[] {
   return [...new Set([explicit, fromAppUrl].filter((uri): uri is string => Boolean(uri)))];
 }
 
-function getOAuthClientConfig() {
+function getOAuthClientConfig(redirectUri?: string) {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
-  const redirectUri = getDriveOAuthRedirectUri();
+  const resolvedRedirect = redirectUri?.trim() || getDriveOAuthRedirectUri();
 
-  if (!clientId || !clientSecret || !redirectUri) return null;
-  return { clientId, clientSecret, redirectUri };
+  if (!clientId || !clientSecret || !resolvedRedirect) return null;
+  return { clientId, clientSecret, redirectUri: resolvedRedirect };
 }
 
-export function createDriveOAuth2Client(): OAuth2Client | null {
-  const config = getOAuthClientConfig();
+export function createDriveOAuth2Client(redirectUri?: string): OAuth2Client | null {
+  const config = getOAuthClientConfig(redirectUri);
   if (!config) return null;
 
   return new google.auth.OAuth2(config.clientId, config.clientSecret, config.redirectUri);
 }
 
-export function getDriveOAuthConsentUrl(): string | null {
-  const client = createDriveOAuth2Client();
+export function getDriveOAuthConsentUrl(redirectUri?: string): string | null {
+  const client = createDriveOAuth2Client(redirectUri);
   if (!client) return null;
 
   return client.generateAuthUrl({
@@ -76,12 +92,25 @@ export function getDriveOAuthConsentUrl(): string | null {
   });
 }
 
+export type DriveOAuthTokenPersistence = "env" | "file" | "ephemeral" | "none";
+
+export function getDriveOAuthTokenPersistence(): DriveOAuthTokenPersistence {
+  if (process.env.GOOGLE_OAUTH_REFRESH_TOKEN?.trim()) return "env";
+  const tokenFile = getTokenFilePath();
+  if (existsSync(tokenFile)) return isVercelServerless() ? "ephemeral" : "file";
+  return "none";
+}
+
+export function needsDriveOAuthRefreshTokenInEnv(): boolean {
+  return isVercelServerless() && !process.env.GOOGLE_OAUTH_REFRESH_TOKEN?.trim();
+}
+
 async function readStoredTokens(): Promise<StoredDriveTokens | null> {
   const envRefresh = process.env.GOOGLE_OAUTH_REFRESH_TOKEN?.trim();
   if (envRefresh) return { refresh_token: envRefresh };
 
   try {
-    const raw = await readFile(TOKEN_FILE, "utf8");
+    const raw = await readFile(getTokenFilePath(), "utf8");
     const parsed = JSON.parse(raw) as StoredDriveTokens;
     return parsed.refresh_token ? parsed : null;
   } catch {
@@ -104,10 +133,28 @@ export async function saveDriveOAuthTokens(tokens: StoredDriveTokens) {
     );
   }
 
-  const toSave: StoredDriveTokens = { ...tokens, refresh_token: refreshToken };
+  if (process.env.GOOGLE_OAUTH_REFRESH_TOKEN?.trim()) {
+    return;
+  }
 
-  await mkdir(TOKEN_DIR, { recursive: true });
-  await writeFile(TOKEN_FILE, JSON.stringify(toSave, null, 2), "utf8");
+  const toSave: StoredDriveTokens = { ...tokens, refresh_token: refreshToken };
+  const tokenFile = getTokenFilePath();
+  const tokenDir = path.dirname(tokenFile);
+
+  try {
+    await mkdir(tokenDir, { recursive: true });
+    await writeFile(tokenFile, JSON.stringify(toSave, null, 2), "utf8");
+  } catch (error) {
+    const code = error instanceof Error && "code" in error ? String(error.code) : "";
+    if (isVercelServerless() || code === "ENOENT" || code === "EROFS") {
+      throw new Error(
+        "Cannot save Google tokens on Vercel disk. Connect locally (npm run dev), copy the " +
+          "refresh_token from .data/google-drive-oauth.json into Vercel env as " +
+          "GOOGLE_OAUTH_REFRESH_TOKEN, then redeploy.",
+      );
+    }
+    throw error;
+  }
 }
 
 export async function isDriveOAuthConnected(): Promise<boolean> {
@@ -116,7 +163,9 @@ export async function isDriveOAuthConnected(): Promise<boolean> {
 }
 
 export function isDriveOAuthConfigured(): boolean {
-  return Boolean(getOAuthClientConfig());
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
+  return Boolean(clientId && clientSecret);
 }
 
 /**

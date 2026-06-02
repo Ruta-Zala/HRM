@@ -91,7 +91,17 @@ GOOGLE_OAUTH_REDIRECT_URI=https://your-domain.com/api/integrations/google-drive/
 # NEXT_PUBLIC_APP_URL=https://your-domain.com
 ```
 
-On the **same** OAuth Web client in Google Cloud Console, add **every** redirect URI you use (local + production) under **Authorized redirect URIs**. Set `GOOGLE_OAUTH_REDIRECT_URI` to the matching callback for each deployment (no implicit localhost fallback).
+On the **same** OAuth Web client in Google Cloud Console, add **every** redirect URI you use (local + production) under **Authorized redirect URIs**. The Connect flow uses the **current site URL** (`https://exhibyte-hrm.vercel.app/api/integrations/google-drive/callback` on Vercel). `GOOGLE_OAUTH_REDIRECT_URI` is optional and only used when no browser request origin is available.
+
+### Vercel / serverless (required for production)
+
+Vercel cannot write `.data/` on disk. After connecting **locally** (`npm run dev` → Integrations → Connect), copy the `refresh_token` from `.data/google-drive-oauth.json` into Vercel:
+
+```env
+GOOGLE_OAUTH_REFRESH_TOKEN=your_refresh_token_here
+```
+
+Redeploy. Without this, Connect on Vercel may fail or tokens may be lost on cold starts.
 
 ### If still failing after reconnect
 

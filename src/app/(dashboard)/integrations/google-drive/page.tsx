@@ -13,6 +13,8 @@ type DriveStatus = {
   oauthConnected: boolean;
   oauthRedirectUri: string;
   oauthSetupRedirectUris: string[];
+  needsEnvRefreshToken?: boolean;
+  tokenPersistence?: string;
   impersonation: boolean;
 };
 
@@ -89,6 +91,8 @@ function GoogleDriveIntegrationContent() {
             oauthConnected: data.oauthConnected,
             oauthRedirectUri: data.oauthRedirectUri,
             oauthSetupRedirectUris: data.oauthSetupRedirectUris ?? [],
+            needsEnvRefreshToken: data.needsEnvRefreshToken,
+            tokenPersistence: data.tokenPersistence,
             impersonation: data.impersonation,
           });
         }
@@ -136,6 +140,18 @@ function GoogleDriveIntegrationContent() {
                 </p>
               ) : null}
 
+              {status?.needsEnvRefreshToken ? (
+                <div className="border-ex-border bg-ex-surface-2 space-y-2 rounded-md border p-3 text-xs">
+                  <p className="font-medium text-amber-700">Vercel: set refresh token in env</p>
+                  <p className="text-ex-muted">
+                    Production cannot keep tokens on disk. Connect locally (<code>npm run dev</code>
+                    ), open <code>.data/google-drive-oauth.json</code>, copy{" "}
+                    <code>refresh_token</code> into Vercel as{" "}
+                    <code>GOOGLE_OAUTH_REFRESH_TOKEN</code>, then redeploy.
+                  </p>
+                </div>
+              ) : null}
+
               {error ? (
                 <div className="space-y-2 text-red-600">
                   <p>Failed: {decodeURIComponent(error)}</p>
@@ -154,6 +170,13 @@ function GoogleDriveIntegrationContent() {
                         envFileLabel="production env / .env.local"
                       />
                     </div>
+                  ) : null}
+
+                  {/Vercel|GOOGLE_OAUTH_REFRESH_TOKEN|ENOENT|EROFS/i.test(error) ? (
+                    <p className="text-ex-muted text-sm">
+                      On Vercel, add <code>GOOGLE_OAUTH_REFRESH_TOKEN</code> from a local Connect
+                      (see warning above). Deploy the latest app code, then retry.
+                    </p>
                   ) : null}
                 </div>
               ) : null}

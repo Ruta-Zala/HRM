@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { createDriveOAuth2Client, saveDriveOAuthTokens } from "@/lib/google/drive-auth";
+import {
+  createDriveOAuth2Client,
+  getDriveOAuthRedirectUri,
+  saveDriveOAuthTokens,
+} from "@/lib/google/drive-auth";
+import { getRequestAppOrigin } from "@/lib/google/drive-oauth-request";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const oauthError = req.nextUrl.searchParams.get("error");
-  const redirectBase = new URL("/integrations/google-drive", req.nextUrl.origin);
+  const appOrigin = getRequestAppOrigin(req);
+  const redirectBase = new URL("/integrations/google-drive", appOrigin);
 
   if (oauthError) {
     redirectBase.searchParams.set("error", oauthError);
@@ -19,7 +25,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(redirectBase);
   }
 
-  const client = createDriveOAuth2Client();
+  const redirectUri = getDriveOAuthRedirectUri(appOrigin);
+  const client = createDriveOAuth2Client(redirectUri);
   if (!client) {
     redirectBase.searchParams.set("error", "oauth_not_configured");
     return NextResponse.redirect(redirectBase);
