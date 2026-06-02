@@ -98,13 +98,13 @@ function GoogleDriveIntegrationContent() {
         const data = parsed.data;
         if (data?.success) {
           setStatus({
-            oauthConfigured: data.oauthConfigured,
-            oauthConnected: data.oauthConnected,
-            oauthRedirectUri: data.oauthRedirectUri,
+            oauthConfigured: data.oauthConfigured ?? false,
+            oauthConnected: data.oauthConnected ?? false,
+            oauthRedirectUri: data.oauthRedirectUri ?? "",
             oauthSetupRedirectUris: data.oauthSetupRedirectUris ?? [],
             needsEnvRefreshToken: data.needsEnvRefreshToken,
             tokenPersistence: data.tokenPersistence,
-            impersonation: data.impersonation,
+            impersonation: data.impersonation ?? false,
           });
         }
       } finally {
