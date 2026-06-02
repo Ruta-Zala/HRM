@@ -11,6 +11,7 @@ import {
   redirectToAccountInactive,
 } from "@/lib/account-inactive-client";
 import { clearSupportChatHistory } from "@/components/support/support-chat-history";
+import { parseJsonResponse } from "@/lib/api/json-response";
 import type { SessionUser } from "@/types/auth";
 
 type AuthContextValue = {
@@ -28,10 +29,12 @@ async function fetchSessionUser(): Promise<{
 }> {
   await finalizePendingSessionLogout();
   const res = await fetch("/api/auth/me", { credentials: "include" });
-  return (await res.json()) as {
+  const parsed = await parseJsonResponse<{
     user: SessionUser | null;
     inactive?: boolean;
-  };
+  }>(res);
+  if (parsed.data) return parsed.data;
+  return { user: null };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

@@ -29,7 +29,13 @@ async function fetchAccountStatus(req: NextRequest): Promise<{
   if (!res.ok) {
     return { authenticated: false, active: false };
   }
-  return (await res.json()) as { authenticated: boolean; active: boolean };
+  try {
+    const text = await res.text();
+    if (!text.trim()) return { authenticated: false, active: false };
+    return JSON.parse(text) as { authenticated: boolean; active: boolean };
+  } catch {
+    return { authenticated: false, active: false };
+  }
 }
 
 export async function middleware(req: NextRequest) {

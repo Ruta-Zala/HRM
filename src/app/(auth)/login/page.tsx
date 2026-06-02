@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { apiResponseErrorMessage, parseJsonResponse } from "@/lib/api/json-response";
 
 export default function LoginPage() {
   return (
@@ -46,7 +47,12 @@ function LoginPageContent() {
         body: JSON.stringify({ login, password }),
       });
 
-      const data = await res.json();
+      const parsed = await parseJsonResponse<{ error?: string; ok?: boolean }>(res);
+      if (parsed.invalid || parsed.empty) {
+        setError(apiResponseErrorMessage(res, parsed, "Sign-in failed"));
+        return;
+      }
+      const data = parsed.data;
       if (!res.ok) {
         setError(data?.error ?? "Sign-in failed");
         return;

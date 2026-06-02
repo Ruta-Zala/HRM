@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { parseJsonResponse } from "@/lib/api/json-response";
 
 type DriveStatus = {
   oauthConfigured: boolean;
@@ -84,8 +85,18 @@ function GoogleDriveIntegrationContent() {
     void (async () => {
       try {
         const res = await fetch("/api/integrations/google-drive/status");
-        const data = await res.json();
-        if (data.success) {
+        const parsed = await parseJsonResponse<{
+          success?: boolean;
+          oauthConfigured?: boolean;
+          oauthConnected?: boolean;
+          oauthRedirectUri?: string;
+          oauthSetupRedirectUris?: string[];
+          needsEnvRefreshToken?: boolean;
+          tokenPersistence?: string;
+          impersonation?: boolean;
+        }>(res);
+        const data = parsed.data;
+        if (data?.success) {
           setStatus({
             oauthConfigured: data.oauthConfigured,
             oauthConnected: data.oauthConnected,
