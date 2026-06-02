@@ -12,8 +12,55 @@ type DriveStatus = {
   oauthConfigured: boolean;
   oauthConnected: boolean;
   oauthRedirectUri: string;
+  oauthSetupRedirectUris: string[];
   impersonation: boolean;
 };
+
+function OAuthSetupInstructions({
+  status,
+  envFileLabel,
+}: {
+  status: DriveStatus | null;
+  envFileLabel: string;
+}) {
+  const setupUris = status?.oauthSetupRedirectUris ?? [];
+
+  return (
+    <div className="text-ex-muted space-y-2">
+      <p>
+        In Google Cloud Console → Credentials → your OAuth 2.0 Web client →{" "}
+        <strong>Authorized redirect URIs</strong>, add every environment you use (same client):
+      </p>
+      {setupUris.length > 0 ? (
+        <ul className="list-inside list-disc text-xs">
+          {setupUris.map((uri) => (
+            <li key={uri}>
+              <code className="break-all">{uri}</code>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {!status?.oauthRedirectUri ? (
+        <p className="text-xs">
+          Set <code>GOOGLE_OAUTH_REDIRECT_URI</code> (or <code>NEXT_PUBLIC_APP_URL</code>) in{" "}
+          {envFileLabel} for this deployment — e.g. production:{" "}
+          <code>https://your-domain.com/api/integrations/google-drive/callback</code>
+        </p>
+      ) : null}
+      <p>
+        Add to <code>{envFileLabel}</code> for this deployment (must match the URL above):
+      </p>
+      {status?.oauthRedirectUri ? (
+        <pre className="bg-ex-surface-2 overflow-x-auto rounded-md p-3 text-xs">
+          {`GOOGLE_OAUTH_CLIENT_ID=...
+GOOGLE_OAUTH_CLIENT_SECRET=...
+GOOGLE_OAUTH_REDIRECT_URI=${status.oauthRedirectUri}`}
+        </pre>
+      ) : null}
+      <p>Enable Drive API. Add your Gmail as a test user if the app is in Testing mode.</p>
+    </div>
+  );
+}
 
 export default function GoogleDriveIntegrationPage() {
   return (
@@ -41,6 +88,7 @@ function GoogleDriveIntegrationContent() {
             oauthConfigured: data.oauthConfigured,
             oauthConnected: data.oauthConnected,
             oauthRedirectUri: data.oauthRedirectUri,
+            oauthSetupRedirectUris: data.oauthSetupRedirectUris ?? [],
             impersonation: data.impersonation,
           });
         }
@@ -98,31 +146,20 @@ function GoogleDriveIntegrationContent() {
                       the callback URL directly.
                     </p>
                   )}
+
+                  {/redirect_uri/i.test(error) ? (
+                    <div className="text-ex-muted border-ex-border mt-2 border-t pt-3">
+                      <OAuthSetupInstructions
+                        status={status}
+                        envFileLabel="production env / .env.local"
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
               {!status?.oauthConfigured ? (
-                <div className="text-ex-muted space-y-2">
-                  <p>
-                    In Google Cloud Console, create an OAuth 2.0 Web client and add to{" "}
-                    <code>.env.local</code>:
-                  </p>
-                  {status?.oauthRedirectUri ? (
-                    <pre className="bg-ex-surface-2 overflow-x-auto rounded-md p-3 text-xs">
-                      {`GOOGLE_OAUTH_CLIENT_ID=...
-GOOGLE_OAUTH_CLIENT_SECRET=...
-GOOGLE_OAUTH_REDIRECT_URI=${status.oauthRedirectUri}`}
-                    </pre>
-                  ) : null}
-                  <p className="text-xs">
-                    If you omit <code>GOOGLE_OAUTH_REDIRECT_URI</code>, set{" "}
-                    <code>NEXT_PUBLIC_APP_URL</code> to your public app origin (same value used
-                    above).
-                  </p>
-                  <p>
-                    Enable Drive API. Add your Gmail as a test user if the app is in Testing mode.
-                  </p>
-                </div>
+                <OAuthSetupInstructions status={status} envFileLabel=".env.local" />
               ) : !isConnected ? (
                 <a href="/api/integrations/google-drive/connect">
                   <Button type="button">Connect Google Drive</Button>

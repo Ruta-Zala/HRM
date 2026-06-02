@@ -21,11 +21,32 @@ type StoredDriveTokens = {
   expiry_date?: number | null;
 };
 
+const DRIVE_OAUTH_CALLBACK_PATH = "/api/integrations/google-drive/callback";
+
+function normalizeAppOrigin(url: string | undefined): string | null {
+  const trimmed = url?.trim();
+  if (!trimmed) return null;
+  return trimmed.replace(/\/$/, "");
+}
+
+/** Redirect URI for this deployment — from env only (no hardcoded localhost). */
 export function getDriveOAuthRedirectUri(): string {
-  return (
-    process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim() ||
-    `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/integrations/google-drive/callback`
-  );
+  const explicit = process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim();
+  if (explicit) return explicit;
+
+  const appOrigin = normalizeAppOrigin(process.env.NEXT_PUBLIC_APP_URL);
+  if (appOrigin) return `${appOrigin}${DRIVE_OAUTH_CALLBACK_PATH}`;
+
+  return "";
+}
+
+/** URIs from env to register in Google Cloud Console for this deployment. */
+export function getDriveOAuthSetupRedirectUris(): string[] {
+  const explicit = process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim();
+  const appOrigin = normalizeAppOrigin(process.env.NEXT_PUBLIC_APP_URL);
+  const fromAppUrl = appOrigin ? `${appOrigin}${DRIVE_OAUTH_CALLBACK_PATH}` : null;
+
+  return [...new Set([explicit, fromAppUrl].filter((uri): uri is string => Boolean(uri)))];
 }
 
 function getOAuthClientConfig() {
@@ -33,7 +54,7 @@ function getOAuthClientConfig() {
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
   const redirectUri = getDriveOAuthRedirectUri();
 
-  if (!clientId || !clientSecret) return null;
+  if (!clientId || !clientSecret || !redirectUri) return null;
   return { clientId, clientSecret, redirectUri };
 }
 

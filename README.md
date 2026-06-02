@@ -85,8 +85,13 @@ Add OAuth env vars and restart dev server:
 ```env
 GOOGLE_OAUTH_CLIENT_ID=...
 GOOGLE_OAUTH_CLIENT_SECRET=...
-GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/api/integrations/google-drive/callback
+# Required per environment (must match Authorized redirect URIs in Google Console):
+GOOGLE_OAUTH_REDIRECT_URI=https://your-domain.com/api/integrations/google-drive/callback
+# Or derive callback from app origin:
+# NEXT_PUBLIC_APP_URL=https://your-domain.com
 ```
+
+On the **same** OAuth Web client in Google Cloud Console, add **every** redirect URI you use (local + production) under **Authorized redirect URIs**. Set `GOOGLE_OAUTH_REDIRECT_URI` to the matching callback for each deployment (no implicit localhost fallback).
 
 ### If still failing after reconnect
 
