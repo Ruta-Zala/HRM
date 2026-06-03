@@ -48,7 +48,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Google Drive Permission Revoked (Attendance `invalid_grant`)
 
-Attendance and punch APIs use Google Drive OAuth tokens. If token access is revoked or expired, punch/attendance endpoints can fail with:
+Attendance and punch APIs use the **organization’s** Google credentials (service account and/or a one-time HR Google Drive connection). **Employees do not connect Google Drive.** If token access is revoked or expired, punch/attendance endpoints can fail with:
 
 - `invalid_grant`
 - `GET /api/attendance 500`

@@ -322,6 +322,45 @@ export function EmployeeForm({
                   maxYear={new Date().getFullYear()}
                 />
               </FormField>
+
+              <FormField label="PAN number" id="panNumber">
+                <Input
+                  id="panNumber"
+                  value={form.panNumber}
+                  onChange={update("panNumber")}
+                  placeholder="AAAAA9999A"
+                  autoComplete="off"
+                />
+                {form.panNumber ? (
+                  <p className="text-ex-muted text-xs">Displayed as {maskPan(form.panNumber)}</p>
+                ) : null}
+              </FormField>
+
+              <FormField label="Aadhaar number" id="aadharNumber">
+                <Input
+                  id="aadharNumber"
+                  value={form.aadharNumber}
+                  onChange={update("aadharNumber")}
+                  placeholder="12-digit Aadhaar"
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
+                {form.aadharNumber ? (
+                  <p className="text-ex-muted text-xs">
+                    Displayed as {maskAadhar(form.aadharNumber)}
+                  </p>
+                ) : null}
+              </FormField>
+
+              <FormField label="Bank account number" id="bankAccountNumber">
+                <Input
+                  id="bankAccountNumber"
+                  value={form.bankAccountNumber}
+                  onChange={update("bankAccountNumber")}
+                  placeholder="Bank account number"
+                  autoComplete="off"
+                />
+              </FormField>
             </CardContent>
           </Card>
 
@@ -331,35 +370,6 @@ export function EmployeeForm({
                 <CardTitle>Documents</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
-                <FormField label="PAN number" id="panNumber">
-                  <Input
-                    id="panNumber"
-                    value={form.panNumber}
-                    onChange={update("panNumber")}
-                    placeholder="AAAAA9999A"
-                    autoComplete="off"
-                  />
-                  {form.panNumber ? (
-                    <p className="text-ex-muted text-xs">Displayed as {maskPan(form.panNumber)}</p>
-                  ) : null}
-                </FormField>
-
-                <FormField label="Aadhaar number" id="aadharNumber">
-                  <Input
-                    id="aadharNumber"
-                    value={form.aadharNumber}
-                    onChange={update("aadharNumber")}
-                    placeholder="12-digit Aadhaar"
-                    inputMode="numeric"
-                    autoComplete="off"
-                  />
-                  {form.aadharNumber ? (
-                    <p className="text-ex-muted text-xs">
-                      Displayed as {maskAadhar(form.aadharNumber)}
-                    </p>
-                  ) : null}
-                </FormField>
-
                 <FormField label="PAN card (upload)" id="pancard">
                   <FileUploaderField
                     id="pancard"

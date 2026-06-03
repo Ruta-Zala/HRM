@@ -187,13 +187,8 @@ export async function getDriveAuth(): Promise<
     return getServiceAccountDriveAuth();
   }
 
-  if (isDriveOAuthConfigured()) {
-    throw new Error(
-      "Connect your Gmail at Integrations → Google Drive. " +
-        "Service accounts cannot upload files to personal My Drive.",
-    );
-  }
-
+  // OAuth is optional and org-wide (HR connects once). Employees never connect Drive.
+  // When OAuth is not connected, use the service account (Shared Drive / Workspace setup).
   return getServiceAccountDriveAuth();
 }
 
@@ -221,18 +216,47 @@ export function formatDriveError(error: unknown): Error {
   if (message.includes("storage quota")) {
     return new Error(
       "Service accounts cannot upload to personal My Drive. " +
-        "Connect your Gmail at Integrations → Google Drive, " +
+        "An HR admin can connect Google Drive once under Integrations, " +
         "or move the HRM folder to a Workspace Shared Drive.",
     );
   }
 
   if (/permission|forbidden|403/i.test(message)) {
     return new Error(
-      "Google permission denied. Open Integrations → Google Drive, disconnect, " +
-        "then connect again (Drive + Sheets access). Ensure the HRM folder is shared " +
-        "with the connected account.",
+      "Google permission denied. An HR admin should open Integrations → Google Drive, " +
+        "reconnect if needed, and ensure the HRM folder is shared with the connected account " +
+        "or service account.",
     );
   }
 
   return error instanceof Error ? error : new Error(message);
+}
+
+/** User-facing API message — employees are never asked to connect Google themselves. */
+export function formatGoogleApiClientMessage(
+  error: unknown,
+  options: { forHrAdmin?: boolean } = {},
+): string {
+  const message = formatDriveError(error).message;
+  const forHrAdmin = options.forHrAdmin ?? false;
+
+  if (/Connect your Gmail|Integrations → Google Drive/i.test(message)) {
+    return forHrAdmin
+      ? "Google integration is not connected. Connect Google Drive once under Integrations (HR setup)."
+      : "This action is unavailable. Please contact HR — company Google setup is incomplete.";
+  }
+
+  if (message.includes("storage quota")) {
+    return forHrAdmin
+      ? message
+      : "File storage is unavailable. Please contact HR to complete Google workspace setup.";
+  }
+
+  if (/permission|forbidden|403/i.test(message)) {
+    return forHrAdmin
+      ? message
+      : "Google access is not configured for your account. Please contact HR.";
+  }
+
+  return message;
 }

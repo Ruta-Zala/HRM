@@ -119,7 +119,7 @@ function GoogleDriveIntegrationContent() {
     <div className="space-y-8">
       <PageHeader
         title="Google Drive"
-        description="Personal Gmail cannot use service-account uploads. Connect your account once so images and documents upload to your My Drive HRM folder."
+        description="One-time HR setup for the whole company. Employees never connect Google — punch, attendance, and slips run through this org connection or the service account."
         actions={
           <Link href="/integrations">
             <Button variant="ghost" size="sm" type="button">

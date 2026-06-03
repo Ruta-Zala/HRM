@@ -28,6 +28,8 @@ import {
   parseMonthlySheetTitle,
 } from "@/lib/attendance/time";
 import { withActiveSession } from "@/lib/auth/api-guard";
+import { canManageEmployees } from "@/lib/auth/roles";
+import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
 
 function parseTargetSheetRow(searchParams: URLSearchParams, userSheetRow?: number) {
   const param = searchParams.get("employeeSheetRow");
@@ -161,7 +163,9 @@ export const GET = withActiveSession(async (req, user) => {
         : null,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to load attendance";
+    const message = formatGoogleApiClientMessage(error, {
+      forHrAdmin: canManageEmployees(user.role),
+    });
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });
@@ -259,7 +263,9 @@ export const POST = withActiveSession(async (req, user) => {
       },
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Attendance action failed";
+    const message = formatGoogleApiClientMessage(error, {
+      forHrAdmin: canManageEmployees(user.role),
+    });
     const status =
       message.includes("Already") ||
       message.includes("first") ||
@@ -327,7 +333,9 @@ export const PATCH = withActiveSession(async (req, user) => {
       },
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to update daily update";
+    const message = formatGoogleApiClientMessage(error, {
+      forHrAdmin: canManageEmployees(user.role),
+    });
     const status = message.includes("required") || message.includes("empty") ? 400 : 500;
     return NextResponse.json({ success: false, message }, { status });
   }

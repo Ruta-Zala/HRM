@@ -49,6 +49,34 @@ export async function uploadFileToFolder(
   }
 }
 
+export async function uploadBinaryFileToFolder(
+  fileName: string,
+  mimeType: string,
+  buffer: Buffer,
+  parentFolderId: string,
+): Promise<{ fileId: string; fileName: string }> {
+  const drive = await getDrive();
+  try {
+    const response = await drive.files.create({
+      requestBody: {
+        name: fileName,
+        parents: [parentFolderId],
+      },
+      media: {
+        mimeType: mimeType || "application/octet-stream",
+        body: Readable.from(buffer),
+      },
+      fields: "id,name",
+      ...SHARED_DRIVE_OPTIONS,
+    });
+    const fileId = response.data.id?.trim();
+    if (!fileId) throw new Error("Drive upload succeeded but file id is missing");
+    return { fileId, fileName: response.data.name ?? fileName };
+  } catch (error) {
+    throw formatDriveError(error);
+  }
+}
+
 export async function uploadEmployeeDocuments(
   documentsFolderId: string,
   files: Partial<Record<EmployeeDocumentField, { name: string; type: string; buffer: Buffer }>>,
@@ -162,3 +190,55 @@ export const createEmployeeFolderStructure = async (employeeId: string, employee
 
   return { employeeFolderId, documentsFolderId };
 };
+
+export async function getOrCreateSalarySlipsYearFolder(args: {
+  employeeId: string;
+  employeeName: string;
+  year: number;
+}): Promise<{ salarySlipsFolderId: string; yearFolderId: string }> {
+  const { documentsFolderId } = await createEmployeeFolderStructure(
+    args.employeeId,
+    args.employeeName,
+  );
+  const salarySlipsFolderId = await getOrCreateFolder("salary_slips", documentsFolderId);
+  const yearFolderId = await getOrCreateFolder(String(args.year), salarySlipsFolderId);
+  return { salarySlipsFolderId, yearFolderId };
+}
+
+export async function downloadDriveFileBufferById(
+  fileId: string,
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  const drive = await getDrive();
+  try {
+    const meta = await drive.files.get({
+      fileId,
+      fields: "mimeType",
+      ...SHARED_DRIVE_OPTIONS,
+    });
+    const mimeType = meta.data.mimeType ?? "application/octet-stream";
+    const response = await drive.files.get(
+      {
+        fileId,
+        alt: "media",
+        ...SHARED_DRIVE_OPTIONS,
+      },
+      { responseType: "arraybuffer" },
+    );
+    return { buffer: Buffer.from(response.data as ArrayBuffer), mimeType };
+  } catch (error) {
+    throw formatDriveError(error);
+  }
+}
+
+export async function trashDriveFile(fileId: string): Promise<void> {
+  const drive = await getDrive();
+  try {
+    await drive.files.update({
+      fileId,
+      requestBody: { trashed: true },
+      ...SHARED_DRIVE_OPTIONS,
+    });
+  } catch (error) {
+    throw formatDriveError(error);
+  }
+}

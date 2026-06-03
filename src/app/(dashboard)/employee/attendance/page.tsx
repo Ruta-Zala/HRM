@@ -142,11 +142,12 @@ export default function AttendanceHistoryPage() {
 
     let cancelled = false;
     void (async () => {
+      setLoading(true);
+      setError(null);
       try {
         const data = await fetchAttendancePeriods(targetSheetRow);
         if (cancelled) return;
         applyPeriods(data);
-        setError(null);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load periods");
@@ -180,11 +181,12 @@ export default function AttendanceHistoryPage() {
 
     let cancelled = false;
     void (async () => {
+      setLoading(true);
+      setError(null);
       try {
         const data = await fetchAttendanceHistory(year, month, targetSheetRow);
         if (!cancelled) {
           setRows(data);
-          setError(null);
         }
       } catch (err) {
         if (!cancelled) {
