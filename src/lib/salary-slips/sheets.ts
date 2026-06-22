@@ -110,7 +110,7 @@ async function ensureHeaders(title: string, headers: readonly string[]): Promise
     spreadsheetId,
     range: `${title}!A1`,
     valueInputOption: "RAW",
-    requestBody: { values: [headers as readonly string[]] },
+    requestBody: { values: [[...headers]] },
   });
 }
 

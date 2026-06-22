@@ -33,7 +33,7 @@ export const GET = withActiveSession(async (req, user) => {
 
   try {
     const { buffer, mimeType } = await downloadDriveFileBufferById(slip.driveFileId);
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": mimeType,
         "Content-Disposition": `attachment; filename="${slip.driveFileName || `${monthLabel(slip.month)}.pdf`}"`,

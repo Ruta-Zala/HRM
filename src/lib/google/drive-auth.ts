@@ -158,8 +158,39 @@ export async function saveDriveOAuthTokens(tokens: StoredDriveTokens) {
 }
 
 export async function isDriveOAuthConnected(): Promise<boolean> {
+  if (!shouldPreferOAuth()) return false;
   const stored = await readStoredTokens();
   return Boolean(stored?.refresh_token);
+}
+
+/** When false (default), Drive/Sheets APIs use the service account — not a stale local OAuth file. */
+export function shouldPreferOAuth(): boolean {
+  return process.env.GOOGLE_PREFER_OAUTH === "true";
+}
+
+/** Remove a revoked local OAuth token file (does not touch env GOOGLE_OAUTH_REFRESH_TOKEN). */
+export async function clearStoredOAuthTokensIfNotFromEnv(): Promise<void> {
+  if (process.env.GOOGLE_OAUTH_REFRESH_TOKEN?.trim()) return;
+  try {
+    const tokenFile = getTokenFilePath();
+    if (existsSync(tokenFile)) {
+      await writeFile(tokenFile, "{}", "utf8");
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function isInvalidGrantError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const code = (error as { code?: string })?.code;
+  const responseData = (error as { response?: { data?: { error?: string } } })?.response?.data
+    ?.error;
+  return (
+    code === "invalid_grant" ||
+    message.includes("invalid_grant") ||
+    responseData === "invalid_grant"
+  );
 }
 
 export function isDriveOAuthConfigured(): boolean {
@@ -175,20 +206,21 @@ export function isDriveOAuthConfigured(): boolean {
 export async function getDriveAuth(): Promise<
   OAuth2Client | ReturnType<typeof getServiceAccountDriveAuth>
 > {
-  const stored = await readStoredTokens();
-  const oauth2 = createDriveOAuth2Client();
-
-  if (stored?.refresh_token && oauth2) {
-    oauth2.setCredentials(stored);
-    return oauth2;
-  }
-
   if (isDriveImpersonationEnabled()) {
     return getServiceAccountDriveAuth();
   }
 
-  // OAuth is optional and org-wide (HR connects once). Employees never connect Drive.
-  // When OAuth is not connected, use the service account (Shared Drive / Workspace setup).
+  // Default: service account (Shared Drive). OAuth only when GOOGLE_PREFER_OAUTH=true.
+  // Avoids invalid_grant from an old .data/google-drive-oauth.json breaking punch/attendance.
+  if (shouldPreferOAuth()) {
+    const stored = await readStoredTokens();
+    const oauth2 = createDriveOAuth2Client();
+    if (stored?.refresh_token && oauth2) {
+      oauth2.setCredentials(stored);
+      return oauth2;
+    }
+  }
+
   return getServiceAccountDriveAuth();
 }
 
@@ -256,6 +288,12 @@ export function formatGoogleApiClientMessage(
     return forHrAdmin
       ? message
       : "Google access is not configured for your account. Please contact HR.";
+  }
+
+  if (/invalid_grant/i.test(message)) {
+    return forHrAdmin
+      ? "Google Drive connection expired. Reconnect under Integrations → Google Drive, or unset GOOGLE_PREFER_OAUTH to use the service account."
+      : "Please contact HR — company Google setup needs to be refreshed.";
   }
 
   return message;
