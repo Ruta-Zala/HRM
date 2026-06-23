@@ -11,8 +11,11 @@ import {
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import { amountToIndianWords, calculateSalaryBreakdown } from "@/lib/salary-slips/calculation";
 import { renderSalarySlipPdf } from "@/lib/salary-slips/pdf";
+import { getMonthAttendance, type AttendanceRow } from "@/lib/google/attendance-sheets";
+import { WORK_MODE } from "@/lib/attendance/constants";
 import {
-  findEffectiveSalaryForPeriod,
+  findEffectiveSalaryForPeriodFromRecords,
+  listSalaryHistoryRecords,
   listSalarySlips,
   saveSalarySlipRecord,
   updateSalarySlipRecord,
@@ -24,6 +27,77 @@ function monthLabel(month: number): string {
 
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
+}
+
+function countWeekdaysInMonth(year: number, month: number): number {
+  let count = 0;
+  const days = getDaysInMonth(year, month);
+  for (let day = 1; day <= days; day += 1) {
+    const date = new Date(year, month - 1, day);
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function getWorkModeDayValue(workMode: string): number | null {
+  const normalized = String(workMode ?? "").trim();
+  if (
+    normalized === WORK_MODE.FULL_DAY_LEAVE ||
+    normalized === WORK_MODE.PAID_LEAVE ||
+    normalized === WORK_MODE.SICK_LEAVE ||
+    normalized === WORK_MODE.CASUAL_LEAVE ||
+    normalized === WORK_MODE.UNPAID_LEAVE ||
+    normalized === WORK_MODE.SL ||
+    normalized === WORK_MODE.PUBLIC_HOLIDAY ||
+    normalized === WORK_MODE.WEEKEND_HOLIDAY
+  ) {
+    return 0;
+  }
+
+  if (
+    normalized === WORK_MODE.HALF_DAY_PAID_LEAVE ||
+    normalized === WORK_MODE.HALF_DAY_UNPAID_LEAVE ||
+    normalized === WORK_MODE.HALF_DAY_LEAVE ||
+    normalized === WORK_MODE.WFH_HALF_DAY
+  ) {
+    return 0.5;
+  }
+
+  return null;
+}
+
+function getAttendanceWorkingDays(
+  year: number,
+  month: number,
+  attendanceRows: AttendanceRow[],
+): number {
+  const rowsByDate = new Map<string, AttendanceRow>();
+  attendanceRows.forEach((row) => {
+    if (row.date) rowsByDate.set(row.date, row);
+  });
+
+  let workingDays = 0;
+  const days = getDaysInMonth(year, month);
+  for (let day = 1; day <= days; day += 1) {
+    const date = new Date(year, month - 1, day);
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+    const dateIso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const attendance = rowsByDate.get(dateIso);
+    if (!attendance) {
+      workingDays += 1;
+      continue;
+    }
+
+    const value = getWorkModeDayValue(attendance.workMode);
+    workingDays += value ?? 1;
+  }
+
+  return workingDays;
 }
 
 function getEmployeeField(row: string[], headers: string[], candidates: string[]): string {
@@ -100,8 +174,6 @@ export const POST = withActiveSession(async (req, user) => {
       body.employeeSheetRow != null && Number.isFinite(Number(body.employeeSheetRow))
         ? Number(body.employeeSheetRow)
         : null;
-    const overrides = (body.payableDaysByEmployeeSheetRow ?? {}) as Record<string, number>;
-
     if (!Number.isFinite(year) || year < 2000 || year > 3000) {
       return NextResponse.json({ success: false, message: "Invalid year" }, { status: 400 });
     }
@@ -119,7 +191,29 @@ export const POST = withActiveSession(async (req, user) => {
     const headers = employeeSheet[0] as string[];
     const allSlips = await listSalarySlips();
 
+    async function resolveWorkingDaysForEmployee(
+      year: number,
+      month: number,
+      attendanceSpreadsheetId: string,
+    ): Promise<number> {
+      const scheduledWeekdays = countWeekdaysInMonth(year, month);
+      if (!attendanceSpreadsheetId?.trim()) return scheduledWeekdays;
+
+      try {
+        const attendanceRows = await getMonthAttendance(attendanceSpreadsheetId, year, month - 1);
+        if (!attendanceRows.length) {
+          return scheduledWeekdays;
+        }
+        const attendanceBasedDays = getAttendanceWorkingDays(year, month, attendanceRows);
+        return Number.isFinite(attendanceBasedDays) ? attendanceBasedDays : scheduledWeekdays;
+      } catch {
+        return scheduledWeekdays;
+      }
+    }
+
     const generated: Array<{ employeeSheetRow: number; slipId: string; fileName: string }> = [];
+    // Preload salary history once to avoid repeated Sheets API reads inside the loop
+    const salaryHistory = await listSalaryHistoryRecords();
     for (let i = 1; i < employeeSheet.length; i += 1) {
       const sheetRow = i + 1;
       if (targetSheetRow && targetSheetRow !== sheetRow) continue;
@@ -140,25 +234,23 @@ export const POST = withActiveSession(async (req, user) => {
 
       const periodStart = `${year}-${String(month).padStart(2, "0")}-01`;
       const periodEnd = `${year}-${String(month).padStart(2, "0")}-${String(getDaysInMonth(year, month)).padStart(2, "0")}`;
-      const history = await findEffectiveSalaryForPeriod({
+      const history = findEffectiveSalaryForPeriodFromRecords(salaryHistory, {
         employeeSheetRow: sheetRow,
         periodStart,
         periodEnd,
       });
       if (!history) continue;
 
-      const workingDays = getDaysInMonth(year, month);
-      const netPayableDays = Math.max(
-        0,
-        Math.min(workingDays, Number(overrides[String(sheetRow)] ?? workingDays)),
+      const workingDays = await resolveWorkingDaysForEmployee(
+        year,
+        month,
+        form.attendanceSpreadsheetId ?? "",
       );
+      const netPayableDays = workingDays;
       const breakdown = calculateSalaryBreakdown({
         basic: history.basic,
-        hra: history.hra,
-        organisationAllowance: history.organisationAllowance,
         loyaltyBonus: history.loyaltyBonus,
         professionalTax: history.professionalTax > 0 ? history.professionalTax : 200,
-        lwf: history.lwf,
         workingDays,
         netPayableDays,
       });
@@ -196,12 +288,9 @@ export const POST = withActiveSession(async (req, user) => {
           getEmployeeField(row, headers, ["aadhar_number", "aadhaar_number", "aadhaar"]),
         workingDays,
         basic: breakdown.basic,
-        hra: breakdown.hra,
-        organisationAllowance: breakdown.organisationAllowance,
         loyaltyBonusRate: history.loyaltyBonus > 0 ? history.loyaltyBonus : 10,
         loyaltyBonus: breakdown.loyaltyBonus,
         professionalTax: breakdown.professionalTax,
-        lwf: breakdown.lwf,
         totalEarnings: breakdown.totalEarnings,
         totalDeductions: breakdown.totalDeductions,
         netPay: breakdown.netPay,
@@ -217,18 +306,16 @@ export const POST = withActiveSession(async (req, user) => {
 
       const slipId = await saveSalarySlipRecord({
         employeeSheetRow: sheetRow,
+        employeeName: form.name ?? "",
         year,
         month,
         title: `${monthLabel(month)} ${year}`,
         workingDays,
         netPayableDays,
         basic: breakdown.basic,
-        hra: breakdown.hra,
-        organisationAllowance: breakdown.organisationAllowance,
         totalEarnings: breakdown.totalEarnings,
         loyaltyBonus: breakdown.loyaltyBonus,
         professionalTax: breakdown.professionalTax,
-        lwf: breakdown.lwf,
         totalDeductions: breakdown.totalDeductions,
         netPay: breakdown.netPay,
         amountInWords,

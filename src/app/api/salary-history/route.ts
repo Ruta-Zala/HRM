@@ -28,6 +28,7 @@ export const POST = withActiveSession(async (req, user) => {
   try {
     const body = await req.json();
     const employeeSheetRow = Number(body.employeeSheetRow);
+    const employeeName = String(body.employeeName ?? "").trim();
     const effectiveFrom = String(body.effectiveFrom ?? "").trim();
     if (!Number.isFinite(employeeSheetRow) || employeeSheetRow < 2) {
       return NextResponse.json(
@@ -42,17 +43,22 @@ export const POST = withActiveSession(async (req, user) => {
       );
     }
 
+    const effectiveFromDate = new Date(effectiveFrom);
+
+    const effectiveToDate = new Date(effectiveFromDate);
+    effectiveToDate.setFullYear(effectiveToDate.getFullYear() + 1);
+    effectiveToDate.setDate(effectiveToDate.getDate() - 1);
+
+    const effectiveTo = effectiveToDate.toISOString().split("T")[0];
+
     await createSalaryHistoryRecord({
       employeeSheetRow,
+      employeeName,
       effectiveFrom,
-      effectiveTo: String(body.effectiveTo ?? ""),
+      effectiveTo,
       basic: Number(body.basic ?? 0),
-      hra: Number(body.hra ?? 0),
-      organisationAllowance: Number(body.organisationAllowance ?? 0),
       loyaltyBonus: Number(body.loyaltyBonus ?? 10),
       professionalTax: Number(body.professionalTax ?? 200),
-      lwf: Number(body.lwf ?? 0),
-      revisionNote: String(body.revisionNote ?? ""),
       status: body.status === "Inactive" ? "Inactive" : "Active",
     });
 

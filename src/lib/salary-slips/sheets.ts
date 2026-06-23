@@ -13,15 +13,12 @@ const spreadsheetId = process.env.GOOGLE_SHEET_ID as string;
 
 const SALARY_HISTORY_HEADERS = [
   "employeeSheetRow",
+  "employeeName",
   "effectiveFrom",
   "effectiveTo",
   "basic",
-  "hra",
-  "organisationAllowance",
   "loyaltyBonus",
   "professionalTax",
-  "lwf",
-  "revisionNote",
   "status",
   "createdAt",
   "updatedAt",
@@ -30,18 +27,16 @@ const SALARY_HISTORY_HEADERS = [
 const SALARY_SLIPS_HEADERS = [
   "slipId",
   "employeeSheetRow",
+  "employeeName",
   "year",
   "month",
   "title",
   "workingDays",
   "netPayableDays",
   "basic",
-  "hra",
-  "organisationAllowance",
   "totalEarnings",
   "loyaltyBonus",
   "professionalTax",
-  "lwf",
   "totalDeductions",
   "netPay",
   "amountInWords",
@@ -152,15 +147,12 @@ export async function listSalaryHistoryRecords(): Promise<SalaryHistoryRecord[]>
   return rows.slice(1).map((row, i) => ({
     sheetRow: i + 2,
     employeeSheetRow: asNumber(readCell(row, SALARY_HISTORY_HEADERS, "employeeSheetRow")),
+    employeeName: readCell(row, SALARY_HISTORY_HEADERS, "employeeName"),
     effectiveFrom: normalizeDateOnly(readCell(row, SALARY_HISTORY_HEADERS, "effectiveFrom")),
     effectiveTo: normalizeDateOnly(readCell(row, SALARY_HISTORY_HEADERS, "effectiveTo")),
     basic: asNumber(readCell(row, SALARY_HISTORY_HEADERS, "basic")),
-    hra: asNumber(readCell(row, SALARY_HISTORY_HEADERS, "hra")),
-    organisationAllowance: asNumber(readCell(row, SALARY_HISTORY_HEADERS, "organisationAllowance")),
     loyaltyBonus: asNumber(readCell(row, SALARY_HISTORY_HEADERS, "loyaltyBonus")),
     professionalTax: asNumber(readCell(row, SALARY_HISTORY_HEADERS, "professionalTax")),
-    lwf: asNumber(readCell(row, SALARY_HISTORY_HEADERS, "lwf")),
-    revisionNote: readCell(row, SALARY_HISTORY_HEADERS, "revisionNote"),
     status:
       readCell(row, SALARY_HISTORY_HEADERS, "status").toLowerCase() === "inactive"
         ? "Inactive"
@@ -187,15 +179,12 @@ export function assertNonOverlappingEffectiveRanges(records: SalaryHistoryRecord
 
 export async function createSalaryHistoryRecord(input: {
   employeeSheetRow: number;
+  employeeName: string;
   effectiveFrom: string;
   effectiveTo?: string;
   basic: number;
-  hra: number;
-  organisationAllowance: number;
   loyaltyBonus: number;
   professionalTax: number;
-  lwf: number;
-  revisionNote?: string;
   status?: "Active" | "Inactive";
 }) {
   await ensureHeaders(SALARY_HISTORY_SHEET_NAME, SALARY_HISTORY_HEADERS);
@@ -204,15 +193,12 @@ export async function createSalaryHistoryRecord(input: {
   const payload: SalaryHistoryRecord = {
     sheetRow: 0,
     employeeSheetRow: input.employeeSheetRow,
+    employeeName: input.employeeName,
     effectiveFrom: normalizeDateOnly(input.effectiveFrom),
     effectiveTo: normalizeDateOnly(input.effectiveTo ?? ""),
     basic: input.basic,
-    hra: input.hra,
-    organisationAllowance: input.organisationAllowance,
     loyaltyBonus: Math.min(20, Math.max(0, input.loyaltyBonus)),
     professionalTax: input.professionalTax > 0 ? input.professionalTax : 200,
-    lwf: input.lwf,
-    revisionNote: input.revisionNote?.trim() ?? "",
     status: input.status ?? "Active",
     createdAt: nowIso(),
     updatedAt: nowIso(),
@@ -232,15 +218,12 @@ export async function createSalaryHistoryRecord(input: {
       values: [
         [
           payload.employeeSheetRow,
+          payload.employeeName,
           payload.effectiveFrom,
           payload.effectiveTo,
           payload.basic,
-          payload.hra,
-          payload.organisationAllowance,
           payload.loyaltyBonus,
           payload.professionalTax,
-          payload.lwf,
-          payload.revisionNote,
           payload.status,
           payload.createdAt,
           payload.updatedAt,
@@ -264,39 +247,67 @@ export async function findEffectiveSalaryForPeriod(args: {
   return filtered[0] ?? null;
 }
 
+/**
+ * Find effective salary from a preloaded list of records to avoid extra
+ * Sheets API calls when resolving multiple employees in a loop.
+ */
+export function findEffectiveSalaryForPeriodFromRecords(
+  records: SalaryHistoryRecord[],
+  args: { employeeSheetRow: number; periodStart: string; periodEnd: string },
+): SalaryHistoryRecord | null {
+  const filtered = records
+    .filter((r) => r.employeeSheetRow === args.employeeSheetRow && r.status === "Active")
+    .filter((r) => r.effectiveFrom <= args.periodEnd)
+    .filter((r) => !r.effectiveTo || r.effectiveTo >= args.periodStart)
+    .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
+  return filtered[0] ?? null;
+}
+
+function normalizeSalarySlipRow(row: string[]): string[] {
+  const normalized = [...row];
+
+  while (normalized.length < SALARY_SLIPS_HEADERS.length) {
+    normalized.push("");
+  }
+
+  return normalized;
+}
+
 export async function listSalarySlips(): Promise<SalarySlipRecord[]> {
   await ensureHeaders(SALARY_SLIPS_SHEET_NAME, SALARY_SLIPS_HEADERS);
   const rows = await readRows(SALARY_SLIPS_SHEET_NAME);
   if (rows.length <= 1) return [];
 
-  return rows.slice(1).map((row, i) => ({
-    sheetRow: i + 2,
-    slipId: readCell(row, SALARY_SLIPS_HEADERS, "slipId"),
-    employeeSheetRow: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "employeeSheetRow")),
-    year: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "year")),
-    month: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "month")),
-    title: readCell(row, SALARY_SLIPS_HEADERS, "title"),
-    workingDays: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "workingDays")),
-    netPayableDays: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "netPayableDays")),
-    basic: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "basic")),
-    hra: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "hra")),
-    organisationAllowance: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "organisationAllowance")),
-    totalEarnings: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "totalEarnings")),
-    loyaltyBonus: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "loyaltyBonus")),
-    professionalTax: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "professionalTax")),
-    lwf: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "lwf")),
-    totalDeductions: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "totalDeductions")),
-    netPay: asNumber(readCell(row, SALARY_SLIPS_HEADERS, "netPay")),
-    amountInWords: readCell(row, SALARY_SLIPS_HEADERS, "amountInWords"),
-    status:
-      (readCell(row, SALARY_SLIPS_HEADERS, "status") as SalarySlipRecord["status"]) || "Draft",
-    driveFileId: readCell(row, SALARY_SLIPS_HEADERS, "driveFileId"),
-    driveFileName: readCell(row, SALARY_SLIPS_HEADERS, "driveFileName"),
-    driveParentFolderId: readCell(row, SALARY_SLIPS_HEADERS, "driveParentFolderId"),
-    createdAt: readCell(row, SALARY_SLIPS_HEADERS, "createdAt"),
-    releasedAt: readCell(row, SALARY_SLIPS_HEADERS, "releasedAt"),
-    deletedAt: readCell(row, SALARY_SLIPS_HEADERS, "deletedAt"),
-  }));
+  return rows.slice(1).map((row, i) => {
+    const normalizedRow = normalizeSalarySlipRow(row);
+    return {
+      sheetRow: i + 2,
+      slipId: readCell(normalizedRow, SALARY_SLIPS_HEADERS, "slipId"),
+      employeeSheetRow: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "employeeSheetRow")),
+      employeeName: readCell(normalizedRow, SALARY_SLIPS_HEADERS, "employeeName"),
+      year: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "year")),
+      month: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "month")),
+      title: readCell(normalizedRow, SALARY_SLIPS_HEADERS, "title"),
+      workingDays: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "workingDays")),
+      netPayableDays: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "netPayableDays")),
+      basic: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "basic")),
+      totalEarnings: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "totalEarnings")),
+      loyaltyBonus: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "loyaltyBonus")),
+      professionalTax: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "professionalTax")),
+      totalDeductions: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "totalDeductions")),
+      netPay: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "netPay")),
+      amountInWords: readCell(normalizedRow, SALARY_SLIPS_HEADERS, "amountInWords"),
+      status:
+        (readCell(normalizedRow, SALARY_SLIPS_HEADERS, "status") as SalarySlipRecord["status"]) ||
+        "Draft",
+      driveFileId: readCell(normalizedRow, SALARY_SLIPS_HEADERS, "driveFileId"),
+      driveFileName: readCell(normalizedRow, SALARY_SLIPS_HEADERS, "driveFileName"),
+      driveParentFolderId: readCell(normalizedRow, SALARY_SLIPS_HEADERS, "driveParentFolderId"),
+      createdAt: readCell(normalizedRow, SALARY_SLIPS_HEADERS, "createdAt"),
+      releasedAt: readCell(normalizedRow, SALARY_SLIPS_HEADERS, "releasedAt"),
+      deletedAt: readCell(normalizedRow, SALARY_SLIPS_HEADERS, "deletedAt"),
+    };
+  });
 }
 
 export async function saveSalarySlipRecord(
@@ -311,24 +322,22 @@ export async function saveSalarySlipRecord(
   await sheets.spreadsheets.values.append({
     spreadsheetId,
     range: SALARY_SLIPS_SHEET_NAME,
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: "RAW",
     requestBody: {
       values: [
         [
           slipId,
           row.employeeSheetRow,
+          row.employeeName ?? "",
           row.year,
-          row.month,
+          String(row.month),
           row.title,
           row.workingDays,
           row.netPayableDays,
           row.basic,
-          row.hra,
-          row.organisationAllowance,
           row.totalEarnings,
           row.loyaltyBonus,
           row.professionalTax,
-          row.lwf,
           row.totalDeductions,
           row.netPay,
           row.amountInWords,
@@ -337,8 +346,8 @@ export async function saveSalarySlipRecord(
           row.driveFileName,
           row.driveParentFolderId,
           createdAt,
-          row.releasedAt,
-          row.deletedAt,
+          row.releasedAt ?? "",
+          row.deletedAt ?? "",
         ],
       ],
     },
@@ -357,24 +366,22 @@ export async function updateSalarySlipRecord(
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range: sheetRowRange(SALARY_SLIPS_SHEET_NAME, sheetRow, SALARY_SLIPS_HEADERS.length),
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: "RAW",
     requestBody: {
       values: [
         [
           merged.slipId,
           merged.employeeSheetRow,
+          merged.employeeName ?? "",
           merged.year,
-          merged.month,
+          String(merged.month),
           merged.title,
           merged.workingDays,
           merged.netPayableDays,
           merged.basic,
-          merged.hra,
-          merged.organisationAllowance,
           merged.totalEarnings,
           merged.loyaltyBonus,
           merged.professionalTax,
-          merged.lwf,
           merged.totalDeductions,
           merged.netPay,
           merged.amountInWords,
@@ -383,8 +390,8 @@ export async function updateSalarySlipRecord(
           merged.driveFileName,
           merged.driveParentFolderId,
           merged.createdAt,
-          merged.releasedAt,
-          merged.deletedAt,
+          merged.releasedAt ?? "",
+          merged.deletedAt ?? "",
         ],
       ],
     },

@@ -32,20 +32,17 @@ export default function SalarySlipsPage() {
   const [slips, setSlips] = useState<SalarySlipRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [year, setYear] = useState("");
+  const currentYear = new Date().getFullYear();
+  const [year, setYear] = useState(String(currentYear));
   const [month, setMonth] = useState("");
   const [targetEmployee, setTargetEmployee] = useState("");
-  const [workingDaysOverride, setWorkingDaysOverride] = useState("");
   const [busy, setBusy] = useState(false);
 
   const [historyEmployeeSheetRow, setHistoryEmployeeSheetRow] = useState("");
   const [effectiveFrom, setEffectiveFrom] = useState("");
   const [basic, setBasic] = useState("");
-  const [hra, setHra] = useState("");
-  const [organisationAllowance, setOrganisationAllowance] = useState("");
   const [loyaltyBonus, setLoyaltyBonus] = useState("10");
   const [professionalTax, setProfessionalTax] = useState("200");
-  const [lwf, setLwf] = useState("");
 
   const loadSlips = useCallback(async () => {
     setLoading(true);
@@ -66,6 +63,7 @@ export default function SalarySlipsPage() {
         status: string;
         netPay: number;
         employeeSheetRow: number;
+        employeeName: string;
       }>;
       setSlips(
         rows.map((r) => ({
@@ -75,6 +73,7 @@ export default function SalarySlipsPage() {
           status: r.status,
           netPay: `Rs. ${Number(r.netPay ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
           employeeSheetRow: r.employeeSheetRow,
+          employeeName: r.employeeName,
         })),
       );
     } catch (error) {
@@ -121,9 +120,6 @@ export default function SalarySlipsPage() {
         month: Number(month),
       };
       if (targetEmployee) payload.employeeSheetRow = Number(targetEmployee);
-      if (workingDaysOverride && targetEmployee) {
-        payload.payableDaysByEmployeeSheetRow = { [targetEmployee]: Number(workingDaysOverride) };
-      }
       const res = await fetch("/api/salary-slips?mode=generate", {
         method: "POST",
         credentials: "include",
@@ -143,19 +139,18 @@ export default function SalarySlipsPage() {
   const addSalaryHistory = async () => {
     setBusy(true);
     try {
+      const employeeName = employees.find((e) => e.sheetRow === historyEmployeeSheetRow)?.name;
       const res = await fetch("/api/salary-history", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           employeeSheetRow: Number(historyEmployeeSheetRow),
+          employeeName,
           effectiveFrom,
           basic: Number(basic || 0),
-          hra: Number(hra || 0),
-          organisationAllowance: Number(organisationAllowance || 0),
           loyaltyBonus: Number(loyaltyBonus || 0),
           professionalTax: Number(professionalTax || 0),
-          lwf: Number(lwf || 0),
         }),
       });
       const data = await res.json();
@@ -194,49 +189,58 @@ export default function SalarySlipsPage() {
       <PageHeader
         title="Salary slips"
         description="Pay slips with secure download, month-wise release, and percentage-based deductions."
-        actions={
-          canManage ? (
-            <Button variant="outline" onClick={generateSlips} disabled={busy}>
-              {busy ? "Working..." : "Generate & Release"}
-            </Button>
-          ) : null
-        }
       />
       {canManage ? (
-        <Card>
-          <CardContent className="grid gap-3 p-4 md:grid-cols-4">
-            <Input value={year} onChange={(e) => setYear(e.target.value)} placeholder="Year" />
-            <select
-              className="border-ex-border bg-ex-surface rounded-md border px-3 py-2"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-            >
-              <option value="">All months</option>
-              {monthOptions.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
+        <div className="flex items-center gap-4">
+          <select
+            className="border-ex-border bg-ex-surface rounded-md border px-3 py-2"
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+          >
+            <option value="">All years</option>
+            {Array.from({ length: currentYear - 2020 + 1 }).map((_, idx) => {
+              const y = currentYear - idx;
+              return (
+                <option key={y} value={String(y)}>
+                  {String(y)}
                 </option>
-              ))}
-            </select>
-            <select
-              className="border-ex-border bg-ex-surface rounded-md border px-3 py-2"
-              value={targetEmployee}
-              onChange={(e) => setTargetEmployee(e.target.value)}
-            >
-              <option value="">All active employees</option>
-              {employees.map((e) => (
-                <option key={e.sheetRow} value={e.sheetRow}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
-            <Input
-              value={workingDaysOverride}
-              onChange={(e) => setWorkingDaysOverride(e.target.value)}
-              placeholder="Payable days override (selected employee)"
-            />
-          </CardContent>
-        </Card>
+              );
+            })}
+          </select>
+          <select
+            className="border-ex-border bg-ex-surface rounded-md border px-3 py-2"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+          >
+            <option value="">All months</option>
+            {monthOptions.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="border-ex-border bg-ex-surface rounded-md border px-3 py-2"
+            value={targetEmployee}
+            onChange={(e) => setTargetEmployee(e.target.value)}
+          >
+            <option value="">All active employees</option>
+            {employees.map((e) => (
+              <option key={e.sheetRow} value={e.sheetRow}>
+                {e.name}
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="outline"
+            onClick={generateSlips}
+            disabled={busy}
+            className="ml-auto"
+            style={{ maxWidth: "180px", justifySelf: "end" }}
+          >
+            {busy ? "Working..." : "Generate & Release"}
+          </Button>
+        </div>
       ) : null}
 
       <Card>
@@ -246,7 +250,7 @@ export default function SalarySlipsPage() {
             rows={slips}
             columns={[
               { key: "title", header: "Pay period" },
-              ...(canManage ? [{ key: "employeeSheetRow" as const, header: "Employee Row" }] : []),
+              ...(canManage ? [{ key: "employeeName" as const, header: "Employee name" }] : []),
               { key: "netPay", header: "Net pay" },
               { key: "status", header: "Status" },
               {
@@ -280,46 +284,70 @@ export default function SalarySlipsPage() {
           <CardContent className="space-y-3 p-4">
             <h3 className="text-sm font-semibold">Salary history (effective-dated)</h3>
             <div className="grid gap-3 md:grid-cols-4">
-              <select
-                className="border-ex-border bg-ex-surface rounded-md border px-3 py-2"
-                value={historyEmployeeSheetRow}
-                onChange={(e) => setHistoryEmployeeSheetRow(e.target.value)}
-              >
-                <option value="">Select employee</option>
-                {employees.map((e) => (
-                  <option key={e.sheetRow} value={e.sheetRow}>
-                    {e.name}
-                  </option>
-                ))}
-              </select>
-              <Input
-                type="date"
-                value={effectiveFrom}
-                onChange={(e) => setEffectiveFrom(e.target.value)}
-              />
-              <Input value={basic} onChange={(e) => setBasic(e.target.value)} placeholder="Basic" />
-              <Input value={hra} onChange={(e) => setHra(e.target.value)} placeholder="HRA" />
-              <Input
-                value={organisationAllowance}
-                onChange={(e) => setOrganisationAllowance(e.target.value)}
-                placeholder="Organisation Allowance"
-              />
-              <select
-                className="border-ex-border bg-ex-surface rounded-md border px-3 py-2"
-                value={loyaltyBonus}
-                onChange={(e) => setLoyaltyBonus(e.target.value)}
-              >
-                <option value="5">Loyalty bonus 5%</option>
-                <option value="10">Loyalty bonus 10%</option>
-                <option value="15">Loyalty bonus 15%</option>
-                <option value="20">Loyalty bonus 20%</option>
-              </select>
-              <Input
-                value={professionalTax}
-                onChange={(e) => setProfessionalTax(e.target.value)}
-                placeholder="Professional Tax"
-              />
-              <Input value={lwf} onChange={(e) => setLwf(e.target.value)} placeholder="LWF" />
+              <div>
+                <p className="text-ex-muted mt-1.5 max-w-sm text-sm leading-relaxed">
+                  Select employee
+                </p>
+                <select
+                  className="border-ex-border bg-ex-surface w-full rounded-md border px-3 py-2"
+                  value={historyEmployeeSheetRow}
+                  onChange={(e) => setHistoryEmployeeSheetRow(e.target.value)}
+                >
+                  <option value="">Select employee</option>
+                  {employees.map((e) => (
+                    <option key={e.sheetRow} value={e.sheetRow}>
+                      {e.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <p className="text-ex-muted mt-1.5 max-w-sm text-sm leading-relaxed">
+                  Salary effective date for the next 12 months.
+                </p>
+                <Input
+                  type="date"
+                  value={effectiveFrom}
+                  onChange={(e) => setEffectiveFrom(e.target.value)}
+                />
+              </div>
+              <div>
+                <p className="text-ex-muted mt-1.5 max-w-sm text-sm leading-relaxed">
+                  Basic Salary (Rs.)
+                </p>
+                <Input
+                  value={basic}
+                  onChange={(e) => setBasic(e.target.value)}
+                  placeholder="Basic"
+                />
+              </div>
+              <div>
+                <p className="text-ex-muted mt-1.5 max-w-sm text-sm leading-relaxed">
+                  Loyalty bonus as a percentage of basic salary.
+                </p>
+                <select
+                  className="border-ex-border bg-ex-surface w-full rounded-md border px-3 py-2"
+                  value={loyaltyBonus}
+                  onChange={(e) => setLoyaltyBonus(e.target.value)}
+                >
+                  <option value="5">Loyalty bonus 5%</option>
+                  <option value="10">Loyalty bonus 10%</option>
+                  <option value="15">Loyalty bonus 15%</option>
+                  <option value="20">Loyalty bonus 20%</option>
+                </select>
+              </div>
+
+              <div>
+                <p className="text-ex-muted mt-1.5 max-w-sm text-sm leading-relaxed">
+                  Professional Tax
+                </p>
+
+                <Input
+                  value={professionalTax}
+                  onChange={(e) => setProfessionalTax(e.target.value)}
+                  placeholder="Professional Tax"
+                />
+              </div>
             </div>
             <Button
               onClick={addSalaryHistory}

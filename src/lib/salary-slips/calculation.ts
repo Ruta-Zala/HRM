@@ -6,36 +6,22 @@ function clampToMoney(value: number): number {
 }
 
 export function calculateSalaryBreakdown(input: SalaryBreakdownInput) {
-  const {
-    basic,
-    hra,
-    organisationAllowance,
-    loyaltyBonus,
-    professionalTax,
-    lwf,
-    workingDays,
-    netPayableDays,
-  } = input;
+  const { basic, loyaltyBonus, professionalTax, workingDays, netPayableDays } = input;
 
   const ratio = workingDays > 0 ? Math.min(1, Math.max(0, netPayableDays / workingDays)) : 1;
   const earningsBasic = clampToMoney(basic * ratio);
-  const earningsHra = clampToMoney(hra * ratio);
-  const earningsOrgAllowance = clampToMoney(organisationAllowance * ratio);
 
-  const totalEarnings = clampToMoney(earningsBasic + earningsHra + earningsOrgAllowance);
+  const totalEarnings = clampToMoney(earningsBasic);
   const loyaltyBonusRate = Math.min(100, Math.max(0, loyaltyBonus));
   const loyaltyBonusAmount = clampToMoney((totalEarnings * loyaltyBonusRate) / 100);
-  const totalDeductions = clampToMoney(loyaltyBonusAmount + professionalTax + lwf);
+  const totalDeductions = clampToMoney(loyaltyBonusAmount + professionalTax);
   const netPay = clampToMoney(totalEarnings - totalDeductions);
 
   return {
     basic: earningsBasic,
-    hra: earningsHra,
-    organisationAllowance: earningsOrgAllowance,
     totalEarnings,
     loyaltyBonus: loyaltyBonusAmount,
     professionalTax: clampToMoney(professionalTax),
-    lwf: clampToMoney(lwf),
     totalDeductions,
     netPay,
     workingDays,

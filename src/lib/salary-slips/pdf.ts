@@ -16,12 +16,9 @@ type SlipPdfInput = {
   aadharNo: string;
   workingDays: number;
   basic: number;
-  hra: number;
-  organisationAllowance: number;
   loyaltyBonusRate?: number;
   loyaltyBonus: number;
   professionalTax: number;
-  lwf: number;
   totalEarnings: number;
   totalDeductions: number;
   netPay: number;
@@ -126,15 +123,8 @@ export async function renderSalarySlipPdf(input: SlipPdfInput): Promise<Buffer> 
   drawText(loyaltyLabel, 315, tableTop - 48, 11);
   drawText(money(input.loyaltyBonus), 507, tableTop - 48, 11);
 
-  drawText("HRA", 44, tableTop - 76, 11);
-  drawText(money(input.hra), 257, tableTop - 76, 11);
   drawText("PROFESSIONAL TAX", 315, tableTop - 76, 11);
   drawText(money(input.professionalTax), 507, tableTop - 76, 11);
-
-  drawText("ORGANISATION ALLOWANCE", 44, tableTop - 104, 11);
-  drawText(money(input.organisationAllowance), 257, tableTop - 104, 11);
-  drawText("LWF", 315, tableTop - 104, 11);
-  drawText(money(input.lwf), 507, tableTop - 104, 11);
 
   drawText("Total Earnings", 44, tableTop - 145, 11, true);
   drawText(money(input.totalEarnings), 245, tableTop - 145, 11, true);
