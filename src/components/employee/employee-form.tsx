@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -24,6 +24,7 @@ import { POSITIONS, ROLES } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { joinSkillsValue, parseSkillsValue } from "@/app/consts/tech-skills";
+import { fetchProjects, getProjectsForEmployee, type ProjectInfo } from "../../lib/projects-client";
 import { Select } from "../ui/select";
 import { resolveProfileImageSrc } from "@/lib/employee/documents";
 import { type DocumentField, FileUploaderField } from "../ui/file-uploader";
@@ -80,8 +81,11 @@ export function EmployeeForm({
   const [form, setForm] = useState<EmployeeFormState>(initialEmployeeForm);
   const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
   const [techSkills, setTechSkills] = useState<string[]>([]);
+  const [allProjects, setAllProjects] = useState<ProjectInfo[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(true);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState<string | null>(null);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(isEdit);
   const [headersLoading, setHeadersLoading] = useState(!isEdit);
   const [submitting, setSubmitting] = useState(false);
@@ -211,6 +215,40 @@ export function EmployeeForm({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        setProjectsError(null);
+        setProjectsLoading(true);
+
+        const projects = await fetchProjects();
+        if (cancelled) return;
+
+        setAllProjects(projects);
+      } catch {
+        if (!cancelled) {
+          setProjectsError("Failed to load project list");
+          setAllProjects([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setProjectsLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const employeeProjects = useMemo(
+    () => getProjectsForEmployee(form.name, allProjects),
+    [form.name, allProjects],
+  );
 
   const update =
     (field: keyof EmployeeFormState) =>
@@ -473,7 +511,38 @@ export function EmployeeForm({
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle>Projects</CardTitle>
+            </CardHeader>
+            <CardContent className="py-2">
+              {projectsLoading ? (
+                <p>Loading project assignments…</p>
+              ) : !form.name.trim() ? (
+                <p>Enter employee name to see assigned projects.</p>
+              ) : employeeProjects.length > 0 ? (
+                <>
+                  {employeeProjects.map((project, index) => (
+                    <p
+                      key={`${project.name}-${index}`}
+                      className={`${project.status === "inactive" ? "opacity-50" : ""}`}
+                    >
+                      {project.name}
+                      <span className={`${project.status === "inactive" ? "text-sm" : ""}`}>
+                        {project.status === "inactive" && " [Inactive]"}
+                      </span>
+                    </p>
+                  ))}
+                </>
+              ) : (
+                <p>No projects found for this employee.</p>
+              )}
+            </CardContent>
+          </Card>
           {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
+          {projectsError ? (
+            <p className="text-sm text-red-600 dark:text-red-400">{projectsError}</p>
+          ) : null}
         </div>
         <div className="w-full max-w-3xl space-y-6 xl:w-1/2">
           <Card>
