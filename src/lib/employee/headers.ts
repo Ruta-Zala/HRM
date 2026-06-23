@@ -42,10 +42,10 @@ export function getEmployeeIdFromRow(headers: string[], row: string[], sheetRow?
   return "";
 }
 
-/** Build A1 range for a single sheet row (e.g. Sheet1!A5:L5) */
+/** Build A1 range for a single sheet row (e.g. Employees!A5:L5) */
 export function sheetRowToRange(sheetRow: number, columnCount: number): string {
   const endColumn = columnIndexToLetter(columnCount);
-  return `Sheet1!A${sheetRow}:${endColumn}${sheetRow}`;
+  return `Employees!A${sheetRow}:${endColumn}${sheetRow}`;
 }
 
 function columnIndexToLetter(columnCount: number): string {

@@ -23,7 +23,7 @@ import {
 import { POSITIONS, ROLES } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
-import { ALL_TECH_SKILLS, joinSkillsValue, parseSkillsValue } from "@/app/consts/tech-skills";
+import { joinSkillsValue, parseSkillsValue } from "@/app/consts/tech-skills";
 import { Select } from "../ui/select";
 import { resolveProfileImageSrc } from "@/lib/employee/documents";
 import { type DocumentField, FileUploaderField } from "../ui/file-uploader";
@@ -79,6 +79,9 @@ export function EmployeeForm({
 
   const [form, setForm] = useState<EmployeeFormState>(initialEmployeeForm);
   const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
+  const [techSkills, setTechSkills] = useState<string[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(true);
+  const [skillsError, setSkillsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(isEdit);
   const [headersLoading, setHeadersLoading] = useState(!isEdit);
   const [submitting, setSubmitting] = useState(false);
@@ -172,6 +175,42 @@ export function EmployeeForm({
       cancelled = true;
     };
   }, [isEdit, sheetRow, useOwnProfileEndpoint]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        setSkillsError(null);
+        setSkillsLoading(true);
+
+        const response = await fetch("/api/employee/skills");
+        const result = await response.json();
+
+        if (cancelled) return;
+
+        if (result.success) {
+          setTechSkills(Array.isArray(result.skills) ? result.skills : []);
+        } else {
+          setSkillsError(result.message || "Failed to load skill options");
+          setTechSkills([]);
+        }
+      } catch {
+        if (!cancelled) {
+          setSkillsError("Failed to load skill options");
+          setTechSkills([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setSkillsLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const update =
     (field: keyof EmployeeFormState) =>
@@ -626,13 +665,17 @@ export function EmployeeForm({
               <FormField label="Tech skills" id="skills">
                 <MultiSelect
                   id="skills"
-                  options={[...ALL_TECH_SKILLS]}
+                  options={techSkills}
                   value={parseSkillsValue(form.skills)}
                   onChange={(skills) =>
                     setForm((prev) => ({ ...prev, skills: joinSkillsValue(skills) }))
                   }
                   placeholder="Select tech skills"
+                  disabled={skillsLoading}
                 />
+                <p className="text-ex-muted text-xs">
+                  {skillsError || (skillsLoading ? "Loading skills from Google Sheets…" : "")}
+                </p>
               </FormField>
             </CardContent>
           </Card>

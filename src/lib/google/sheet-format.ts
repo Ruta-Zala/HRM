@@ -135,10 +135,10 @@ export async function applySheetHeaderFormatForTitles(
   });
 }
 
-/** Format row 1 on the default employee master tab (Sheet1). */
+/** Format row 1 on the default employee master tab (Employees). */
 export async function applyEmployeeMasterHeaderFormat(
   spreadsheetId: string,
   columnCount: number,
 ): Promise<void> {
-  await applySheetHeaderFormatByTitle(spreadsheetId, "Sheet1", columnCount);
+  await applySheetHeaderFormatByTitle(spreadsheetId, "Employees", columnCount);
 }

@@ -4,9 +4,9 @@ import { sheets } from "./auth";
 const spreadsheetId = process.env.GOOGLE_SHEET_ID as string;
 
 /** Wide enough for all employee + offboarding columns (beyond column Z). */
-export const EMPLOYEE_SHEET_RANGE = "Sheet1!A1:AZ1000";
+export const EMPLOYEE_SHEET_RANGE = "Employees!A1:AZ1000";
 
-const DEFAULT_SHEET_TITLE = "Sheet1";
+const DEFAULT_SHEET_TITLE = "Employees";
 
 /** Column AZ = 52; matches {@link EMPLOYEE_SHEET_RANGE}. */
 const EMPLOYEE_SHEET_COLUMN_COUNT = 52;
@@ -37,7 +37,7 @@ async function getSheetId(title: string = DEFAULT_SHEET_TITLE): Promise<number> 
   return sheetId;
 }
 
-/** 1-based row number from an A1 range like `Sheet1!A42:L42`. */
+/** 1-based row number from an A1 range like `Employees!A42:L42`. */
 function sheetRowFromA1Range(range?: string | null): number | null {
   if (!range) return null;
   const match = range.match(/![A-Z]+(\d+)/i);
@@ -99,7 +99,7 @@ export async function copyRowFormatFromRow(
 }
 
 export const getSheetHeadersData = async () => {
-  const rows = await readSheet("Sheet1");
+  const rows = await readSheet("Employees");
 
   return getSheetHeaders(rows);
 };
@@ -107,7 +107,7 @@ export const getSheetHeadersData = async () => {
 /**
  * Read Sheet Data
  */
-export const readSheet = async (range: string = "Sheet1") => {
+export const readSheet = async (range: string = "Employees") => {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
@@ -201,7 +201,7 @@ export const clearSheetRange = async (range: string) => {
 };
 
 export const getEmployeeCount = async () => {
-  const rows = await readSheet("Sheet1");
+  const rows = await readSheet("Employees");
 
   // remove header row
   return Math.max(rows.length - 1, 0);

@@ -97,7 +97,7 @@ function buildListColumns(canManage: boolean): Column<EmployeeRow>[] {
       header: "Actions",
       sortable: false,
       sticky: "right",
-      className: "min-w-[9rem]",
+      className: "min-w-[4rem]",
       render: (row: EmployeeRow) => (
         <div className="flex items-center gap-1">
           <Link href={`/employee/${row.id}/profile`}>

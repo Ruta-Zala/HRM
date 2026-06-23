@@ -43,7 +43,7 @@ import { filesToUploadBuffers, parseEmployeeSubmit } from "@/lib/employee/server
  * Read sheet data
  *
  * Example:
- * /api/sheet?range=Sheet1!A1:E20
+ * /api/sheet?range=Employees!A1:E20
  */
 export const GET = withActiveSession(async (req, user) => {
   try {
@@ -72,7 +72,7 @@ export const GET = withActiveSession(async (req, user) => {
     const headersOnly = searchParams.get("headersOnly") === "true";
 
     if (headersOnly) {
-      const headerRow = await readSheet("Sheet1!1:1");
+      const headerRow = await readSheet("Employees!1:1");
       const sheetData = headerRow.length ? headerRow : [[]];
       const filtered = filterEmployeeSheetForViewer(sheetData, canViewFullDetails);
       const headers = getSheetHeaders(filtered);
@@ -283,7 +283,7 @@ export const POST = withActiveSession(async (req) => {
  *
  * Body:
  * {
- *   "range": "Sheet1!A2:C2",
+ *   "range": "Employees!A2:C2",
  *   "values": [
  *     ["Updated", "Data", "Here"]
  *   ]
@@ -438,7 +438,7 @@ export const PUT = withActiveSession(async (req, user) => {
  *
  * Body:
  * {
- *   "range": "Sheet1!A2:C10"
+ *   "range": "Employees!A2:C10"
  * }
  */
 export const DELETE = withActiveSession(async (req) => {

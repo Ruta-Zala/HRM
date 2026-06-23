@@ -152,7 +152,7 @@ export function DataTable<T extends { id: string }>({
                       key={String(c.key)}
                       title={value ?? undefined}
                       className={cn(
-                        "text-ex-primary px-4 py-3 whitespace-nowrap",
+                        "text-ex-primary px-3 py-2 whitespace-nowrap",
                         c.sticky && stickyColumnClasses[c.sticky].cell,
                         c.className,
                       )}

@@ -775,7 +775,7 @@ export async function ensureMonthlySheet(
 
   const defaultSheet = sheets.find((s) => {
     const t = s.properties?.title ?? "";
-    return t === "Sheet1" || /^Sheet\d+$/.test(t);
+    return t === "Employees" || /^Sheet\d+$/.test(t);
   });
 
   if (sheets.length === 1 && defaultSheet?.properties?.sheetId != null) {
