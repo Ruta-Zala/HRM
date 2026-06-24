@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { sheets } from "@/lib/google/auth";
+import { applySheetHeaderFormatByTitle } from "@/lib/google/sheet-format";
 
 import {
   SALARY_HISTORY_SHEET_NAME,
@@ -109,6 +110,11 @@ async function ensureHeaders(title: string, headers: readonly string[]): Promise
   });
 }
 
+async function ensureHeadersWithFormat(title: string, headers: readonly string[]): Promise<void> {
+  await ensureHeaders(title, headers);
+  await applySheetHeaderFormatByTitle(spreadsheetId, title, headers.length);
+}
+
 function sheetRowRange(title: string, row: number, colCount: number): string {
   const end = columnIndexToLetter(colCount);
   return `${title}!A${row}:${end}${row}`;
@@ -140,7 +146,7 @@ function readCell(row: string[], headers: readonly string[], key: string): strin
 }
 
 export async function listSalaryHistoryRecords(): Promise<SalaryHistoryRecord[]> {
-  await ensureHeaders(SALARY_HISTORY_SHEET_NAME, SALARY_HISTORY_HEADERS);
+  await ensureHeadersWithFormat(SALARY_HISTORY_SHEET_NAME, SALARY_HISTORY_HEADERS);
   const rows = await readRows(SALARY_HISTORY_SHEET_NAME);
   if (rows.length <= 1) return [];
 
@@ -274,7 +280,7 @@ function normalizeSalarySlipRow(row: string[]): string[] {
 }
 
 export async function listSalarySlips(): Promise<SalarySlipRecord[]> {
-  await ensureHeaders(SALARY_SLIPS_SHEET_NAME, SALARY_SLIPS_HEADERS);
+  await ensureHeadersWithFormat(SALARY_SLIPS_SHEET_NAME, SALARY_SLIPS_HEADERS);
   const rows = await readRows(SALARY_SLIPS_SHEET_NAME);
   if (rows.length <= 1) return [];
 
@@ -316,7 +322,7 @@ export async function saveSalarySlipRecord(
     createdAt?: string;
   },
 ): Promise<string> {
-  await ensureHeaders(SALARY_SLIPS_SHEET_NAME, SALARY_SLIPS_HEADERS);
+  await ensureHeadersWithFormat(SALARY_SLIPS_SHEET_NAME, SALARY_SLIPS_HEADERS);
   const slipId = row.slipId?.trim() || randomUUID();
   const createdAt = row.createdAt?.trim() || nowIso();
   await sheets.spreadsheets.values.append({

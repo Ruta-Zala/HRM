@@ -1,3 +1,15 @@
+import type { LeaveBucketType } from "@/lib/attendance/leave-bucket-layout";
+import {
+  getLeaveBucketTemplateRows,
+  isCurrentLeaveBucketHeaders,
+  LEAVE_BUCKET_COLUMN_COUNT,
+  LEAVE_BUCKET_COLUMN_GROUPS,
+  LEAVE_BUCKET_HEADERS,
+  migrateLeaveBucketRows,
+  normalizeLeaveBucketRow,
+} from "@/lib/attendance/leave-bucket-layout";
+import { applyLeaveBucketRowFormats } from "@/lib/attendance/leave-bucket-format";
+import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
 import {
   ATTENDANCE_COL,
   ATTENDANCE_HEADERS,
@@ -420,6 +432,7 @@ export async function getOrCreateEmployeeAttendanceSpreadsheet(
   employeeId: string,
   employeeName: string,
   parentFolderId: string,
+  birthdayDate = "",
 ): Promise<string> {
   const lockKey = `${parentFolderId}:${employeeId}`;
   const existing = attendanceSpreadsheetLocks.get(lockKey);
@@ -428,7 +441,12 @@ export async function getOrCreateEmployeeAttendanceSpreadsheet(
   const promise = (async () => {
     const found = await findAttendanceSpreadsheetInFolder(parentFolderId, employeeId, employeeName);
     if (found) return found;
-    return createEmployeeAttendanceSpreadsheet(employeeId, employeeName, parentFolderId);
+    return createEmployeeAttendanceSpreadsheet(
+      employeeId,
+      employeeName,
+      parentFolderId,
+      birthdayDate,
+    );
   })();
 
   attendanceSpreadsheetLocks.set(lockKey, promise);
@@ -443,6 +461,7 @@ export async function createEmployeeAttendanceSpreadsheet(
   employeeId: string,
   employeeName: string,
   parentFolderId: string,
+  birthdayDate = "",
 ): Promise<string> {
   const title = attendanceYearSpreadsheetFileName(employeeId, employeeName);
   const sheetName = monthlySheetTitle();
@@ -502,11 +521,493 @@ export async function createEmployeeAttendanceSpreadsheet(
     }
     await applyWorkModeDropdownByTitle(spreadsheetId, sheetName);
     await applyOvertimeApprovalDropdownByTitle(spreadsheetId, sheetName);
+    await ensureLeaveBucketSheet(spreadsheetId, { birthdayDate });
 
     return spreadsheetId;
   } catch (error) {
     throw formatDriveError(error);
   }
+}
+
+const LEAVE_BUCKET_SHEET_NAME = "Leave Bucket";
+const LEAVE_BUCKET_SHEET_RANGE = "A:X";
+
+async function ensureLeaveBucketLayout(spreadsheetId: string): Promise<void> {
+  const sheetsApi = await getSheetsClient();
+  const existingId = await getSheetId(spreadsheetId, LEAVE_BUCKET_SHEET_NAME);
+  if (existingId == null) return;
+
+  const response = await sheetsApi.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${LEAVE_BUCKET_SHEET_NAME}!${LEAVE_BUCKET_SHEET_RANGE}`,
+  });
+
+  const values = response.data.values ?? [];
+  if (values.length === 0 || isCurrentLeaveBucketHeaders(values[0] ?? [])) {
+    return;
+  }
+
+  const migrated = migrateLeaveBucketRows(values);
+
+  await sheetsApi.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${LEAVE_BUCKET_SHEET_NAME}!A1:X${Math.max(migrated.length, 13)}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: migrated },
+  });
+
+  await applySheetHeaderFormatByTitle(
+    spreadsheetId,
+    LEAVE_BUCKET_SHEET_NAME,
+    LEAVE_BUCKET_COLUMN_COUNT,
+  );
+}
+
+export async function ensureLeaveBucketSheet(
+  spreadsheetId: string,
+  options?: { birthdayDate?: string },
+): Promise<void> {
+  const sheetsApi = await getSheetsClient();
+  const existingId = await getSheetId(spreadsheetId, LEAVE_BUCKET_SHEET_NAME);
+  if (existingId != null) return;
+
+  await sheetsApi.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [{ addSheet: { properties: { title: LEAVE_BUCKET_SHEET_NAME } } }],
+    },
+  });
+
+  await sheetsApi.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${LEAVE_BUCKET_SHEET_NAME}!A1:X13`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: getLeaveBucketTemplateRows(options?.birthdayDate ?? ""),
+    },
+  });
+
+  await applySheetHeaderFormatByTitle(
+    spreadsheetId,
+    LEAVE_BUCKET_SHEET_NAME,
+    LEAVE_BUCKET_COLUMN_COUNT,
+  );
+}
+
+function normalizeLeaveBucketType(value: string): LeaveBucketType {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === "paid" || normalized === "paid leave") return "paid";
+  if (normalized === "casual" || normalized === "casual leave") return "casual";
+  if (normalized === "sick" || normalized === "sick leave" || normalized === "sl") return "sick";
+  if (normalized === "birthday" || normalized === "birthday leave") return "birthday";
+  return "unpaid";
+}
+
+function formatLeaveBucketDate(date: Date) {
+  const day = date.getDate();
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function formatLeaveDurationLabel(duration: "full" | "half_am" | "half_pm") {
+  if (duration === "half_am") return "Half Day (AM)";
+  if (duration === "half_pm") return "Half Day (PM)";
+  return "Full Day";
+}
+
+// function parsePlainDate(value: string): Date | null {
+//   const trimmed = value.trim();
+//   if (!trimmed) return null;
+
+//   const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+//   if (slashMatch) {
+//     const month = Number(slashMatch[1]);
+//     const day = Number(slashMatch[2]);
+//     const year = Number(slashMatch[3]);
+//     const date = new Date(year, month - 1, day);
+//     if (!Number.isNaN(date.getTime())) return date;
+//   }
+
+//   const isoDate = new Date(trimmed);
+//   if (!Number.isNaN(isoDate.getTime())) return isoDate;
+
+//   return null;
+// }
+
+function normalizeMonthName(value: string): string {
+  const trimmed = value.trim().toLowerCase();
+  const monthMap: Record<string, string> = {
+    january: "January",
+    february: "February",
+    march: "March",
+    april: "April",
+    may: "May",
+    june: "June",
+    july: "July",
+    august: "August",
+    september: "September",
+    october: "October",
+    november: "November",
+    december: "December",
+    jan: "January",
+    feb: "February",
+    mar: "March",
+    apr: "April",
+    jun: "June",
+    jul: "July",
+    aug: "August",
+    sep: "September",
+    oct: "October",
+    nov: "November",
+    dec: "December",
+  };
+  return monthMap[trimmed] ?? value;
+}
+
+function parseDelimitedRows(content: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < content.length; i++) {
+    const ch = content[i];
+    const next = content[i + 1];
+
+    if (ch === '"') {
+      if (inQuotes && next === '"') {
+        cell += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && (ch === "," || ch === "\t")) {
+      row.push(cell.trim());
+      cell = "";
+      continue;
+    }
+
+    if (!inQuotes && (ch === "\n" || ch === "\r")) {
+      if (ch === "\r" && next === "\n") i++;
+      row.push(cell.trim());
+      const hasAnyValue = row.some((c) => c.length > 0);
+      if (hasAnyValue) rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+
+    cell += ch;
+  }
+
+  row.push(cell.trim());
+  if (row.some((c) => c.length > 0)) rows.push(row);
+  return rows;
+}
+
+function findNextEmptySlot(
+  rows: string[][],
+  colIndex: number,
+  allowUnlimitedRows = false,
+): number | null {
+  for (let i = 1; i < rows.length; i++) {
+    const monthLabel = String(rows[i]?.[0] ?? "").trim();
+    if (!monthLabel) continue;
+
+    const cell = String(rows[i]?.[colIndex] ?? "").trim();
+    if (!cell) return i;
+  }
+
+  if (!allowUnlimitedRows) {
+    return null;
+  }
+
+  for (let i = 1; i < rows.length; i++) {
+    const monthLabel = String(rows[i]?.[0] ?? "").trim();
+    if (monthLabel) continue;
+
+    const cell = String(rows[i]?.[colIndex] ?? "").trim();
+    if (!cell) return i;
+  }
+
+  const newRow = new Array(LEAVE_BUCKET_COLUMN_COUNT).fill("");
+  rows.push(newRow);
+  return rows.length - 1;
+}
+
+function findNextBirthdayApplySlot(rows: string[][]): number | null {
+  const columns = LEAVE_BUCKET_COLUMN_GROUPS.birthday;
+
+  for (let i = 1; i < rows.length; i++) {
+    rows[i] = normalizeLeaveBucketRow(rows[i]);
+    const date = String(rows[i][columns.date] ?? "").trim();
+    const status = String(rows[i][columns.status] ?? "").trim();
+    if (date && !status) return i;
+  }
+
+  return findNextEmptySlot(rows, columns.date, false);
+}
+
+function applyLeaveDatesToRows(
+  rows: string[][],
+  leaveType: LeaveBucketType,
+  dates: Date[],
+  duration: "full" | "half_am" | "half_pm",
+  reason: string,
+): Array<{ rowIndex: number; leaveType: LeaveBucketType }> {
+  const columns = LEAVE_BUCKET_COLUMN_GROUPS[leaveType];
+  const allowUnlimitedRows = leaveType === "unpaid";
+  const durationLabel = formatLeaveDurationLabel(duration);
+  const appliedRows: Array<{ rowIndex: number; leaveType: LeaveBucketType }> = [];
+
+  for (const date of dates) {
+    const rowIndex =
+      leaveType === "birthday"
+        ? findNextBirthdayApplySlot(rows)
+        : findNextEmptySlot(rows, columns.date, allowUnlimitedRows);
+
+    if (rowIndex == null) {
+      throw new Error(`No available slot in ${leaveType} leave column.`);
+    }
+
+    rows[rowIndex] = normalizeLeaveBucketRow(rows[rowIndex]);
+    rows[rowIndex][columns.date] = formatLeaveBucketDate(date);
+    if (columns.duration != null) {
+      rows[rowIndex][columns.duration] = durationLabel;
+    }
+    if (columns.reason != null) {
+      rows[rowIndex][columns.reason] = reason;
+    }
+    rows[rowIndex][columns.status] = LEAVE_STATUS.APPLIED;
+    rows[rowIndex][columns.rejectReason] = "";
+
+    appliedRows.push({ rowIndex, leaveType });
+  }
+
+  return appliedRows;
+}
+
+export async function addLeaveDatesToBucket(
+  spreadsheetId: string,
+  leaveType: string,
+  dates: Date[],
+  duration: "full" | "half_am" | "half_pm" = "full",
+  reason = "",
+): Promise<void> {
+  const targetType = normalizeLeaveBucketType(leaveType);
+  await addGroupedLeaveDatesToBucket(
+    spreadsheetId,
+    [{ leaveType: targetType, dates }],
+    duration,
+    reason,
+  );
+}
+
+export async function addGroupedLeaveDatesToBucket(
+  spreadsheetId: string,
+  groups: Array<{ leaveType: LeaveBucketType; dates: Date[] }>,
+  duration: "full" | "half_am" | "half_pm" = "full",
+  reason = "",
+): Promise<void> {
+  const sheetsApi = await getSheetsClient();
+  await ensureLeaveBucketSheet(spreadsheetId);
+  await ensureLeaveBucketLayout(spreadsheetId);
+
+  const response = await sheetsApi.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${LEAVE_BUCKET_SHEET_NAME}!${LEAVE_BUCKET_SHEET_RANGE}`,
+  });
+
+  const values = response.data.values ?? getLeaveBucketTemplateRows();
+  const rows = migrateLeaveBucketRows(values).map((row) => normalizeLeaveBucketRow(row));
+  const appliedRows: Array<{ rowIndex: number; leaveType: LeaveBucketType }> = [];
+
+  for (const group of groups) {
+    if (group.dates.length === 0) continue;
+    appliedRows.push(
+      ...applyLeaveDatesToRows(rows, group.leaveType, group.dates, duration, reason),
+    );
+  }
+
+  await sheetsApi.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${LEAVE_BUCKET_SHEET_NAME}!A1:X${rows.length}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: rows },
+  });
+
+  await applyLeaveBucketRowFormats(
+    spreadsheetId,
+    appliedRows.map((entry) => ({
+      ...entry,
+      status: LEAVE_STATUS.APPLIED,
+    })),
+  );
+}
+
+export async function readLeaveBucketRows(spreadsheetId: string): Promise<string[][]> {
+  const sheetsApi = await getSheetsClient();
+  await ensureLeaveBucketSheet(spreadsheetId);
+  await ensureLeaveBucketLayout(spreadsheetId);
+
+  const response = await sheetsApi.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${LEAVE_BUCKET_SHEET_NAME}!${LEAVE_BUCKET_SHEET_RANGE}`,
+  });
+
+  const values = response.data.values ?? getLeaveBucketTemplateRows();
+  return migrateLeaveBucketRows(values).map((row) => normalizeLeaveBucketRow(row));
+}
+
+export async function importLeaveBucketCsv(spreadsheetId: string, content: string): Promise<void> {
+  await ensureLeaveBucketSheet(spreadsheetId);
+  await ensureLeaveBucketLayout(spreadsheetId);
+
+  const rows = parseDelimitedRows(content);
+  if (rows.length < 2) {
+    throw new Error("CSV must contain a header row and at least one data row.");
+  }
+
+  const headers = rows[0].map((value) => value.trim().toLowerCase());
+  const monthIndex = headers.findIndex((header) => header.includes("month"));
+
+  if (monthIndex === -1) {
+    throw new Error("Leave bucket CSV must contain a Month column.");
+  }
+
+  const findHeaderIndex = (label: string) => {
+    const normalized = label.trim().toLowerCase();
+    const exact = headers.findIndex((header) => header === normalized);
+    if (exact >= 0) return exact;
+    return headers.findIndex((header) => header.includes(normalized));
+  };
+
+  const leaveTypes = Object.keys(LEAVE_BUCKET_COLUMN_GROUPS) as LeaveBucketType[];
+  const columnIndexes = Object.fromEntries(
+    leaveTypes.map((type) => {
+      const columns = LEAVE_BUCKET_COLUMN_GROUPS[type];
+      return [
+        type,
+        {
+          date: findHeaderIndex(LEAVE_BUCKET_HEADERS[columns.date]),
+          duration:
+            columns.duration != null ? findHeaderIndex(LEAVE_BUCKET_HEADERS[columns.duration]) : -1,
+          reason:
+            columns.reason != null ? findHeaderIndex(LEAVE_BUCKET_HEADERS[columns.reason]) : -1,
+          status: findHeaderIndex(LEAVE_BUCKET_HEADERS[columns.status]),
+          rejectReason: findHeaderIndex(LEAVE_BUCKET_HEADERS[columns.rejectReason]),
+        },
+      ];
+    }),
+  ) as Record<
+    LeaveBucketType,
+    {
+      date: number;
+      duration: number;
+      reason: number;
+      status: number;
+      rejectReason: number;
+    }
+  >;
+
+  const legacyDurationIndex = headers.findIndex(
+    (header) => header === "duration" || header.endsWith(" duration"),
+  );
+  const legacyReasonIndex = headers.findIndex(
+    (header) => header === "reason" || header.endsWith(" reason"),
+  );
+
+  const sheetsApi = await getSheetsClient();
+  const response = await sheetsApi.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${LEAVE_BUCKET_SHEET_NAME}!${LEAVE_BUCKET_SHEET_RANGE}`,
+  });
+
+  const existingValues = migrateLeaveBucketRows(
+    response.data.values ?? getLeaveBucketTemplateRows(),
+  ).map((row) => normalizeLeaveBucketRow(row));
+  const resultValues = existingValues.map((row) => row.slice());
+  const monthIndexMap = new Map<string, number>();
+  for (let i = 1; i < resultValues.length; i++) {
+    const month = String(resultValues[i][0] ?? "")
+      .trim()
+      .toLowerCase();
+    if (month) monthIndexMap.set(month, i);
+  }
+
+  const normalizeCellValues = (cell: string) =>
+    cell
+      .split(/[,;]+/)
+      .map((item) => item.trim())
+      .filter((item) => item && item !== "0/1")
+      .map((item) => item.replace(/\s+/g, " ").trim());
+
+  const setColumn = (
+    targetRowIndex: number,
+    columnIndex: number,
+    columnValue: string | undefined,
+  ) => {
+    if (columnIndex < 0) return;
+    const items = normalizeCellValues(String(columnValue ?? ""));
+    if (items.length === 0) return;
+    const current = String(resultValues[targetRowIndex][columnIndex] ?? "").trim();
+    const existing = current.length ? current.split(/\s*,\s*/).filter(Boolean) : [];
+    for (const item of items) {
+      if (!existing.includes(item)) existing.push(item);
+    }
+    resultValues[targetRowIndex][columnIndex] = existing.join(", ");
+  };
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const monthRaw = String(row[monthIndex] ?? "").trim();
+    const month = normalizeMonthName(monthRaw).toLowerCase();
+    const targetRowIndex = monthIndexMap.get(month);
+    if (targetRowIndex == null) continue;
+
+    for (const type of leaveTypes) {
+      const indexes = columnIndexes[type];
+      const sheetColumns = LEAVE_BUCKET_COLUMN_GROUPS[type];
+
+      setColumn(targetRowIndex, sheetColumns.date, row[indexes.date]);
+
+      const durationValue = String(
+        indexes.duration >= 0 ? row[indexes.duration] : row[legacyDurationIndex],
+      ).trim();
+      if (durationValue && sheetColumns.duration != null) {
+        resultValues[targetRowIndex][sheetColumns.duration] = durationValue;
+      }
+
+      const reasonValue = String(
+        indexes.reason >= 0 ? row[indexes.reason] : row[legacyReasonIndex],
+      ).trim();
+      if (reasonValue && sheetColumns.reason != null) {
+        resultValues[targetRowIndex][sheetColumns.reason] = reasonValue;
+      }
+
+      const statusValue = String(row[indexes.status] ?? "").trim();
+      if (statusValue) {
+        resultValues[targetRowIndex][sheetColumns.status] = statusValue;
+      }
+
+      const rejectValue = String(row[indexes.rejectReason] ?? "").trim();
+      if (rejectValue) {
+        resultValues[targetRowIndex][sheetColumns.rejectReason] = rejectValue;
+      }
+    }
+  }
+
+  await sheetsApi.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${LEAVE_BUCKET_SHEET_NAME}!A1:X${resultValues.length}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: resultValues },
+  });
 }
 
 async function getSheetId(spreadsheetId: string, title: string): Promise<number | null> {
@@ -822,6 +1323,7 @@ export async function ensureMonthlySheet(
   await applySheetHeaderFormatByTitle(spreadsheetId, title, ATTENDANCE_HEADERS.length);
   await applyWorkModeDropdownByTitle(spreadsheetId, title);
   await applyOvertimeApprovalDropdownByTitle(spreadsheetId, title);
+  await ensureLeaveBucketSheet(spreadsheetId);
 
   return title;
 }

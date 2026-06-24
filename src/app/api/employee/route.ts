@@ -17,6 +17,7 @@ import {
   DEFAULT_PAGE_SIZE,
   processEmployeeSheet,
   getSheetHeaders,
+  sheetRowToForm,
   sheetRowToRange,
   generateEmployeeId,
   getEmployeeNameFromRow,
@@ -199,10 +200,12 @@ export const POST = withActiveSession(async (req) => {
       throw new Error("Failed to create employee documents folder");
     }
 
+    const formForSpreadsheet = sheetRowToForm(headers, values);
     const attendanceSpreadsheetId = await getOrCreateEmployeeAttendanceSpreadsheet(
       employeeId,
       employeeName,
       folders.employeeFolderId,
+      formForSpreadsheet.birthdayDate,
     );
 
     let rowValues = mergeRowWithFormFields(headers, values, {

@@ -132,9 +132,9 @@ export const navStructure: NavItem[] = [
     label: "Leave",
     href: "/leave",
     icon: "CalendarDays",
-    roles: [],
+    roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
     children: [
-      { roles: [], label: "Leave desk", href: "/leave" },
+      { roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE], label: "Leave desk", href: "/leave" },
       { roles: [], label: "Approvals & chain", href: "/leave/approvals" },
       { roles: [], label: "Early leave", href: "/leave/early-leave" },
       { roles: [], label: "Working vs on leave", href: "/leave/dashboard" },
@@ -157,7 +157,7 @@ export const navStructure: NavItem[] = [
     icon: "Plug",
     roles: [SUPER_ADMIN, HR_MANAGER],
     children: [
-      { roles: [SUPER_ADMIN, HR_MANAGER], label: "Overview", href: "/integrations" },
+      { roles: [], label: "Overview", href: "/integrations" },
       {
         roles: [SUPER_ADMIN, HR_MANAGER],
         label: "Google Drive",
@@ -172,7 +172,7 @@ export const navStructure: NavItem[] = [
     href: "/settings/network",
     icon: "Shield",
     roles: [],
-    children: [{ roles: [], label: "LAN / Wi‑Fi restriction", href: "/settings/network" }],
+    children: [{ roles: [], label: "LAN / Wi-Fi restriction", href: "/settings/network" }],
   },
 ];
 

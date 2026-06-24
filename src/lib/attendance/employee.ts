@@ -27,6 +27,7 @@ export type AttendanceEmployeeContext = {
   employeeName: string;
   attendanceSpreadsheetId: string;
   sheetRow: number;
+  birthdayDate: string;
 };
 
 export function getAttendanceSpreadsheetIdFromRow(headers: string[], row: string[]): string {
@@ -94,6 +95,7 @@ export async function resolveAttendanceEmployee(
       employeeId,
       employeeName,
       parentFolderId,
+      form.birthdayDate,
     );
   }
 
@@ -113,6 +115,7 @@ export async function resolveAttendanceEmployee(
     employeeName,
     attendanceSpreadsheetId,
     sheetRow: record.sheetRow,
+    birthdayDate: form.birthdayDate.trim(),
   };
 }
 
@@ -173,6 +176,7 @@ export async function resolveAttendanceEmployeeForTarget(
       employeeId,
       employeeName,
       parentFolderId,
+      form.birthdayDate,
     );
   }
 
@@ -191,6 +195,7 @@ export async function resolveAttendanceEmployeeForTarget(
     employeeName,
     attendanceSpreadsheetId,
     sheetRow: targetSheetRow,
+    birthdayDate: form.birthdayDate.trim(),
   };
 }
 
@@ -209,5 +214,6 @@ export async function resolveAttendanceEmployeeBySheetRow(
     employeeName: form.name.trim() || "Employee",
     attendanceSpreadsheetId: getAttendanceSpreadsheetIdFromRow(headers, row),
     sheetRow,
+    birthdayDate: form.birthdayDate.trim(),
   };
 }

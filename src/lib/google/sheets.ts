@@ -162,6 +162,27 @@ export const appendSheetRow = async (
   }
 };
 
+export const appendSheetRows = async (
+  range: string,
+  values: (string | number)[][],
+): Promise<unknown> => {
+  try {
+    const response = await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values,
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error("Append Sheet Rows Error:", error);
+    throw error;
+  }
+};
+
 /**
  * Update Rows
  */
