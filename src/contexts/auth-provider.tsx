@@ -10,7 +10,6 @@ import {
   isAccountInactiveRedirectError,
   redirectToAccountInactive,
 } from "@/lib/account-inactive-client";
-import { clearSupportChatHistory } from "@/components/support/support-chat-history";
 import { parseJsonResponse } from "@/lib/api/json-response";
 import type { SessionUser } from "@/types/auth";
 
@@ -89,7 +88,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await clearSupportChatHistory();
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     clearSessionTabState();
     setUser(null);

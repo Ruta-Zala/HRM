@@ -14,6 +14,10 @@ const SHARED_DRIVE_OPTIONS = {
   supportsAllDrives: true,
 } as const;
 
+async function getWriteDrive() {
+  return getDrive({ forWrite: true });
+}
+
 export type { EmployeeDocumentField };
 export { EMPLOYEE_DOCUMENT_FIELDS };
 
@@ -23,7 +27,7 @@ export async function uploadFileToFolder(
   buffer: Buffer,
   parentFolderId: string,
 ): Promise<string> {
-  const drive = await getDrive();
+  const drive = await getWriteDrive();
 
   try {
     const response = await drive.files.create({
@@ -55,7 +59,7 @@ export async function uploadBinaryFileToFolder(
   buffer: Buffer,
   parentFolderId: string,
 ): Promise<{ fileId: string; fileName: string }> {
-  const drive = await getDrive();
+  const drive = await getWriteDrive();
   try {
     const response = await drive.files.create({
       requestBody: {
@@ -105,7 +109,7 @@ const EMPLOYEES_ROOT_FOLDER_NAME = "Employees";
 const LEGACY_EMPLOYEES_ROOT_FOLDER_NAME = "documents";
 
 export const createFolder = async (name: string, parentFolderId?: string) => {
-  const drive = await getDrive();
+  const drive = await getWriteDrive();
 
   try {
     const response = await drive.files.create({
@@ -231,7 +235,7 @@ export async function downloadDriveFileBufferById(
 }
 
 export async function trashDriveFile(fileId: string): Promise<void> {
-  const drive = await getDrive();
+  const drive = await getWriteDrive();
   try {
     await drive.files.update({
       fileId,

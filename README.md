@@ -8,8 +8,6 @@ Run the app and support chat agent together (one command, one browser port):
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The support chatbot talks to LangGraph through the same origin at `/api/langgraph` (proxied to the agent on port `2024`).
-
 To run only the Next.js app or only the agent:
 
 ```bash
@@ -18,14 +16,6 @@ npm run dev:agent
 ```
 
 Optional env (defaults work for local dev):
-
-```env
-# Browser URL for LangGraph SDK (default: http://localhost:3000/api/langgraph)
-# NEXT_PUBLIC_LANGGRAPH_API_URL=
-
-# Where the Next.js proxy forwards requests (default: http://127.0.0.1:2024)
-# LANGGRAPH_INTERNAL_URL=http://127.0.0.1:2024
-```
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

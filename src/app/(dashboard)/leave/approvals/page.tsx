@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
 
 type LeaveApprovalRow = {
   id: string;
@@ -19,7 +21,17 @@ type LeaveApprovalRow = {
   status: string;
   rejectReason: string;
   rowIndex: number;
+  days: number;
 };
+
+type StatusFilter = "Applied" | "Accepted" | "Rejected" | "all";
+
+const STATUS_FILTERS: Array<{ id: StatusFilter; label: string }> = [
+  { id: LEAVE_STATUS.APPLIED, label: "Pending" },
+  { id: LEAVE_STATUS.ACCEPTED, label: "Accepted" },
+  { id: LEAVE_STATUS.REJECTED, label: "Rejected" },
+  { id: "all", label: "All" },
+];
 
 function formatLeaveTypeLabel(leaveType: string): string {
   const labels: Record<string, string> = {
@@ -40,8 +52,40 @@ function statusBadgeVariant(status: string): "default" | "success" | "warning" |
   return "default";
 }
 
+function isPendingStatus(status: string): boolean {
+  return status.trim().toLowerCase() === LEAVE_STATUS.APPLIED.toLowerCase();
+}
+
+function emptyCopy(filter: StatusFilter): { title: string; description: string } {
+  if (filter === LEAVE_STATUS.APPLIED) {
+    return {
+      title: "No pending leave requests",
+      description: "Applied leave requests from all employees will appear here for review.",
+    };
+  }
+  if (filter === LEAVE_STATUS.ACCEPTED) {
+    return {
+      title: "No accepted leave requests",
+      description: "Approved leave history from all employees will appear here.",
+    };
+  }
+  if (filter === LEAVE_STATUS.REJECTED) {
+    return {
+      title: "No rejected leave requests",
+      description: "Rejected leave history with reasons will appear here.",
+    };
+  }
+  return {
+    title: "No leave requests",
+    description: "Leave applications from all employees will appear here.",
+  };
+}
+
 export default function LeaveApprovalsPage() {
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(LEAVE_STATUS.APPLIED);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [rows, setRows] = useState<LeaveApprovalRow[]>([]);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -49,8 +93,11 @@ export default function LeaveApprovalsPage() {
 
   const loadApprovals = useCallback(async () => {
     setLoading(true);
+    setError(null);
+    setWarnings([]);
     try {
-      const res = await fetch("/api/employee/leaves/approvals?status=Applied");
+      const query = statusFilter === "all" ? "all" : statusFilter;
+      const res = await fetch(`/api/employee/leaves/approvals?status=${encodeURIComponent(query)}`);
       const data = await res.json();
 
       if (!data.success) {
@@ -58,17 +105,28 @@ export default function LeaveApprovalsPage() {
       }
 
       setRows(data.applications ?? []);
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Failed to load approvals");
+      setWarnings(Array.isArray(data.warnings) ? data.warnings : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load approvals");
+      setRows([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [statusFilter]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadApprovals();
   }, [loadApprovals]);
+
+  const pendingCount = useMemo(
+    () => rows.filter((row) => isPendingStatus(row.status)).length,
+    [rows],
+  );
+
+  const showRejectReasonColumn = statusFilter === LEAVE_STATUS.REJECTED || statusFilter === "all";
+  const showActions = statusFilter === LEAVE_STATUS.APPLIED || statusFilter === "all";
+  const emptyState = emptyCopy(statusFilter);
 
   const reviewApplication = async (
     row: LeaveApprovalRow,
@@ -76,6 +134,7 @@ export default function LeaveApprovalsPage() {
     reason = "",
   ) => {
     setReviewingId(row.id);
+    setError(null);
     try {
       const res = await fetch("/api/employee/leaves/review", {
         method: "PATCH",
@@ -98,8 +157,8 @@ export default function LeaveApprovalsPage() {
       setRejectingRow(null);
       setRejectReason("");
       await loadApprovals();
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Failed to review leave");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to review leave");
     } finally {
       setReviewingId(null);
     }
@@ -108,7 +167,7 @@ export default function LeaveApprovalsPage() {
   const submitReject = async () => {
     if (!rejectingRow) return;
     if (!rejectReason.trim()) {
-      window.alert("Please provide a reject reason");
+      setError("Please provide a reject reason");
       return;
     }
     await reviewApplication(rejectingRow, "Rejected", rejectReason.trim());
@@ -117,14 +176,56 @@ export default function LeaveApprovalsPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Approval chain"
-        description="Review pending leave applications. Accepting confirms the leave; rejecting requires a reason and frees the quota slot."
+        title="Leave approvals"
+        description="Review leave requests from all employees. HR and Super Admin can accept or reject pending requests; rejection requires a reason."
         actions={
-          <Button variant="outline" onClick={() => void loadApprovals()} disabled={loading}>
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            {statusFilter === LEAVE_STATUS.APPLIED ? (
+              <Badge variant={pendingCount > 0 ? "warning" : "default"}>
+                {pendingCount} pending
+              </Badge>
+            ) : null}
+            <Button variant="outline" onClick={() => void loadApprovals()} disabled={loading}>
+              Refresh
+            </Button>
+          </div>
         }
       />
+
+      <div className="flex flex-wrap gap-2">
+        {STATUS_FILTERS.map((filter) => (
+          <button
+            key={filter.id}
+            type="button"
+            onClick={() => setStatusFilter(filter.id)}
+            className={cn(
+              "inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition",
+              statusFilter === filter.id
+                ? "border-ex-secondary bg-ex-secondary/15 text-ex-primary"
+                : "border-ex-border bg-ex-elevated text-ex-muted hover:border-ex-secondary/30 hover:text-ex-primary",
+            )}
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
+
+      {warnings.length > 0 ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          <p className="font-medium">Some employees could not be loaded</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            {warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {error ? (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {error}
+        </p>
+      ) : null}
 
       {rejectingRow ? (
         <div className="border-ex-border bg-ex-elevated space-y-3 rounded-xl border p-4">
@@ -136,7 +237,7 @@ export default function LeaveApprovalsPage() {
             rows={3}
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="Reason for rejection"
+            placeholder="Reason for rejection (required)"
           />
           <div className="flex gap-2">
             <Button
@@ -162,8 +263,8 @@ export default function LeaveApprovalsPage() {
       <DataTable
         loading={loading}
         rows={rows}
-        emptyTitle="No pending leave requests"
-        emptyDescription="Applied leave requests from all employees will appear here for HR review."
+        emptyTitle={emptyState.title}
+        emptyDescription={emptyState.description}
         columns={[
           { key: "employeeName", header: "Employee" },
           {
@@ -172,7 +273,8 @@ export default function LeaveApprovalsPage() {
             render: (r) => {
               const typeLabel = formatLeaveTypeLabel(r.leaveType);
               const duration = r.duration ? ` · ${r.duration}` : "";
-              return `${typeLabel}${duration} · ${r.date}`;
+              const days = r.days > 0 ? ` · ${r.days} day${r.days === 1 ? "" : "s"}` : "";
+              return `${typeLabel}${duration}${days} · ${r.date}`;
             },
           },
           {
@@ -187,33 +289,50 @@ export default function LeaveApprovalsPage() {
               <Badge variant={statusBadgeVariant(r.status)}>{r.status || "Pending"}</Badge>
             ),
           },
-          {
-            key: "id",
-            header: "Actions",
-            render: (r) => (
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={reviewingId === r.id}
-                  onClick={() => void reviewApplication(r, "Accepted")}
-                >
-                  {reviewingId === r.id ? "..." : "Accept"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={reviewingId === r.id}
-                  onClick={() => {
-                    setRejectingRow(r);
-                    setRejectReason("");
-                  }}
-                >
-                  Reject
-                </Button>
-              </div>
-            ),
-          },
+          ...(showRejectReasonColumn
+            ? [
+                {
+                  key: "rejectReason" as const,
+                  header: "Reject reason",
+                  render: (r: LeaveApprovalRow) => r.rejectReason || "—",
+                },
+              ]
+            : []),
+          ...(showActions
+            ? [
+                {
+                  key: "id" as const,
+                  header: "Actions",
+                  render: (r: LeaveApprovalRow) =>
+                    isPendingStatus(r.status) ? (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={reviewingId === r.id}
+                          onClick={() => void reviewApplication(r, "Accepted")}
+                        >
+                          {reviewingId === r.id ? "..." : "Accept"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={reviewingId === r.id}
+                          onClick={() => {
+                            setRejectingRow(r);
+                            setRejectReason("");
+                            setError(null);
+                          }}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    ) : (
+                      "—"
+                    ),
+                },
+              ]
+            : []),
         ]}
       />
     </div>
