@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
 import { sheetRowToForm } from "@/lib/employee";
 import {
   getOrCreateSalarySlipsYearFolder,
@@ -144,13 +145,10 @@ export const GET = withActiveSession(async (req, user) => {
 
     return NextResponse.json({ success: true, slips: rows });
   } catch (error: unknown) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: error instanceof Error ? error.message : "Failed to list salary slips",
-      },
-      { status: 500 },
-    );
+    const message = formatGoogleApiClientMessage(error, {
+      forHrAdmin: canManageEmployees(user.role),
+    });
+    return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });
 
@@ -331,13 +329,10 @@ export const POST = withActiveSession(async (req, user) => {
 
     return NextResponse.json({ success: true, generated });
   } catch (error: unknown) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: error instanceof Error ? error.message : "Failed to generate salary slips",
-      },
-      { status: 500 },
-    );
+    const message = formatGoogleApiClientMessage(error, {
+      forHrAdmin: true,
+    });
+    return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });
 
@@ -367,12 +362,7 @@ export const DELETE = withActiveSession(async (req, user) => {
     });
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: error instanceof Error ? error.message : "Failed to delete salary slip",
-      },
-      { status: 500 },
-    );
+    const message = formatGoogleApiClientMessage(error, { forHrAdmin: true });
+    return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });

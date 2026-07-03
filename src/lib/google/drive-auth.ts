@@ -29,6 +29,8 @@ type StoredDriveTokens = {
   refresh_token?: string | null;
   access_token?: string | null;
   expiry_date?: number | null;
+  /** Redirect URI used during Connect — must match for token refresh. */
+  redirect_uri?: string | null;
 };
 
 const DRIVE_OAUTH_CALLBACK_PATH = "/api/integrations/google-drive/callback";
@@ -112,13 +114,18 @@ async function readStoredTokens(): Promise<StoredDriveTokens | null> {
   try {
     const raw = await readFile(getTokenFilePath(), "utf8");
     const parsed = JSON.parse(raw) as StoredDriveTokens;
-    return parsed.refresh_token ? parsed : null;
+    if (!parsed.refresh_token) return null;
+    if (!parsed.redirect_uri?.trim()) {
+      const fallbackRedirect = getDriveOAuthRedirectUri();
+      if (fallbackRedirect) return { ...parsed, redirect_uri: fallbackRedirect };
+    }
+    return parsed;
   } catch {
     return null;
   }
 }
 
-export async function saveDriveOAuthTokens(tokens: StoredDriveTokens) {
+export async function saveDriveOAuthTokens(tokens: StoredDriveTokens, redirectUri?: string) {
   let refreshToken = tokens.refresh_token;
 
   if (!refreshToken) {
@@ -133,11 +140,17 @@ export async function saveDriveOAuthTokens(tokens: StoredDriveTokens) {
     );
   }
 
+  cachedOAuthClient = null;
+
   if (process.env.GOOGLE_OAUTH_REFRESH_TOKEN?.trim()) {
     return;
   }
 
-  const toSave: StoredDriveTokens = { ...tokens, refresh_token: refreshToken };
+  const toSave: StoredDriveTokens = {
+    ...tokens,
+    refresh_token: refreshToken,
+    redirect_uri: redirectUri?.trim() || tokens.redirect_uri || undefined,
+  };
   const tokenFile = getTokenFilePath();
   const tokenDir = path.dirname(tokenFile);
 
@@ -171,6 +184,7 @@ export function shouldPreferOAuth(): boolean {
 /** Remove a revoked local OAuth token file (does not touch env GOOGLE_OAUTH_REFRESH_TOKEN). */
 export async function clearStoredOAuthTokensIfNotFromEnv(): Promise<void> {
   if (process.env.GOOGLE_OAUTH_REFRESH_TOKEN?.trim()) return;
+  cachedOAuthClient = null;
   try {
     const tokenFile = getTokenFilePath();
     if (existsSync(tokenFile)) {
@@ -199,6 +213,48 @@ export function isDriveOAuthConfigured(): boolean {
   return Boolean(clientId && clientSecret);
 }
 
+/** Refresh token that returned invalid_grant — skip only that token, not newer reconnects. */
+let cachedOAuthClient: { refreshToken: string; client: OAuth2Client } | null = null;
+
+function oauthReconnectRequiredError(): Error {
+  return new Error(
+    "Google Drive connection expired. Reconnect under Integrations → Google Drive, " +
+      "or move the HRM folder to a Workspace Shared Drive and set GOOGLE_PREFER_OAUTH=false.",
+  );
+}
+
+async function tryOAuthDriveAuth(): Promise<OAuth2Client | null> {
+  if (!shouldPreferOAuth()) return null;
+
+  const stored = await readStoredTokens();
+  if (!stored?.refresh_token) return null;
+
+  if (cachedOAuthClient?.refreshToken === stored.refresh_token) {
+    return cachedOAuthClient.client;
+  }
+
+  const redirectUri = stored.redirect_uri?.trim() || getDriveOAuthRedirectUri() || undefined;
+  const oauth2 = createDriveOAuth2Client(redirectUri);
+  if (!oauth2) return null;
+
+  oauth2.setCredentials(stored);
+  try {
+    const tokenResponse = await oauth2.getAccessToken();
+    if (!tokenResponse.token) {
+      await clearStoredOAuthTokensIfNotFromEnv();
+      throw oauthReconnectRequiredError();
+    }
+    cachedOAuthClient = { refreshToken: stored.refresh_token, client: oauth2 };
+    return oauth2;
+  } catch (error) {
+    if (!isInvalidGrantError(error)) throw error;
+
+    cachedOAuthClient = null;
+    await clearStoredOAuthTokensIfNotFromEnv();
+    throw oauthReconnectRequiredError();
+  }
+}
+
 /**
  * Personal Gmail My Drive → OAuth user.
  * Google Workspace Shared Drive → service account (optional impersonation).
@@ -210,22 +266,35 @@ export async function getDriveAuth(): Promise<
     return getServiceAccountDriveAuth();
   }
 
-  // Default: service account (Shared Drive). OAuth only when GOOGLE_PREFER_OAUTH=true.
-  // Avoids invalid_grant from an old .data/google-drive-oauth.json breaking punch/attendance.
   if (shouldPreferOAuth()) {
-    const stored = await readStoredTokens();
-    const oauth2 = createDriveOAuth2Client();
-    if (stored?.refresh_token && oauth2) {
-      oauth2.setCredentials(stored);
-      return oauth2;
-    }
+    const oauth2 = await tryOAuthDriveAuth();
+    if (oauth2) return oauth2;
   }
 
   return getServiceAccountDriveAuth();
 }
 
-export async function getDrive() {
-  const auth = await getDriveAuth();
+/** Drive uploads/folder creation on personal My Drive require the connected user OAuth token. */
+export async function getDriveAuthForWrite(): Promise<
+  OAuth2Client | ReturnType<typeof getServiceAccountDriveAuth>
+> {
+  if (isDriveImpersonationEnabled()) {
+    return getServiceAccountDriveAuth();
+  }
+
+  if (shouldPreferOAuth()) {
+    const oauth2 = await tryOAuthDriveAuth();
+    if (oauth2) return oauth2;
+    throw new Error(
+      "Google Drive is not connected. Open Integrations → Google Drive and connect before uploading files.",
+    );
+  }
+
+  return getServiceAccountDriveAuth();
+}
+
+export async function getDrive(options?: { forWrite?: boolean }) {
+  const auth = options?.forWrite ? await getDriveAuthForWrite() : await getDriveAuth();
   return google.drive({ version: "v3", auth });
 }
 

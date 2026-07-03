@@ -135,7 +135,7 @@ export const navStructure: NavItem[] = [
     roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
     children: [
       { roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE], label: "Leave desk", href: "/leave" },
-      { roles: [], label: "Approvals & chain", href: "/leave/approvals" },
+      { roles: [SUPER_ADMIN, HR_MANAGER], label: "Approvals & chain", href: "/leave/approvals" },
       { roles: [], label: "Early leave", href: "/leave/early-leave" },
       { roles: [], label: "Working vs on leave", href: "/leave/dashboard" },
     ],

@@ -48,7 +48,7 @@ export function getAttendanceSpreadsheetIdFromRow(headers: string[], row: string
   return fallbackIndex >= 0 ? String(row[fallbackIndex] ?? "").trim() : "";
 }
 
-async function isActiveSpreadsheet(spreadsheetId: string): Promise<boolean> {
+export async function isAttendanceSpreadsheetAccessible(spreadsheetId: string): Promise<boolean> {
   const trimmed = spreadsheetId.trim();
   if (!trimmed) return false;
   try {
@@ -74,7 +74,10 @@ export async function resolveAttendanceEmployee(
   const employeeId = form.employeeId.trim();
   const employeeName = form.name.trim() || user.name;
   let attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(record.headers, record.row);
-  if (attendanceSpreadsheetId && !(await isActiveSpreadsheet(attendanceSpreadsheetId))) {
+  if (
+    attendanceSpreadsheetId &&
+    !(await isAttendanceSpreadsheetAccessible(attendanceSpreadsheetId))
+  ) {
     attendanceSpreadsheetId = "";
   }
 
@@ -157,7 +160,10 @@ export async function resolveAttendanceEmployeeForTarget(
   const employeeName = form.name.trim() || "Employee";
 
   let attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(headers, row);
-  if (attendanceSpreadsheetId && !(await isActiveSpreadsheet(attendanceSpreadsheetId))) {
+  if (
+    attendanceSpreadsheetId &&
+    !(await isAttendanceSpreadsheetAccessible(attendanceSpreadsheetId))
+  ) {
     attendanceSpreadsheetId = "";
   }
   const parentFolderId = await resolveEmployeeFolderId(form.documentsFolderId, {

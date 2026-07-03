@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const { tokens } = await client.getToken(code);
-    await saveDriveOAuthTokens(tokens);
+    await saveDriveOAuthTokens(tokens, redirectUri);
 
     redirectBase.searchParams.set("connected", "1");
     return NextResponse.redirect(redirectBase);
