@@ -6,12 +6,20 @@ import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
 import { getSheetsClient } from "@/lib/google/drive-auth";
 
 const LEAVE_BUCKET_SHEET_NAME = "Leave Bucket";
+const LEAVE_BUCKET_SHEET_ID_TTL_MS = 5 * 60 * 1000;
 
 const APPLIED_LEAVE_BG = { red: 0.92, green: 0.92, blue: 0.92 };
 const ACCEPTED_LEAVE_BG = { red: 0.85, green: 0.95, blue: 0.85 };
 const REJECTED_LEAVE_BG = { red: 0.98, green: 0.88, blue: 0.88 };
 
+const leaveBucketSheetIdCache = new Map<string, { sheetId: number | null; loadedAt: number }>();
+
 async function getLeaveBucketSheetId(spreadsheetId: string): Promise<number | null> {
+  const cached = leaveBucketSheetIdCache.get(spreadsheetId);
+  if (cached && Date.now() - cached.loadedAt < LEAVE_BUCKET_SHEET_ID_TTL_MS) {
+    return cached.sheetId;
+  }
+
   const sheetsApi = await getSheetsClient();
   const meta = await sheetsApi.spreadsheets.get({
     spreadsheetId,
@@ -23,7 +31,9 @@ async function getLeaveBucketSheetId(spreadsheetId: string): Promise<number | nu
     (entry) => (entry.properties?.title ?? "").trim().toLowerCase() === normalized,
   );
 
-  return sheet?.properties?.sheetId ?? null;
+  const sheetId = sheet?.properties?.sheetId ?? null;
+  leaveBucketSheetIdCache.set(spreadsheetId, { sheetId, loadedAt: Date.now() });
+  return sheetId;
 }
 
 function getLeaveTypeColumnRange(leaveType: LeaveBucketType): {

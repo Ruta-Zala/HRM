@@ -1,5 +1,8 @@
 import { parseLeaveDisplayDate } from "@/lib/attendance/leave-range-display";
+import { sendLeaveReviewedEmail } from "@/lib/email/leave-emails";
+import type { EmailDeliveryResult } from "@/lib/email/types";
 import { addDaysToDateIso } from "@/lib/notifications/automation-date";
+import { getEmployeeEmailBySheetRow } from "@/lib/notifications/employee-lookup";
 import { createNotifications } from "@/lib/notifications/sheets";
 import { NOTIFICATION_TYPES, type NotificationType } from "@/lib/notifications/types";
 import { listHrAndSuperAdminRecipients } from "@/lib/notifications/recipients";
@@ -8,6 +11,7 @@ export type LeaveNotificationContext = {
   employeeSheetRow: number;
   employeeId: string;
   employeeName: string;
+  employeeEmail?: string;
   leaveType: string;
   dateRange: string;
   reason?: string;
@@ -78,7 +82,7 @@ export async function notifyLeaveReviewed(params: {
   context: LeaveNotificationContext;
   status: "Accepted" | "Rejected";
   rejectReason?: string;
-}): Promise<void> {
+}): Promise<{ email: EmailDeliveryResult }> {
   const { context, status, rejectReason } = params;
   const isApproved = status === "Accepted";
   const expiresAt = leaveExpirationDate(context.dateRange);
@@ -106,6 +110,31 @@ export async function notifyLeaveReviewed(params: {
       expiresAt,
     },
   ]);
+
+  const employeeEmail =
+    context.employeeEmail?.trim() || (await getEmployeeEmailBySheetRow(context.employeeSheetRow));
+  if (!employeeEmail) {
+    const reason = "Employee work email is missing in the employee sheet.";
+    console.warn(`Leave review email skipped: ${reason}`);
+    return { email: { sent: false, reason } };
+  }
+
+  try {
+    const email = await sendLeaveReviewedEmail({
+      to: employeeEmail,
+      employeeName: context.employeeName,
+      leaveType: context.leaveType,
+      dateRange: context.dateRange,
+      status,
+      rejectReason,
+    });
+    return { email };
+  } catch (error) {
+    const reason =
+      error instanceof Error ? error.message : "Unknown error while sending leave review email.";
+    console.error("Leave review email error:", error);
+    return { email: { sent: false, reason, to: employeeEmail } };
+  }
 }
 
 export function getLeaveStartDateFromRange(dateRange: string): Date | null {

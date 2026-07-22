@@ -11,6 +11,7 @@ export async function findEmployeeByAttendanceSpreadsheetId(
   sheetRow: number;
   employeeId: string;
   employeeName: string;
+  email: string;
 } | null> {
   const trimmed = attendanceSpreadsheetId.trim();
   if (!trimmed) return null;
@@ -28,6 +29,7 @@ export async function findEmployeeByAttendanceSpreadsheetId(
       sheetRow: i + 1,
       employeeId: form.employeeId.trim(),
       employeeName: form.name.trim() || "Employee",
+      email: form.email.trim(),
     };
   }
 
@@ -36,4 +38,16 @@ export async function findEmployeeByAttendanceSpreadsheetId(
 
 export async function getEmployeeNotificationContext(sheetRow: number) {
   return resolveAttendanceEmployeeBySheetRow(sheetRow);
+}
+
+export async function getEmployeeEmailBySheetRow(sheetRow: number): Promise<string | null> {
+  const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
+  if (sheetRow < 2 || sheetRow > raw.length) return null;
+
+  const headers = getSheetHeaders(raw);
+  const row = raw[sheetRow - 1] ?? [];
+  const form = sheetRowToForm(headers, row);
+  const email = form.email.trim();
+
+  return email || null;
 }

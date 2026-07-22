@@ -37,7 +37,7 @@ type NotificationsContextValue = {
 
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
 
-const POLL_INTERVAL_MS = 20_000;
+const POLL_INTERVAL_MS = 45_000;
 const TOAST_AUTO_DISMISS_MS = 6_000;
 
 async function fetchNotifications(): Promise<{

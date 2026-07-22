@@ -113,7 +113,7 @@ export async function processIncrementReminders(): Promise<{
   return { checked: employees.length, due, notified };
 }
 
-const RECHECK_INTERVAL_MS = 60 * 1000;
+const RECHECK_INTERVAL_MS = 5 * 60 * 1000;
 let lastCheckAt = 0;
 let incrementRun: Promise<{ checked: number; due: number; notified: number }> | null = null;
 
