@@ -1,8 +1,11 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { Bell, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/auth-provider";
+import { useNotificationsOptional } from "@/contexts/notifications-provider";
 import { PunchInStatusFlag } from "@/components/attendance/punch-in-status-flag";
+import { UnreadBadge } from "@/components/notifications/unread-badge";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MobileDrawer } from "@/components/layout/app-sidebar";
@@ -17,17 +20,27 @@ const roleLabel: Record<string, string> = {
 
 export function AppHeader() {
   const { user, logout } = useAuth();
+  const notifications = useNotificationsOptional();
+  const unreadCount = notifications?.unreadCount ?? 0;
 
   return (
     <header className="border-ex-border bg-ex-elevated/90 sticky top-0 z-40 flex h-16 items-center gap-3 border-b px-4 backdrop-blur-md lg:px-6">
       <div className="flex items-center gap-2 lg:hidden">
         <MobileDrawer />
       </div>
-      {/* <div className="relative hidden max-w-md flex-1 md:block">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ex-muted" />
-        <Input placeholder="Search people, leave, tasks…" className="pl-9" />
-      </div> */}
       <div className="ml-auto flex items-center gap-2">
+        <Link
+          href="/notifications"
+          className="border-ex-border bg-ex-elevated text-ex-primary hover:bg-ex-surface relative inline-flex h-10 w-10 items-center justify-center rounded-lg border shadow-sm transition"
+          aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
+        >
+          <Bell className="size-4" />
+          {unreadCount > 0 ? (
+            <span className="absolute -top-1 -right-1">
+              <UnreadBadge count={unreadCount} />
+            </span>
+          ) : null}
+        </Link>
         <PunchInStatusFlag />
         <ThemeToggle />
 

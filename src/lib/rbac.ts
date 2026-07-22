@@ -135,6 +135,11 @@ export const navStructure: NavItem[] = [
     roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
     children: [
       { roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE], label: "Leave desk", href: "/leave" },
+      {
+        roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
+        label: "Company holidays",
+        href: "/leave/holidays",
+      },
       { roles: [SUPER_ADMIN, HR_MANAGER], label: "Approvals & chain", href: "/leave/approvals" },
       { roles: [], label: "Early leave", href: "/leave/early-leave" },
       { roles: [], label: "Working vs on leave", href: "/leave/dashboard" },
@@ -144,12 +149,26 @@ export const navStructure: NavItem[] = [
     label: "Notifications",
     href: "/notifications",
     icon: "Bell",
-    roles: [],
+    roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
     children: [
-      { roles: [], label: "Center", href: "/notifications" },
-      { roles: [], label: "Announcements", href: "/notifications/announcements" },
+      {
+        roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
+        label: "Notifications center",
+        href: "/notifications",
+      },
+      {
+        roles: [SUPER_ADMIN, HR_MANAGER],
+        label: "Notice / Announcement",
+        href: "/notifications/announcements",
+      },
       { roles: [], label: "Automation rules", href: "/notifications/rules" },
     ],
+  },
+  {
+    label: "Complaints",
+    href: "/complaints",
+    icon: "MessageSquareWarning",
+    roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
   },
   {
     label: "Integrations",

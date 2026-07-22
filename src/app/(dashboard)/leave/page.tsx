@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { formatIsoDate } from "@/lib/attendance/time";
 import { formatLeaveDayCount } from "@/lib/attendance/leave-display";
 import { Switch } from "@/components/ui/switch";
+import { useNotifications } from "@/contexts/notifications-provider";
 
 type UnpaidLeaveEntry = {
   slot: string;
@@ -35,34 +36,27 @@ type LeaveApplication = {
   days?: number;
 };
 
+type LeavePolicyBalance = {
+  allocated: number;
+  accrued: number;
+  used: number;
+  expired: number;
+  available: number;
+  remaining: number;
+};
+
 type LeaveBalanceResponse = {
   success: boolean;
   birthdayDate?: string;
   birthdayDateIso?: string;
-  paid: {
-    allocated: number;
-    used: number;
-    remaining: number;
-  };
-  casual: {
-    allocated: number;
-    used: number;
-    remaining: number;
-  };
-  sick: {
-    allocated: number;
-    used: number;
-    remaining: number;
-  };
+  paid: LeavePolicyBalance;
+  casual: LeavePolicyBalance;
+  sick: LeavePolicyBalance;
   unpaid: {
     used: number;
     leaves: UnpaidLeaveEntry[];
   };
-  birthday: {
-    allocated: number;
-    used: number;
-    remaining: number;
-  };
+  birthday: LeavePolicyBalance;
   applications?: LeaveApplication[];
 };
 
@@ -95,13 +89,13 @@ const LEAVE_TYPE_OPTIONS = [
 
 type LeaveTypeValue = (typeof LEAVE_TYPE_OPTIONS)[number]["value"];
 
-function getLeaveTypeRemaining(
+function getLeaveTypeAvailable(
   balances: LeaveBalanceResponse,
   leaveType: LeaveTypeValue,
 ): number | null {
   if (leaveType === "unpaid") return null;
 
-  return balances[leaveType].remaining;
+  return balances[leaveType].available;
 }
 
 function getAvailableLeaveTypes(
@@ -114,11 +108,12 @@ function getAvailableLeaveTypes(
 
   return LEAVE_TYPE_OPTIONS.filter((option) => {
     if (option.value === "unpaid") return true;
-    return (getLeaveTypeRemaining(balances, option.value) ?? 0) > 0;
+    return (getLeaveTypeAvailable(balances, option.value) ?? 0) > 0;
   });
 }
 
 export default function LeaveDeskPage() {
+  const { refresh: refreshNotifications, pushToast } = useNotifications();
   const [isSingleDay, setIsSingleDay] = useState(true);
 
   const [fromDate, setFromDate] = useState("");
@@ -268,9 +263,12 @@ export default function LeaveDeskPage() {
       setDuration("full");
       setIsSingleDay(true);
       await loadBalances();
-      window.alert("Leave request submitted");
+      await refreshNotifications();
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Failed to submit leave request");
+      pushToast({
+        title: "Leave request failed",
+        body: error instanceof Error ? error.message : "Failed to submit leave request",
+      });
     } finally {
       setSubmitting(false);
       setBalancesLoading(false);
@@ -426,34 +424,52 @@ export default function LeaveDeskPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex items-center justify-between">
-              <span>Paid Leave</span>
+              <div>
+                <span>Paid Leave</span>
+                <p className="text-ex-muted text-xs">
+                  {balancesLoading
+                    ? "Loading monthly accrual…"
+                    : `${balances?.paid?.used ?? 0} used · ${balances?.paid?.accrued ?? 0}/${balances?.paid?.allocated ?? 12} accrued`}
+                </p>
+              </div>
+              <Badge>{balancesLoading ? "..." : (balances?.paid?.available ?? 0)} available</Badge>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <span>Sick Leave</span>
+                <p className="text-ex-muted text-xs">
+                  {balancesLoading
+                    ? "Loading quarterly entitlement…"
+                    : `${balances?.sick?.remaining ?? 0}/${balances?.sick?.allocated ?? 4} yearly remaining · ${balances?.sick?.expired ?? 0} expired`}
+                </p>
+              </div>
               <Badge>
-                {balancesLoading ? "..." : (balances?.paid?.used ?? 0)}/
-                {balances?.paid?.allocated ?? 0}
+                {balancesLoading ? "..." : (balances?.sick?.available ?? 0)} this quarter
               </Badge>
             </div>
 
             <div className="flex items-center justify-between">
-              <span>Sick Leave</span>
+              <div>
+                <span>Casual Leave</span>
+                <p className="text-ex-muted text-xs">
+                  {balancesLoading
+                    ? "Loading quarterly entitlement…"
+                    : `${balances?.casual?.remaining ?? 0}/${balances?.casual?.allocated ?? 4} yearly remaining · ${balances?.casual?.expired ?? 0} expired`}
+                </p>
+              </div>
               <Badge>
-                {balancesLoading ? "..." : (balances?.sick?.used ?? 0)}/
-                {balances?.sick?.allocated ?? 0}
+                {balancesLoading ? "..." : (balances?.casual?.available ?? 0)} this quarter
               </Badge>
             </div>
 
             <div className="flex items-center justify-between">
-              <span>Casual Leave</span>
-              <Badge>
-                {balancesLoading ? "..." : (balances?.casual?.used ?? 0)}/
-                {balances?.casual?.allocated ?? 0}
-              </Badge>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span>Birthday Leave</span>
+              <div>
+                <span>Birthday Leave</span>
+                <p className="text-ex-muted text-xs">One day per calendar year</p>
+              </div>
               <Badge variant="accent">
-                {balancesLoading ? "..." : (balances?.birthday?.used ?? 0)}/
-                {balances?.birthday?.allocated ?? 0}
+                {balancesLoading ? "..." : (balances?.birthday?.available ?? 0)} available
               </Badge>
             </div>
 
@@ -541,8 +557,9 @@ export default function LeaveDeskPage() {
             )}
 
             <p className="text-ex-muted text-xs">
-              Applied leaves count toward balance until rejected. Accepted leaves are confirmed on
-              your sheet with a green background; pending applied leaves use light gray.
+              Paid leave accrues monthly and carries forward within the calendar year. Sick and
+              casual leave provide one day per quarter and expire when the quarter ends. Applied
+              leaves count toward availability until rejected.
             </p>
           </CardContent>
         </Card>

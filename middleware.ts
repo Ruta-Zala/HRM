@@ -12,6 +12,7 @@ const PUBLIC_PATHS = [
   "/api/auth/me",
   "/api/auth/status",
   "/api/integrations/google-drive/callback",
+  "/api/cron/leave-reminders",
 ];
 
 function isPublicPath(pathname: string): boolean {
