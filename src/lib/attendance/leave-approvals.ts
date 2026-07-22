@@ -107,6 +107,29 @@ export async function listLeaveApplications(params: {
   });
 }
 
+export async function getLeaveApplicationAtRow(params: {
+  attendanceSpreadsheetId: string;
+  rowIndex: number;
+  leaveType: LeaveBucketType;
+  employeeId: string;
+  employeeName: string;
+}): Promise<LeaveApplication | null> {
+  const rows = await readLeaveBucketRows(params.attendanceSpreadsheetId);
+  const applications = listLeaveApplicationsFromRows({
+    rows,
+    employeeId: params.employeeId,
+    employeeName: params.employeeName,
+    attendanceSpreadsheetId: params.attendanceSpreadsheetId,
+  });
+
+  return (
+    applications.find(
+      (application) =>
+        application.rowIndex === params.rowIndex && application.leaveType === params.leaveType,
+    ) ?? null
+  );
+}
+
 export async function reviewLeaveApplication(params: {
   attendanceSpreadsheetId: string;
   rowIndex: number;

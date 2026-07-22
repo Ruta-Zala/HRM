@@ -306,8 +306,7 @@ export function EmployeeForm({
         }
 
         const credentials = result.credentials as
-          | { username?: string; initialPassword?: string }
-          | undefined;
+          { username?: string; initialPassword?: string } | undefined;
         if (!isEdit && credentials && (credentials.username || credentials.initialPassword)) {
           const lines = [
             "Employee saved. Share these sign-in details once (they are stored encrypted in the sheet):",

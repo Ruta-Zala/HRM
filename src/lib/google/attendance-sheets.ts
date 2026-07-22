@@ -713,6 +713,7 @@ function parseDelimitedRows(content: string): string[][] {
 function findNextEmptySlot(
   rows: string[][],
   colIndex: number,
+  statusColIndex: number,
   allowUnlimitedRows = false,
 ): number | null {
   for (let i = 1; i < rows.length; i++) {
@@ -720,7 +721,10 @@ function findNextEmptySlot(
     if (!monthLabel) continue;
 
     const cell = String(rows[i]?.[colIndex] ?? "").trim();
-    if (!cell) return i;
+    const status = String(rows[i]?.[statusColIndex] ?? "")
+      .trim()
+      .toLowerCase();
+    if (!cell || status === LEAVE_STATUS.REJECTED.toLowerCase()) return i;
   }
 
   if (!allowUnlimitedRows) {
@@ -732,7 +736,10 @@ function findNextEmptySlot(
     if (monthLabel) continue;
 
     const cell = String(rows[i]?.[colIndex] ?? "").trim();
-    if (!cell) return i;
+    const status = String(rows[i]?.[statusColIndex] ?? "")
+      .trim()
+      .toLowerCase();
+    if (!cell || status === LEAVE_STATUS.REJECTED.toLowerCase()) return i;
   }
 
   const newRow = new Array(LEAVE_BUCKET_COLUMN_COUNT).fill("");
@@ -748,9 +755,10 @@ function findNextBirthdayApplySlot(rows: string[][]): number | null {
     const date = String(rows[i][columns.date] ?? "").trim();
     const status = String(rows[i][columns.status] ?? "").trim();
     if (date && !status) return i;
+    if (status.toLowerCase() === LEAVE_STATUS.REJECTED.toLowerCase()) return i;
   }
 
-  return findNextEmptySlot(rows, columns.date, false);
+  return findNextEmptySlot(rows, columns.date, columns.status, true);
 }
 
 function applyLeaveDatesToRows(
@@ -761,7 +769,7 @@ function applyLeaveDatesToRows(
   reason: string,
 ): Array<{ rowIndex: number; leaveType: LeaveBucketType }> {
   const columns = LEAVE_BUCKET_COLUMN_GROUPS[leaveType];
-  const allowUnlimitedRows = leaveType === "unpaid";
+  const allowUnlimitedRows = leaveType !== "birthday";
   const durationLabel = formatLeaveDurationLabel(duration);
   const appliedRows: Array<{ rowIndex: number; leaveType: LeaveBucketType }> = [];
 
@@ -769,7 +777,7 @@ function applyLeaveDatesToRows(
     const rowIndex =
       leaveType === "birthday"
         ? findNextBirthdayApplySlot(rows)
-        : findNextEmptySlot(rows, columns.date, allowUnlimitedRows);
+        : findNextEmptySlot(rows, columns.date, columns.status, allowUnlimitedRows);
 
     if (rowIndex == null) {
       throw new Error(`No available slot in ${leaveType} leave column.`);

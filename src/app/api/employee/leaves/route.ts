@@ -12,9 +12,9 @@ import {
   groupLeaveBucketEntriesForDisplay,
 } from "@/lib/attendance/leave-range-display";
 import {
-  LEAVE_ALLOCATIONS,
   allocateLeaveDates,
   countLeaveBucketUsage,
+  getLeavePolicyBalances,
   groupAssignmentsByBucket,
   listLeaveBucketEntries,
   type LeaveBucketType,
@@ -25,6 +25,8 @@ import {
   readLeaveBucketRows,
 } from "@/lib/google/attendance-sheets";
 import { formatIsoDate } from "@/lib/attendance/time";
+import { formatIsoDateLabel, formatIsoDateRange } from "@/lib/notifications/format";
+import { notifyLeaveSubmitted } from "@/lib/notifications/leave-events";
 
 function parseIsoDate(value: string): Date | null {
   const date = new Date(value);
@@ -194,6 +196,7 @@ export const POST = withActiveSession(async (req, user) => {
         dates: [birthdayDate],
         duration: "full",
         usage,
+        rows,
       });
 
       if (error) {
@@ -208,10 +211,26 @@ export const POST = withActiveSession(async (req, user) => {
 
       await addGroupedLeaveDatesToBucket(employee.attendanceSpreadsheetId, groups, "full", "");
 
+      const requestId = `LR-${Date.now()}`;
+      const dateRange = formatIsoDateLabel(leaveDateIso);
+
+      try {
+        await notifyLeaveSubmitted({
+          employeeSheetRow: employee.sheetRow,
+          employeeId: employee.employeeId,
+          employeeName: employee.employeeName,
+          leaveType: "birthday",
+          dateRange,
+          applicationId: `${employee.attendanceSpreadsheetId}:birthday:${leaveDateIso}:${requestId}`,
+        });
+      } catch (notifyError) {
+        console.error("Leave submit notification error:", notifyError);
+      }
+
       return NextResponse.json(
         {
           success: true,
-          requestId: `LR-${Date.now()}`,
+          requestId,
           message: "Birthday leave request submitted",
         },
         { status: 201 },
@@ -294,6 +313,7 @@ export const POST = withActiveSession(async (req, user) => {
       dates: leaveDates,
       duration,
       usage,
+      rows,
     });
 
     if (error) {
@@ -315,6 +335,21 @@ export const POST = withActiveSession(async (req, user) => {
     await addGroupedLeaveDatesToBucket(employee.attendanceSpreadsheetId, groups, duration, reason);
 
     const requestId = `LR-${Date.now()}`;
+    const dateRange = formatIsoDateRange(fromDate, toDate);
+
+    try {
+      await notifyLeaveSubmitted({
+        employeeSheetRow: employee.sheetRow,
+        employeeId: employee.employeeId,
+        employeeName: employee.employeeName,
+        leaveType,
+        dateRange,
+        reason,
+        applicationId: `${employee.attendanceSpreadsheetId}:${fromDate}:${toDate}:${leaveType}:${requestId}`,
+      });
+    } catch (notifyError) {
+      console.error("Leave submit notification error:", notifyError);
+    }
 
     return NextResponse.json(
       {
@@ -353,6 +388,7 @@ export const GET = withActiveSession(async (_req, user) => {
 
     const rows = await readLeaveBucketRows(employee.attendanceSpreadsheetId);
     const usage = countLeaveBucketUsage(rows);
+    const policyBalances = getLeavePolicyBalances(rows);
     const unpaidLeaves = groupLeaveBucketEntriesForDisplay(listLeaveBucketEntries(rows, "unpaid"));
     const applications = groupLeaveApplicationsForDisplay(
       (
@@ -369,34 +405,18 @@ export const GET = withActiveSession(async (_req, user) => {
       birthdayDate: formatBirthdayLeaveDate(employee.birthdayDate),
       birthdayDateIso: formatBirthdayLeaveDateIso(employee.birthdayDate),
 
-      paid: {
-        allocated: LEAVE_ALLOCATIONS.paid,
-        used: usage.paid,
-        remaining: Math.max(0, LEAVE_ALLOCATIONS.paid - usage.paid),
-      },
+      paid: policyBalances.paid,
 
-      casual: {
-        allocated: LEAVE_ALLOCATIONS.casual,
-        used: usage.casual,
-        remaining: Math.max(0, LEAVE_ALLOCATIONS.casual - usage.casual),
-      },
+      casual: policyBalances.casual,
 
-      sick: {
-        allocated: LEAVE_ALLOCATIONS.sick,
-        used: usage.sick,
-        remaining: Math.max(0, LEAVE_ALLOCATIONS.sick - usage.sick),
-      },
+      sick: policyBalances.sick,
 
       unpaid: {
         used: usage.unpaid,
         leaves: unpaidLeaves,
       },
 
-      birthday: {
-        allocated: LEAVE_ALLOCATIONS.birthday,
-        used: usage.birthday,
-        remaining: Math.max(0, LEAVE_ALLOCATIONS.birthday - usage.birthday),
-      },
+      birthday: policyBalances.birthday,
 
       applications,
     });

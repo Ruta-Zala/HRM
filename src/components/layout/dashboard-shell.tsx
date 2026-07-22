@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/auth-provider";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { TodayAttendanceProvider } from "@/contexts/today-attendance-provider";
+import { NotificationsProvider } from "@/contexts/notifications-provider";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -45,13 +46,15 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <TodayAttendanceProvider>
-      <div className="bg-ex-bg flex min-h-screen">
-        <AppSidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <AppHeader />
-          <main className="flex-1 space-y-8 p-4 pb-10 lg:p-8">{children}</main>
+      <NotificationsProvider>
+        <div className="bg-ex-bg flex min-h-screen">
+          <AppSidebar />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <AppHeader />
+            <main className="flex-1 space-y-8 p-4 pb-10 lg:p-8">{children}</main>
+          </div>
         </div>
-      </div>
+      </NotificationsProvider>
     </TodayAttendanceProvider>
   );
 }

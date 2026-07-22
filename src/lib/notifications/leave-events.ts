@@ -1,0 +1,143 @@
+import { parseLeaveDisplayDate } from "@/lib/attendance/leave-range-display";
+import { addDaysToDateIso } from "@/lib/notifications/automation-date";
+import { createNotifications } from "@/lib/notifications/sheets";
+import { NOTIFICATION_TYPES, type NotificationType } from "@/lib/notifications/types";
+import { listHrAndSuperAdminRecipients } from "@/lib/notifications/recipients";
+
+export type LeaveNotificationContext = {
+  employeeSheetRow: number;
+  employeeId: string;
+  employeeName: string;
+  leaveType: string;
+  dateRange: string;
+  reason?: string;
+  applicationId?: string;
+};
+
+function formatLeaveTypeLabel(leaveType: string): string {
+  const labels: Record<string, string> = {
+    paid: "Paid",
+    casual: "Casual",
+    sick: "Sick",
+    birthday: "Birthday",
+    unpaid: "Unpaid",
+  };
+  return labels[leaveType] ?? leaveType;
+}
+
+function leaveExpirationDate(dateRange: string): string | undefined {
+  const endPart = dateRange.trim().split(" - ").at(-1)?.trim() ?? "";
+  const endDate = parseLeaveDisplayDate(endPart);
+  if (!endDate) return undefined;
+
+  const endIso = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(
+    2,
+    "0",
+  )}-${String(endDate.getDate()).padStart(2, "0")}`;
+  return addDaysToDateIso(endIso, 1);
+}
+
+export async function notifyLeaveSubmitted(context: LeaveNotificationContext): Promise<void> {
+  const leaveLabel = formatLeaveTypeLabel(context.leaveType);
+  const expiresAt = leaveExpirationDate(context.dateRange);
+  const hrRecipients = await listHrAndSuperAdminRecipients();
+  const inputs = [];
+
+  inputs.push({
+    recipientSheetRow: context.employeeSheetRow,
+    recipientEmployeeId: context.employeeId,
+    type: NOTIFICATION_TYPES.LEAVE_SUBMITTED_EMPLOYEE as NotificationType,
+    title: "Leave request submitted",
+    body: `Your ${leaveLabel} leave request for ${context.dateRange} has been submitted and is pending approval.`,
+    href: "/leave",
+    dedupeKey: context.applicationId
+      ? `leave_submitted_employee:${context.applicationId}`
+      : undefined,
+    expiresAt,
+  });
+
+  for (const recipient of hrRecipients) {
+    inputs.push({
+      recipientSheetRow: recipient.sheetRow,
+      recipientEmployeeId: recipient.employeeId,
+      type: NOTIFICATION_TYPES.LEAVE_SUBMITTED as NotificationType,
+      title: "New leave request",
+      body: `${context.employeeName} submitted a ${leaveLabel} leave request for ${context.dateRange}.`,
+      href: "/leave/approvals",
+      dedupeKey: context.applicationId
+        ? `leave_submitted_hr:${context.applicationId}:${recipient.sheetRow}`
+        : undefined,
+      expiresAt,
+    });
+  }
+
+  await createNotifications(inputs);
+}
+
+export async function notifyLeaveReviewed(params: {
+  context: LeaveNotificationContext;
+  status: "Accepted" | "Rejected";
+  rejectReason?: string;
+}): Promise<void> {
+  const { context, status, rejectReason } = params;
+  const isApproved = status === "Accepted";
+  const expiresAt = leaveExpirationDate(context.dateRange);
+  const type = isApproved ? NOTIFICATION_TYPES.LEAVE_APPROVED : NOTIFICATION_TYPES.LEAVE_REJECTED;
+
+  let body = isApproved
+    ? `Your leave request for ${context.dateRange} has been approved.`
+    : `Your leave request for ${context.dateRange} has been rejected.`;
+
+  if (!isApproved && rejectReason?.trim()) {
+    body += ` Reason: ${rejectReason.trim()}`;
+  }
+
+  await createNotifications([
+    {
+      recipientSheetRow: context.employeeSheetRow,
+      recipientEmployeeId: context.employeeId,
+      type,
+      title: isApproved ? "Your leave is approved" : "Your leave is rejected",
+      body,
+      href: "/leave",
+      dedupeKey: context.applicationId
+        ? `leave_review:${context.applicationId}:${status.toLowerCase()}`
+        : undefined,
+      expiresAt,
+    },
+  ]);
+}
+
+export function getLeaveStartDateFromRange(dateRange: string): Date | null {
+  const startPart = dateRange.trim().split(" - ")[0]?.trim() ?? "";
+  return parseLeaveDisplayDate(startPart);
+}
+
+export async function notifyUpcomingLeave(params: {
+  employeeSheetRow: number;
+  employeeId: string;
+  employeeName: string;
+  leaveType: string;
+  dateRange: string;
+  applicationId: string;
+  leaveStartDate: Date;
+}): Promise<number> {
+  const hrRecipients = await listHrAndSuperAdminRecipients();
+  const leaveLabel = formatLeaveTypeLabel(params.leaveType);
+  const startLabel = `${params.leaveStartDate.getDate()}/${params.leaveStartDate.getMonth() + 1}/${params.leaveStartDate.getFullYear()}`;
+  const dedupeBase = `leave_upcoming:${params.applicationId}:${startLabel}`;
+  const expiresAt = leaveExpirationDate(params.dateRange);
+
+  const inputs = hrRecipients.map((recipient) => ({
+    recipientSheetRow: recipient.sheetRow,
+    recipientEmployeeId: recipient.employeeId,
+    type: NOTIFICATION_TYPES.LEAVE_UPCOMING as NotificationType,
+    title: "Upcoming leave reminder",
+    body: `${params.employeeName} will be on ${leaveLabel} leave starting ${startLabel} (in 2 days). Leave period: ${params.dateRange}.`,
+    href: "/leave/approvals",
+    dedupeKey: `${dedupeBase}:${recipient.sheetRow}`,
+    expiresAt,
+  }));
+
+  return createNotifications(inputs);
+}

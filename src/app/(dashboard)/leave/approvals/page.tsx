@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
+import { useNotifications } from "@/contexts/notifications-provider";
 
 type LeaveApprovalRow = {
   id: string;
@@ -82,6 +83,7 @@ function emptyCopy(filter: StatusFilter): { title: string; description: string }
 }
 
 export default function LeaveApprovalsPage() {
+  const { refresh: refreshNotifications, pushToast } = useNotifications();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(LEAVE_STATUS.APPLIED);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +159,12 @@ export default function LeaveApprovalsPage() {
       setRejectingRow(null);
       setRejectReason("");
       await loadApprovals();
+      await refreshNotifications();
+      pushToast({
+        title: status === "Accepted" ? "Leave approved" : "Leave rejected",
+        body: `${row.employeeName}'s leave request was ${status.toLowerCase()}. The employee has been notified.`,
+        href: "/notifications",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to review leave");
     } finally {

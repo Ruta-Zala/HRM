@@ -2,9 +2,15 @@ import { NextResponse } from "next/server";
 
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
-import { reviewLeaveApplication } from "@/lib/attendance/leave-approvals";
+import {
+  buildLeaveApplicationId,
+  getLeaveApplicationAtRow,
+  reviewLeaveApplication,
+} from "@/lib/attendance/leave-approvals";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
 import type { LeaveBucketType } from "@/lib/attendance/leave-bucket-layout";
+import { findEmployeeByAttendanceSpreadsheetId } from "@/lib/notifications/employee-lookup";
+import { notifyLeaveReviewed } from "@/lib/notifications/leave-events";
 
 function normalizeReviewStatus(
   value: unknown,
@@ -53,6 +59,18 @@ export const PATCH = withActiveSession(async (req, user) => {
       );
     }
 
+    const employee = await findEmployeeByAttendanceSpreadsheetId(attendanceSpreadsheetId);
+    const matchingApplication =
+      employee != null
+        ? await getLeaveApplicationAtRow({
+            attendanceSpreadsheetId,
+            rowIndex,
+            leaveType,
+            employeeId: employee.employeeId,
+            employeeName: employee.employeeName,
+          })
+        : null;
+
     await reviewLeaveApplication({
       attendanceSpreadsheetId,
       rowIndex,
@@ -60,6 +78,30 @@ export const PATCH = withActiveSession(async (req, user) => {
       status,
       rejectReason,
     });
+
+    if (employee) {
+      try {
+        await notifyLeaveReviewed({
+          context: {
+            employeeSheetRow: employee.sheetRow,
+            employeeId: employee.employeeId,
+            employeeName: employee.employeeName,
+            leaveType,
+            dateRange: matchingApplication?.date ?? "your selected dates",
+            reason: matchingApplication?.reason,
+            applicationId: buildLeaveApplicationId({
+              attendanceSpreadsheetId,
+              rowIndex,
+              leaveType,
+            }),
+          },
+          status,
+          rejectReason,
+        });
+      } catch (notifyError) {
+        console.error("Leave review notification error:", notifyError);
+      }
+    }
 
     return NextResponse.json({
       success: true,

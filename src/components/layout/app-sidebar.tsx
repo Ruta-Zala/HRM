@@ -6,6 +6,7 @@ import {
   ChevronDown,
   LayoutDashboard,
   Menu,
+  MessageSquareWarning,
   Plug,
   Shield,
   Users,
@@ -18,12 +19,15 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { filterNav, isNavChildActive, isNavGroupActive, type NavItem } from "@/lib/rbac";
 import { useAuth } from "@/contexts/auth-provider";
+import { useNotificationsOptional } from "@/contexts/notifications-provider";
+import { UnreadBadge } from "@/components/notifications/unread-badge";
 
 const iconMap = {
   LayoutDashboard,
   Users,
   CalendarDays,
   Bell,
+  MessageSquareWarning,
   Plug,
   Shield,
 } as const;
@@ -31,12 +35,20 @@ const iconMap = {
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { user } = useAuth();
+  const notifications = useNotificationsOptional();
   const items = useMemo(() => filterNav(user?.role ?? null), [user?.role]);
+  const unreadCount = notifications?.unreadCount ?? 0;
 
   return (
     <nav className="flex max-h-[calc(100vh-64px)] flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
       {items.map((item) => (
-        <NavGroup key={item.href} item={item} pathname={pathname} onNavigate={onNavigate} />
+        <NavGroup
+          key={item.href}
+          item={item}
+          pathname={pathname}
+          onNavigate={onNavigate}
+          unreadCount={item.href === "/notifications" ? unreadCount : 0}
+        />
       ))}
     </nav>
   );
@@ -46,10 +58,12 @@ function NavGroup({
   item,
   pathname,
   onNavigate,
+  unreadCount = 0,
 }: {
   item: NavItem;
   pathname: string;
   onNavigate?: () => void;
+  unreadCount?: number;
 }) {
   const [open, setOpen] = useState(true);
   const Icon = iconMap[item.icon as keyof typeof iconMap] ?? LayoutDashboard;
@@ -68,7 +82,10 @@ function NavGroup({
         )}
       >
         <Icon className="size-4 shrink-0 opacity-90" />
-        {item.label}
+        <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+          <span>{item.label}</span>
+          {unreadCount > 0 ? <UnreadBadge count={unreadCount} /> : null}
+        </span>
       </Link>
     );
   }
@@ -85,9 +102,12 @@ function NavGroup({
             : "text-ex-muted hover:bg-ex-surface hover:text-ex-primary",
         )}
       >
-        <span className="flex items-center gap-3">
-          <Icon className="size-4 shrink-0" />
-          {item.label}
+        <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+          <span className="flex items-center gap-3">
+            <Icon className="size-4 shrink-0" />
+            {item.label}
+          </span>
+          {unreadCount > 0 ? <UnreadBadge count={unreadCount} /> : null}
         </span>
         <ChevronDown className={cn("size-4 transition", open ? "rotate-180" : "")} />
       </button>
@@ -95,19 +115,21 @@ function NavGroup({
         <div className="border-ex-border ml-4 flex flex-col gap-0.5 border-l pl-3">
           {item.children.map((child) => {
             const childActive = isNavChildActive(pathname, child.href, item.href);
+            const childUnread = item.href === "/notifications" && child.href === "/notifications";
             return (
               <Link
                 key={child.href}
                 href={child.href}
                 onClick={onNavigate}
                 className={cn(
-                  "rounded-md px-2 py-1.5 text-sm transition",
+                  "flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm transition",
                   childActive
                     ? "bg-ex-secondary/12 text-ex-secondary font-medium"
                     : "text-ex-muted hover:bg-ex-surface hover:text-ex-primary",
                 )}
               >
-                {child.label}
+                <span>{child.label}</span>
+                {childUnread && unreadCount > 0 ? <UnreadBadge count={unreadCount} /> : null}
               </Link>
             );
           })}
