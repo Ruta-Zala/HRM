@@ -113,8 +113,9 @@ export async function getLeaveApplicationAtRow(params: {
   leaveType: LeaveBucketType;
   employeeId: string;
   employeeName: string;
+  rows?: string[][];
 }): Promise<LeaveApplication | null> {
-  const rows = await readLeaveBucketRows(params.attendanceSpreadsheetId);
+  const rows = params.rows ?? (await readLeaveBucketRows(params.attendanceSpreadsheetId));
   const applications = listLeaveApplicationsFromRows({
     rows,
     employeeId: params.employeeId,
@@ -136,8 +137,11 @@ export async function reviewLeaveApplication(params: {
   leaveType: LeaveBucketType;
   status: typeof LEAVE_STATUS.ACCEPTED | typeof LEAVE_STATUS.REJECTED;
   rejectReason?: string;
+  rows?: string[][];
 }): Promise<void> {
-  const rows = migrateLeaveBucketRows(await readLeaveBucketRows(params.attendanceSpreadsheetId));
+  const rows =
+    params.rows ??
+    migrateLeaveBucketRows(await readLeaveBucketRows(params.attendanceSpreadsheetId));
   const row = normalizeLeaveBucketRow(rows[params.rowIndex] ?? []);
   const columns = LEAVE_BUCKET_COLUMN_GROUPS[params.leaveType];
   const date = String(row[columns.date] ?? "").trim();

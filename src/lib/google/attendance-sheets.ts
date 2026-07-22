@@ -531,6 +531,35 @@ export async function createEmployeeAttendanceSpreadsheet(
 
 const LEAVE_BUCKET_SHEET_NAME = "Leave Bucket";
 const LEAVE_BUCKET_SHEET_RANGE = "A:X";
+const LEAVE_BUCKET_READY_TTL_MS = 5 * 60 * 1000;
+
+const leaveBucketReadyAt = new Map<string, number>();
+const leaveBucketReadyRequests = new Map<string, Promise<void>>();
+
+async function ensureLeaveBucketReady(spreadsheetId: string): Promise<void> {
+  const trimmed = spreadsheetId.trim();
+  if (!trimmed) return;
+
+  const readyAt = leaveBucketReadyAt.get(trimmed) ?? 0;
+  if (Date.now() - readyAt < LEAVE_BUCKET_READY_TTL_MS) return;
+
+  const inflight = leaveBucketReadyRequests.get(trimmed);
+  if (inflight) {
+    await inflight;
+    return;
+  }
+
+  const request = (async () => {
+    await ensureLeaveBucketSheet(trimmed);
+    await ensureLeaveBucketLayout(trimmed);
+    leaveBucketReadyAt.set(trimmed, Date.now());
+  })().finally(() => {
+    leaveBucketReadyRequests.delete(trimmed);
+  });
+
+  leaveBucketReadyRequests.set(trimmed, request);
+  await request;
+}
 
 async function ensureLeaveBucketLayout(spreadsheetId: string): Promise<void> {
   const sheetsApi = await getSheetsClient();
@@ -860,8 +889,7 @@ export async function addGroupedLeaveDatesToBucket(
 
 export async function readLeaveBucketRows(spreadsheetId: string): Promise<string[][]> {
   const sheetsApi = await getSheetsClient();
-  await ensureLeaveBucketSheet(spreadsheetId);
-  await ensureLeaveBucketLayout(spreadsheetId);
+  await ensureLeaveBucketReady(spreadsheetId);
 
   const response = await sheetsApi.spreadsheets.values.get({
     spreadsheetId,

@@ -80,8 +80,10 @@ export const PATCH = withActiveSession(async (req, user) => {
     });
 
     if (employee) {
+      let emailResult: { sent: boolean; reason?: string; to?: string } | undefined;
+
       try {
-        await notifyLeaveReviewed({
+        const notifyResult = await notifyLeaveReviewed({
           context: {
             employeeSheetRow: employee.sheetRow,
             employeeId: employee.employeeId,
@@ -98,9 +100,16 @@ export const PATCH = withActiveSession(async (req, user) => {
           status,
           rejectReason,
         });
+        emailResult = notifyResult.email;
       } catch (notifyError) {
         console.error("Leave review notification error:", notifyError);
       }
+
+      return NextResponse.json({
+        success: true,
+        message: `Leave request ${status.toLowerCase()}`,
+        email: emailResult,
+      });
     }
 
     return NextResponse.json({
