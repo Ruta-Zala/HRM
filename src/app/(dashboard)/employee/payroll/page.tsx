@@ -1,0 +1,460 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft, RefreshCw } from "lucide-react";
+
+import { PageHeader } from "@/components/ui/page-header";
+import { AccessDenied } from "@/components/ui/access-denied";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable } from "@/components/ui/data-table";
+import { Select } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/auth-provider";
+import { canManageEmployees } from "@/lib/auth/roles";
+import type { Column } from "@/types/table";
+
+type DeductionBucket = { payable: number; employeeCount: number };
+
+type PayrollEmployeeRow = {
+  id: string;
+  employeeSheetRow: number;
+  employeeId: string;
+  name: string;
+  designation: string;
+  skippedReason?: string;
+  payroll: {
+    monthlySalary: number;
+    workingDays: number;
+    perDay: number;
+    perHour: number;
+    halfPaidLeave: number;
+    fullPaidLeave: number;
+    halfUnpaidLeave: number;
+    fullUnpaidLeave: number;
+    totalPaidLeave: number;
+    totalUnpaidLeave: number;
+    attendDays: number;
+    paidLeaveAmount: number;
+    unpaidLeaveAmount: number;
+    amountAfterAttendance: number;
+    loyaltyPercent: number;
+    loyaltyBonus: number;
+    professionalTax: number;
+    lwf: number;
+    finalPayment: number;
+  } | null;
+};
+
+type PayrollApiResponse = {
+  success: boolean;
+  message?: string;
+  period?: {
+    year: number;
+    month: number;
+    workingDays: number;
+    scheduledDates: string[];
+  };
+  summary?: {
+    employeeCount: number;
+    totalNetPayable: number;
+  };
+  deductions?: {
+    pt: DeductionBucket;
+    lwf: DeductionBucket;
+    loyalty: DeductionBucket;
+    unpaidLeave: DeductionBucket;
+  };
+  employees?: PayrollEmployeeRow[];
+};
+
+type TableRow = {
+  id: string;
+  employeeId: string;
+  name: string;
+  designation: string;
+  salary: string;
+  perDay: string;
+  workingDays: string;
+  attendDays: string;
+  unpaidLeave: string;
+  unpaidAmount: string;
+  loyalty: string;
+  pt: string;
+  lwf: string;
+  finalPayment: string;
+  note: string;
+};
+
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
+function formatInr(amount: number): string {
+  return `Rs. ${amount.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function formatDesignation(value: string): string {
+  if (!value.trim()) return "—";
+  return value.split("_").join(" ");
+}
+
+function Metric({
+  label,
+  value,
+  loading = false,
+}: {
+  label: string;
+  value: string;
+  loading?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-ex-muted text-sm">{label}</p>
+      {loading ? (
+        <Skeleton className="mt-2 h-6 w-28" />
+      ) : (
+        <p className="text-ex-primary mt-1 text-lg font-semibold tracking-tight">{value}</p>
+      )}
+    </div>
+  );
+}
+
+function BannerField({
+  label,
+  value,
+  loading = false,
+}: {
+  label: string;
+  value: string;
+  loading?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-ex-muted">{label}</p>
+      {loading ? (
+        <Skeleton className="mt-1.5 h-5 w-24" />
+      ) : (
+        <p className="text-ex-primary mt-0.5 font-semibold">{value}</p>
+      )}
+    </div>
+  );
+}
+
+export default function PayrollPage() {
+  const { user, loading: authLoading } = useAuth();
+  const canManage = user ? canManageEmployees(user.role) : false;
+
+  const [month, setMonth] = useState(() => String(new Date().getMonth() + 1));
+  const [year, setYear] = useState(() => String(new Date().getFullYear()));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<PayrollApiResponse | null>(null);
+
+  const yearOptions = useMemo(() => {
+    const current = new Date().getFullYear();
+    return Array.from({ length: 6 }, (_, i) => String(current - i));
+  }, []);
+
+  const loadPayroll = useCallback(async () => {
+    if (!canManage) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ year, month });
+      const res = await fetch(`/api/payroll?${params.toString()}`, { credentials: "include" });
+      const json = (await res.json()) as PayrollApiResponse;
+      if (!json.success) throw new Error(json.message ?? "Failed to load payroll");
+      setData(json);
+    } catch (err) {
+      console.error(err);
+      setData(null);
+      setError(err instanceof Error ? err.message : "Failed to load payroll");
+    } finally {
+      setLoading(false);
+    }
+  }, [canManage, month, year]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch payroll when period filters change
+    void loadPayroll();
+  }, [loadPayroll]);
+
+  const tableRows: TableRow[] = useMemo(() => {
+    return (data?.employees ?? []).map((employee) => {
+      const payroll = employee.payroll;
+      if (!payroll) {
+        return {
+          id: employee.id,
+          employeeId: employee.employeeId || "—",
+          name: employee.name || "—",
+          designation: formatDesignation(employee.designation ?? ""),
+          salary: "—",
+          perDay: "—",
+          workingDays: "—",
+          attendDays: "—",
+          unpaidLeave: "—",
+          unpaidAmount: "—",
+          loyalty: "—",
+          pt: "—",
+          lwf: "—",
+          finalPayment: "—",
+          note: employee.skippedReason ?? "Skipped",
+        };
+      }
+
+      return {
+        id: employee.id,
+        employeeId: employee.employeeId || "—",
+        name: employee.name || "—",
+        designation: formatDesignation(employee.designation ?? ""),
+        salary: formatInr(payroll.monthlySalary),
+        perDay: formatInr(payroll.perDay),
+        workingDays: String(payroll.workingDays),
+        attendDays: String(payroll.attendDays),
+        unpaidLeave: String(payroll.totalUnpaidLeave),
+        unpaidAmount: formatInr(payroll.unpaidLeaveAmount),
+        loyalty: formatInr(payroll.loyaltyBonus),
+        pt: formatInr(payroll.professionalTax),
+        lwf: formatInr(payroll.lwf),
+        finalPayment: formatInr(payroll.finalPayment),
+        note: "",
+      };
+    });
+  }, [data?.employees]);
+
+  const columns: Column<TableRow>[] = useMemo(
+    () => [
+      { key: "employeeId", header: "Employee ID", sortable: true },
+      { key: "name", header: "Name", sortable: true },
+      {
+        key: "designation",
+        header: "Designation",
+        render: (row) => <span className="capitalize">{row.designation}</span>,
+      },
+      { key: "salary", header: "Salary" },
+      { key: "perDay", header: "Per Day" },
+      { key: "workingDays", header: "Working Days" },
+      { key: "attendDays", header: "Attend Days" },
+      { key: "unpaidLeave", header: "Unpaid Leave" },
+      { key: "unpaidAmount", header: "Unpaid Amount" },
+      { key: "loyalty", header: "Loyalty" },
+      { key: "pt", header: "PT" },
+      { key: "lwf", header: "LWF" },
+      { key: "finalPayment", header: "Final Payment" },
+      { key: "note", header: "Note" },
+    ],
+    [],
+  );
+
+  if (authLoading) {
+    return null;
+  }
+
+  if (!canManage) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="Payroll"
+          description="Auto-calculated salary payable from attendance, working days, and fixed deductions."
+        />
+        <AccessDenied
+          description="Only HR and Super Admin roles can view payroll summary."
+          action={
+            <Link href="/dashboard">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="size-4" />
+                Back to overview
+              </Button>
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
+
+  const periodLabel = `${MONTHS[Number(month) - 1]} - ${year}`;
+  const workingDays = data?.period?.workingDays ?? 0;
+  const totalNetPayable = data?.summary?.totalNetPayable ?? 0;
+  const employeeCount = data?.summary?.employeeCount ?? 0;
+  const deductions = data?.deductions;
+
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        title="Payroll"
+        description="Final pay = monthly salary − unpaid leave − 10% loyalty − PT (Rs. 200) − LWF (Rs. 6). Per-day rate uses Mon–Fri working days excluding leave-type holidays."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              aria-label="Month"
+              className="w-[140px]"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+            >
+              {MONTHS.map((name, index) => (
+                <option key={name} value={String(index + 1)}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Year"
+              className="w-[110px]"
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+            >
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadPayroll()}
+              disabled={loading}
+            >
+              <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
+        }
+      />
+
+      {error ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="border-ex-border bg-ex-elevated flex flex-col gap-4 rounded-xl border px-5 py-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between dark:shadow-none">
+        <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm">
+          <BannerField label="Month Year" value={periodLabel} />
+          <BannerField label="Payroll Type" value="Regular" />
+          <BannerField label="Working Days" value={String(workingDays)} loading={loading} />
+          <BannerField label="Employees" value={String(employeeCount)} loading={loading} />
+          <BannerField
+            label="Total Net Payable Amount"
+            value={formatInr(totalNetPayable)}
+            loading={loading}
+          />
+        </div>
+        {loading ? (
+          <Skeleton className="h-6 w-14 rounded-md" />
+        ) : (
+          <Badge variant="warning">Draft</Badge>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        <Card>
+          <CardHeader className="border-0 pb-0">
+            <CardTitle className="text-ex-secondary">Loyalty Bonus (10%)</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-6 sm:grid-cols-2">
+            <Metric
+              label="Loyalty Deducted"
+              value={formatInr(deductions?.loyalty.payable ?? 0)}
+              loading={loading}
+            />
+            <Metric
+              label="Total Employees"
+              value={String(deductions?.loyalty.employeeCount ?? 0)}
+              loading={loading}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="border-0 pb-0">
+            <CardTitle className="text-ex-secondary">PT</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-6 sm:grid-cols-2">
+            <Metric
+              label="PT Payable"
+              value={formatInr(deductions?.pt.payable ?? 0)}
+              loading={loading}
+            />
+            <Metric
+              label="Total Employees"
+              value={String(deductions?.pt.employeeCount ?? 0)}
+              loading={loading}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="border-0 pb-0">
+            <CardTitle className="text-ex-secondary">LWF</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-6 sm:grid-cols-2">
+            <Metric
+              label="LWF Payable"
+              value={formatInr(deductions?.lwf.payable ?? 0)}
+              loading={loading}
+            />
+            <Metric
+              label="Total Employees"
+              value={String(deductions?.lwf.employeeCount ?? 0)}
+              loading={loading}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="border-0 pb-0">
+            <CardTitle className="text-ex-secondary">Unpaid Leave Deduction</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-6 sm:grid-cols-2">
+            <Metric
+              label="Unpaid Amount"
+              value={formatInr(deductions?.unpaidLeave.payable ?? 0)}
+              loading={loading}
+            />
+            <Metric
+              label="Employees Affected"
+              value={String(deductions?.unpaidLeave.employeeCount ?? 0)}
+              loading={loading}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="text-ex-primary text-base font-semibold">Employee payroll breakdown</h2>
+        <DataTable
+          columns={columns}
+          rows={tableRows}
+          loading={loading}
+          emptyTitle="No payroll rows"
+          emptyDescription="Active employees with a configured salary for this period will appear here."
+        />
+      </div>
+
+      <p className="text-ex-muted text-sm">
+        Flow: fix loyalty (10% of salary), PT (Rs. 200), LWF (Rs. 6) → working days (Mon–Fri,
+        exclude leave-type holidays) → per day / per hour → deduct unpaid leave (U/F; missing/absent
+        scheduled days count as unpaid) from salary → then deduct loyalty, PT, and LWF for final
+        pay. Paid leave (A/H) is not deducted.
+      </p>
+    </div>
+  );
+}
