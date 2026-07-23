@@ -105,6 +105,8 @@ export const GET = withActiveSession(async (req, user) => {
           workMode: r.workMode,
           punchIn: r.punchIn,
           punchOut: r.punchOut,
+          breakStart: r.breakStart,
+          breakEnd: r.breakEnd,
           breakTime: r.totalBreakTime,
           workingHours: r.workingHours,
           overtime: r.overtime,

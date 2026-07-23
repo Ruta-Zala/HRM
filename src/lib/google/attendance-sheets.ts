@@ -1715,6 +1715,69 @@ export async function upsertApprovedLeaveAttendance(params: {
   await updateAttendanceRow(targetSpreadsheetId, sheetTitle, targetRow, rowValues);
 }
 
+/** HR manual create/update of punch and break times for a specific date. */
+export async function upsertManualAttendanceRecord(params: {
+  spreadsheetId: string;
+  dateIso: string;
+  punchIn?: string;
+  punchOut?: string;
+  breakStart?: string;
+  breakEnd?: string;
+  totalBreakTime?: string;
+  workMode?: string;
+}): Promise<AttendanceRow> {
+  const dateIso = normalizeSheetDate(params.dateIso);
+  if (!dateIso) {
+    throw new Error("Invalid attendance date");
+  }
+
+  const baseDate = new Date(`${dateIso}T12:00:00`);
+  const targetSpreadsheetId = await resolveSpreadsheetForDate(params.spreadsheetId, baseDate);
+  const sheetTitle = await ensureMonthlySheet(targetSpreadsheetId, baseDate);
+  const rows = await readMonthlyRows(targetSpreadsheetId, sheetTitle);
+  const found = findTodayRow(rows, dateIso);
+  const targetRow = found?.sheetRow ?? Math.max(rows.length + 1, 2);
+  const rowValues = buildRowValues(found?.row, baseDate);
+
+  rowValues[ATTENDANCE_COL.date] = formatSheetDateLiteral(baseDate);
+
+  if (params.workMode?.trim()) {
+    rowValues[ATTENDANCE_COL.workMode] = params.workMode.trim();
+  }
+
+  if (params.punchIn !== undefined) {
+    rowValues[ATTENDANCE_COL.punchIn] = params.punchIn;
+  }
+  if (params.punchOut !== undefined) {
+    rowValues[ATTENDANCE_COL.punchOut] = params.punchOut;
+  }
+
+  // Keep break start/end on the row so HR can edit them later (unlike live punch flow).
+  if (
+    params.breakStart !== undefined ||
+    params.breakEnd !== undefined ||
+    params.totalBreakTime !== undefined
+  ) {
+    rowValues[ATTENDANCE_COL.breakStart] = params.breakStart ?? "";
+    rowValues[ATTENDANCE_COL.breakEnd] = params.breakEnd ?? "";
+    rowValues[ATTENDANCE_COL.totalBreakTime] = params.totalBreakTime ?? "";
+  }
+
+  const punchedOut = Boolean((rowValues[ATTENDANCE_COL.punchOut] ?? "").trim());
+  if (punchedOut) {
+    applyAttendanceMetrics(rowValues, baseDate);
+  } else if ((rowValues[ATTENDANCE_COL.punchIn] ?? "").trim()) {
+    rowValues[ATTENDANCE_COL.status] = WORKING_STATUS.IN_PROGRESS;
+    rowValues[ATTENDANCE_COL.overtime] = "—";
+    rowValues[ATTENDANCE_COL.workingHours] = "";
+  }
+
+  await ensureSheetHasRows(targetSpreadsheetId, sheetTitle, targetRow);
+  await updateAttendanceRow(targetSpreadsheetId, sheetTitle, targetRow, rowValues);
+
+  return rowFromValues(rowValues, targetRow);
+}
+
 export async function updateAttendanceField(
   spreadsheetId: string,
   dateIso: string,

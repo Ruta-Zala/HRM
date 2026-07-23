@@ -1,7 +1,21 @@
 "use client";
 
-import { CalendarDays, Download, Loader2, TrendingDown, TrendingUp, Upload } from "lucide-react";
+import {
+  CalendarDays,
+  Download,
+  Loader2,
+  Pencil,
+  Plus,
+  TrendingDown,
+  TrendingUp,
+  Upload,
+} from "lucide-react";
 import { useMemo, useState } from "react";
+
+import {
+  HrAttendanceForm,
+  type HrAttendanceFormValues,
+} from "@/components/attendance/hr-attendance-form";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -138,6 +152,14 @@ export function AttendanceHistoryView({
   canExport,
   requestingOvertimeId,
   onRequestOvertime,
+  hrFormMode = "closed",
+  hrFormRow = null,
+  hrFormDate,
+  savingHrAttendance = false,
+  onOpenAddAttendance,
+  onOpenEditAttendance,
+  onCloseHrForm,
+  onSaveHrAttendance,
 }: {
   isHr: boolean;
   employees: Employee[];
@@ -158,6 +180,14 @@ export function AttendanceHistoryView({
   canExport: boolean;
   requestingOvertimeId?: string | null;
   onRequestOvertime?: (row: AttendanceHistoryRow) => void;
+  hrFormMode?: "closed" | "add" | "edit";
+  hrFormRow?: AttendanceHistoryRow | null;
+  hrFormDate?: string;
+  savingHrAttendance?: boolean;
+  onOpenAddAttendance?: () => void;
+  onOpenEditAttendance?: (row: AttendanceHistoryRow) => void;
+  onCloseHrForm?: () => void;
+  onSaveHrAttendance?: (values: HrAttendanceFormValues) => Promise<void>;
 }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
@@ -280,6 +310,23 @@ export function AttendanceHistoryView({
                 variant="outline"
                 size="sm"
                 className="bg-ex-elevated/80 gap-2"
+                disabled={selectedSheetRow == null || savingHrAttendance}
+                onClick={onOpenAddAttendance}
+                title={
+                  selectedEmployee
+                    ? `Add attendance for ${selectedEmployee.name}`
+                    : "Select an employee to add attendance"
+                }
+              >
+                <Plus className="size-4" />
+                Add attendance
+              </Button>
+            ) : null}
+            {isHr ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-ex-elevated/80 gap-2"
                 disabled={importing || selectedSheetRow == null}
                 onClick={onImportClick}
                 title={
@@ -343,7 +390,7 @@ export function AttendanceHistoryView({
                   onYearChange(parseInt(e.target.value, 10));
                   setPage(1);
                 }}
-                disabled={!periods.length}
+                disabled={periods.length === 0}
               >
                 {periods.map((p) => (
                   <option key={p.year} value={p.year}>
@@ -377,6 +424,22 @@ export function AttendanceHistoryView({
         <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
           {importMessage}
         </p>
+      ) : null}
+
+      {isHr && hrFormMode !== "closed" && onSaveHrAttendance ? (
+        <HrAttendanceForm
+          key={`${hrFormMode}-${hrFormRow?.id ?? hrFormDate ?? "new"}`}
+          employeeLabel={
+            selectedEmployee
+              ? `${selectedEmployee.name}${selectedEmployee.employeeId ? ` (${selectedEmployee.employeeId})` : ""}`
+              : undefined
+          }
+          initialDate={hrFormDate}
+          initialRow={hrFormMode === "edit" ? hrFormRow : null}
+          submitting={savingHrAttendance}
+          onSubmit={onSaveHrAttendance}
+          onCancel={onCloseHrForm}
+        />
       ) : null}
 
       {error ? (
@@ -549,19 +612,34 @@ export function AttendanceHistoryView({
               header: "Actions",
               sortable: false,
               sticky: "right",
-              render: (r) =>
-                onRequestOvertime && canRequestOvertime(r) ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={requestingOvertimeId === r.id}
-                    onClick={() => onRequestOvertime(r)}
-                  >
-                    {requestingOvertimeId === r.id ? "Requesting..." : "Request OT Approval"}
-                  </Button>
-                ) : (
-                  <span className="text-ex-muted">—</span>
-                ),
+              render: (r) => (
+                <div className="flex flex-wrap gap-2">
+                  {isHr && onOpenEditAttendance ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={savingHrAttendance}
+                      onClick={() => onOpenEditAttendance(r)}
+                    >
+                      <Pencil className="size-3.5" />
+                      Edit
+                    </Button>
+                  ) : null}
+                  {onRequestOvertime && canRequestOvertime(r) ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={requestingOvertimeId === r.id}
+                      onClick={() => onRequestOvertime(r)}
+                    >
+                      {requestingOvertimeId === r.id ? "Requesting..." : "Request OT Approval"}
+                    </Button>
+                  ) : null}
+                  {!isHr && !(onRequestOvertime && canRequestOvertime(r)) ? (
+                    <span className="text-ex-muted">—</span>
+                  ) : null}
+                </div>
+              ),
             },
           ]}
         />
