@@ -11,7 +11,8 @@ import {
   type LeaveStatus,
 } from "@/lib/attendance/leave-status";
 import { applyLeaveBucketRowFormat } from "@/lib/attendance/leave-bucket-format";
-import { readLeaveBucketRows } from "@/lib/google/attendance-sheets";
+import { readLeaveBucketRows, upsertApprovedLeaveAttendance } from "@/lib/google/attendance-sheets";
+import { leaveDateToIso, workModeForApprovedLeave } from "@/lib/payroll/leave-attendance";
 
 export type LeaveApplication = {
   id: string;
@@ -179,6 +180,18 @@ export async function reviewLeaveApplication(params: {
     leaveType: params.leaveType,
     status: params.status,
   });
+
+  if (params.status === LEAVE_STATUS.ACCEPTED) {
+    const duration = columns.duration != null ? String(row[columns.duration] ?? "").trim() : "";
+    const dateIso = leaveDateToIso(date);
+    if (dateIso) {
+      await upsertApprovedLeaveAttendance({
+        spreadsheetId: params.attendanceSpreadsheetId,
+        dateIso,
+        workMode: workModeForApprovedLeave(params.leaveType, duration),
+      });
+    }
+  }
 }
 
 export function leaveRowCountsTowardQuota(row: string[], leaveType: LeaveBucketType): boolean {

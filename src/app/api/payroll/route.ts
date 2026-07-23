@@ -4,6 +4,8 @@ import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { sheetRowToForm } from "@/lib/employee";
 import { listCompanyHolidays } from "@/lib/company-holiday-sheets";
+import { listLeaveApplications } from "@/lib/attendance/leave-approvals";
+import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
 import { getMonthAttendance } from "@/lib/google/attendance-sheets";
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
@@ -17,6 +19,11 @@ import {
   listScheduledWorkingDates,
 } from "@/lib/payroll";
 import { filterDatesForEmployment, wasEmployedDuringPeriod } from "@/lib/payroll/employment";
+import {
+  buildAcceptedLeaveAttendanceOverlays,
+  localDateIso,
+  mergeAttendanceWithApprovedLeaves,
+} from "@/lib/payroll/leave-attendance";
 import {
   findEffectiveSalaryForPeriodFromRecords,
   listSalaryHistoryRecords,
@@ -140,7 +147,33 @@ export const GET = withActiveSession(async (req, user) => {
         } catch (error) {
           console.error(`Payroll attendance load failed for row ${sheetRow}`, error);
         }
+
+        try {
+          const leaveApplications = await listLeaveApplications({
+            employeeId: form.employeeId,
+            employeeName: form.name,
+            attendanceSpreadsheetId,
+            statusFilter: LEAVE_STATUS.ACCEPTED,
+          });
+          const overlays = buildAcceptedLeaveAttendanceOverlays(leaveApplications).filter(
+            (overlay) => overlay.dateIso >= periodStart && overlay.dateIso <= periodEnd,
+          );
+          const merged = mergeAttendanceWithApprovedLeaves(attendanceByDate, overlays);
+          attendanceByDate.clear();
+          for (const [date, value] of merged) {
+            attendanceByDate.set(date, value);
+          }
+        } catch (error) {
+          console.error(`Payroll leave bucket load failed for row ${sheetRow}`, error);
+        }
       }
+
+      // Do not treat blank future days as unpaid, but keep days that already have
+      // attendance or an approved leave (e.g. leave booked for tomorrow).
+      const asOfIso = localDateIso();
+      const dueScheduledDates = employeeScheduledDates.filter(
+        (date) => date <= asOfIso || attendanceByDate.has(date),
+      );
 
       const payroll = calculateEmployeePayroll({
         monthlySalary,
@@ -152,7 +185,7 @@ export const GET = withActiveSession(async (req, user) => {
             : DEFAULT_PROFESSIONAL_TAX,
         lwf: DEFAULT_LWF,
         workingDays,
-        scheduledDates: employeeScheduledDates,
+        scheduledDates: dueScheduledDates,
         attendanceByDate,
       });
 

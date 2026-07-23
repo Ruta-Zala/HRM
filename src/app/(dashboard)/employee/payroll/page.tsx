@@ -79,6 +79,8 @@ type TableRow = {
   perDay: string;
   workingDays: string;
   attendDays: string;
+  halfUnpaidLeave: string;
+  fullUnpaidLeave: string;
   unpaidLeave: string;
   unpaidAmount: string;
   loyalty: string;
@@ -209,6 +211,8 @@ export default function PayrollPage() {
           perDay: "—",
           workingDays: "—",
           attendDays: "—",
+          halfUnpaidLeave: "—",
+          fullUnpaidLeave: "—",
           unpaidLeave: "—",
           unpaidAmount: "—",
           loyalty: "—",
@@ -228,6 +232,8 @@ export default function PayrollPage() {
         perDay: formatInr(payroll.perDay),
         workingDays: String(payroll.workingDays),
         attendDays: String(payroll.attendDays),
+        halfUnpaidLeave: String(payroll.halfUnpaidLeave),
+        fullUnpaidLeave: String(payroll.fullUnpaidLeave),
         unpaidLeave: String(payroll.totalUnpaidLeave),
         unpaidAmount: formatInr(payroll.unpaidLeaveAmount),
         loyalty: formatInr(payroll.loyaltyBonus),
@@ -252,7 +258,9 @@ export default function PayrollPage() {
       { key: "perDay", header: "Per Day" },
       { key: "workingDays", header: "Working Days" },
       { key: "attendDays", header: "Attend Days" },
-      { key: "unpaidLeave", header: "Unpaid Leave" },
+      { key: "halfUnpaidLeave", header: "Half Unpaid Leave" },
+      { key: "fullUnpaidLeave", header: "Full Unpaid Leave" },
+      { key: "unpaidLeave", header: "Total Unpaid Leave" },
       { key: "unpaidAmount", header: "Unpaid Amount" },
       { key: "loyalty", header: "Loyalty" },
       { key: "pt", header: "PT" },

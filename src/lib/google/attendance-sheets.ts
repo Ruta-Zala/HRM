@@ -1664,6 +1664,57 @@ export async function getMonthAttendance(
   return records;
 }
 
+/**
+ * Write / update the monthly attendance row when leave is accepted so payroll
+ * and attendance views see the correct work mode (e.g. Half Day Unpaid Leave).
+ */
+export async function upsertApprovedLeaveAttendance(params: {
+  spreadsheetId: string;
+  dateIso: string;
+  workMode: string;
+}): Promise<void> {
+  const dateIso = normalizeSheetDate(params.dateIso);
+  if (!dateIso) {
+    throw new Error("Invalid leave date for attendance sync");
+  }
+
+  const baseDate = new Date(`${dateIso}T12:00:00`);
+  const targetSpreadsheetId = await resolveSpreadsheetForDate(params.spreadsheetId, baseDate);
+  const sheetTitle = await ensureMonthlySheet(targetSpreadsheetId, baseDate);
+  const rows = await readMonthlyRows(targetSpreadsheetId, sheetTitle);
+  const found = findTodayRow(rows, dateIso);
+  const targetRow = found?.sheetRow ?? Math.max(rows.length + 1, 2);
+  const rowValues = buildRowValues(found?.row, baseDate);
+
+  rowValues[ATTENDANCE_COL.date] = formatSheetDateLiteral(baseDate);
+  rowValues[ATTENDANCE_COL.workMode] = params.workMode;
+  rowValues[ATTENDANCE_COL.status] = WORKING_STATUS.ON_LEAVE;
+
+  const isHalfDay =
+    params.workMode === WORK_MODE.HALF_DAY_UNPAID_LEAVE ||
+    params.workMode === WORK_MODE.HALF_DAY_PAID_LEAVE ||
+    params.workMode === WORK_MODE.HALF_DAY_LEAVE ||
+    params.workMode === WORK_MODE.WFH_HALF_DAY;
+
+  // Full-day leave should not keep punch metrics; half-day may keep existing punches.
+  if (!isHalfDay) {
+    rowValues[ATTENDANCE_COL.punchIn] = "";
+    rowValues[ATTENDANCE_COL.punchOut] = "";
+    rowValues[ATTENDANCE_COL.breakStart] = "";
+    rowValues[ATTENDANCE_COL.breakEnd] = "";
+    rowValues[ATTENDANCE_COL.totalBreakTime] = "";
+    rowValues[ATTENDANCE_COL.workingHours] = "";
+    rowValues[ATTENDANCE_COL.overtime] = "";
+    rowValues[ATTENDANCE_COL.earlyLeaveReason] = "";
+  } else if (!(rowValues[ATTENDANCE_COL.punchIn] ?? "").trim()) {
+    rowValues[ATTENDANCE_COL.workingHours] = "";
+    rowValues[ATTENDANCE_COL.overtime] = "";
+  }
+
+  await ensureSheetHasRows(targetSpreadsheetId, sheetTitle, targetRow);
+  await updateAttendanceRow(targetSpreadsheetId, sheetTitle, targetRow, rowValues);
+}
+
 export async function updateAttendanceField(
   spreadsheetId: string,
   dateIso: string,
