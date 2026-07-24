@@ -5,8 +5,8 @@ import {
   IDEAL_BREAK_HOURS,
   IDEAL_SHIFT_HOURS,
   IDEAL_WORKING_HOURS,
-  WORK_MODE,
   WORK_MODE_OPTIONS,
+  isHalfDayUnpaidWorkMode,
 } from "@/lib/attendance/constants";
 import { formatBreakAllowance, parseDurationToMs, parseTimeOnDate } from "@/lib/attendance/time";
 import { resolveAttendanceEmployeeForTarget } from "@/lib/attendance/employee";
@@ -105,6 +105,8 @@ export const GET = withActiveSession(async (req, user) => {
           workMode: r.workMode,
           punchIn: r.punchIn,
           punchOut: r.punchOut,
+          breakStart: r.breakStart,
+          breakEnd: r.breakEnd,
           breakTime: r.totalBreakTime,
           workingHours: r.workingHours,
           overtime: r.overtime,
@@ -118,8 +120,8 @@ export const GET = withActiveSession(async (req, user) => {
 
     const today = await getTodayAttendance(employee.attendanceSpreadsheetId);
     const workedMs = today ? computeLiveWorkedMs(today) : 0;
-    const idealHours = today?.workMode === WORK_MODE.HALF_DAY_LEAVE ? 4 : IDEAL_WORKING_HOURS;
-    const idealBreakHours = today?.workMode === WORK_MODE.HALF_DAY_LEAVE ? 0 : IDEAL_BREAK_HOURS;
+    const idealHours = isHalfDayUnpaidWorkMode(today?.workMode) ? 4 : IDEAL_WORKING_HOURS;
+    const idealBreakHours = isHalfDayUnpaidWorkMode(today?.workMode) ? 0 : IDEAL_BREAK_HOURS;
     const idealMs = idealHours * 60 * 60 * 1000;
     const remainingMs = Math.max(0, idealMs - workedMs);
     const onBreak = Boolean(today?.breakStart?.trim() && !today?.breakEnd?.trim());
@@ -257,9 +259,9 @@ export const POST = withActiveSession(async (req, user) => {
         workedFormatted: formatDurationHms(workedMs),
         earlyLeaveReason: record.earlyLeaveReason ?? "",
         dailyUpdate: record.dailyUpdate ?? "",
-        idealHours: record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 4 : IDEAL_WORKING_HOURS,
-        idealBreakHours: record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 0 : IDEAL_BREAK_HOURS,
-        idealShiftHours: record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 4 : IDEAL_SHIFT_HOURS,
+        idealHours: isHalfDayUnpaidWorkMode(record.workMode) ? 4 : IDEAL_WORKING_HOURS,
+        idealBreakHours: isHalfDayUnpaidWorkMode(record.workMode) ? 0 : IDEAL_BREAK_HOURS,
+        idealShiftHours: isHalfDayUnpaidWorkMode(record.workMode) ? 4 : IDEAL_SHIFT_HOURS,
       },
     });
   } catch (error: unknown) {
@@ -327,9 +329,9 @@ export const PATCH = withActiveSession(async (req, user) => {
         workedFormatted: formatDurationHms(workedMs),
         earlyLeaveReason: record.earlyLeaveReason ?? "",
         dailyUpdate: record.dailyUpdate ?? "",
-        idealHours: record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 4 : IDEAL_WORKING_HOURS,
-        idealBreakHours: record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 0 : IDEAL_BREAK_HOURS,
-        idealShiftHours: record.workMode === WORK_MODE.HALF_DAY_LEAVE ? 4 : IDEAL_SHIFT_HOURS,
+        idealHours: isHalfDayUnpaidWorkMode(record.workMode) ? 4 : IDEAL_WORKING_HOURS,
+        idealBreakHours: isHalfDayUnpaidWorkMode(record.workMode) ? 0 : IDEAL_BREAK_HOURS,
+        idealShiftHours: isHalfDayUnpaidWorkMode(record.workMode) ? 4 : IDEAL_SHIFT_HOURS,
       },
     });
   } catch (error: unknown) {

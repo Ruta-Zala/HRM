@@ -3,7 +3,7 @@ import {
   IDEAL_SHIFT_HOURS,
   IDEAL_WORKING_HOURS,
   IMPORT_DEFAULT_BREAK,
-  WORK_MODE,
+  isHalfDayUnpaidWorkMode,
 } from "./constants";
 import { WORKING_STATUS, type WorkingStatus } from "./constants";
 
@@ -59,6 +59,27 @@ export function normalizeSheetDate(value: string): string {
   if (!trimmed) return "";
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+  // Indian locale sheets often return DD/MM/YYYY or DD-MM-YYYY. Parse explicitly —
+  // `new Date("22/07/2026")` is Invalid Date in V8, which previously left keys
+  // unmatched against ISO scheduled dates used by payroll.
+  const dmy = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dmy) {
+    const day = Number(dmy[1]);
+    const month = Number(dmy[2]);
+    const year = Number(dmy[3]);
+    if (
+      Number.isFinite(day) &&
+      Number.isFinite(month) &&
+      Number.isFinite(year) &&
+      month >= 1 &&
+      month <= 12 &&
+      day >= 1 &&
+      day <= 31
+    ) {
+      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+  }
 
   if (/^\d+(\.\d+)?$/.test(trimmed)) {
     const serial = parseFloat(trimmed);
@@ -248,7 +269,7 @@ export function computeWorkingHoursMs(params: {
     role: "out",
   });
   if (inMs == null || outMs == null || outMs <= inMs) return 0;
-  const shouldSkipBreak = params.workMode === WORK_MODE.HALF_DAY_LEAVE;
+  const shouldSkipBreak = isHalfDayUnpaidWorkMode(params.workMode);
   const breakMs = shouldSkipBreak ? 0 : params.totalBreakMs;
   return Math.max(0, outMs - inMs - breakMs);
 }
@@ -273,8 +294,9 @@ export function computeAttendanceMetrics(params: {
   const totalBreakMs = resolveAttendanceBreakMs(params.totalBreakTime, params.workMode);
   const hasOut = Boolean(params.punchOut.trim());
   const punchedOut = params.punchedOut ?? hasOut;
-  const requiredMs =
-    params.workMode === WORK_MODE.HALF_DAY_LEAVE ? 4 * 60 * 60 * 1000 : idealWorkingMs();
+  const requiredMs = isHalfDayUnpaidWorkMode(params.workMode)
+    ? 4 * 60 * 60 * 1000
+    : idealWorkingMs();
 
   if (!params.punchIn.trim() || !hasOut) {
     return {
@@ -323,7 +345,7 @@ export function idealBreakMs(): number {
 }
 
 export function resolveAttendanceBreakMs(totalBreakTime: string, workMode?: string): number {
-  if (workMode === WORK_MODE.HALF_DAY_LEAVE) return 0;
+  if (isHalfDayUnpaidWorkMode(workMode)) return 0;
   const parsed = parseDurationToMs(totalBreakTime);
   return parsed > 0 ? parsed : idealBreakMs();
 }
@@ -334,7 +356,7 @@ export function resolveLiveBreakMs(
   workMode?: string,
   options?: { inProgress?: boolean },
 ): number {
-  if (workMode === WORK_MODE.HALF_DAY_LEAVE) return 0;
+  if (isHalfDayUnpaidWorkMode(workMode)) return 0;
   const trimmed = totalBreakTime.trim();
   if (options?.inProgress && trimmed.toLowerCase() === IMPORT_DEFAULT_BREAK.toLowerCase()) {
     return 0;
@@ -459,7 +481,7 @@ export function computeLiveWorkedMsFromFields(params: {
       }) ?? now.getTime())
     : now.getTime();
 
-  const skipBreak = params.workMode === WORK_MODE.HALF_DAY_LEAVE;
+  const skipBreak = isHalfDayUnpaidWorkMode(params.workMode);
   let totalBreakMs = resolveLiveBreakMs(params.totalBreakTime, params.workMode, {
     inProgress: !params.punchOut.trim(),
   });

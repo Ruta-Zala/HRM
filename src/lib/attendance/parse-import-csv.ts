@@ -143,9 +143,11 @@ function normalizeWorkMode(value: string): string {
 
   if (compact.includes("wfh") && compact.includes("hd")) return WORK_MODE.WFH_HALF_DAY;
   if (compact === "wfh") return WORK_MODE.WFH;
-  if (compact.includes("half day")) return WORK_MODE.HALF_DAY_LEAVE;
+  if (compact.includes("half day unpaid") || compact === "half day leave") {
+    return WORK_MODE.HALF_DAY_UNPAID_LEAVE;
+  }
   if (compact.includes("half day paid")) return WORK_MODE.HALF_DAY_PAID_LEAVE;
-  if (compact.includes("half day unpaid")) return WORK_MODE.HALF_DAY_UNPAID_LEAVE;
+  if (compact.includes("half day")) return WORK_MODE.HALF_DAY_UNPAID_LEAVE;
   if (compact.includes("paid leave")) return WORK_MODE.PAID_LEAVE;
   if (compact.includes("sick leave") || compact.includes("seak leave")) return WORK_MODE.SICK_LEAVE;
   if (compact.includes("casual leave")) return WORK_MODE.CASUAL_LEAVE;
@@ -153,11 +155,11 @@ function normalizeWorkMode(value: string): string {
   if (compact.includes("onsite")) return WORK_MODE.FULL_DAY_ONSITE;
   if (compact.includes("public holiday")) return WORK_MODE.PUBLIC_HOLIDAY;
   if (compact.includes("weekend holiday")) return WORK_MODE.WEEKEND_HOLIDAY;
-  if (compact.includes("full day leave")) return WORK_MODE.FULL_DAY_LEAVE;
+  if (compact.includes("full day leave")) return WORK_MODE.UNPAID_LEAVE;
   if (compact === "pl") return WORK_MODE.PAID_LEAVE;
   if (compact === "cl") return WORK_MODE.CASUAL_LEAVE;
   if (compact === "ul") return WORK_MODE.UNPAID_LEAVE;
-  if (compact === "sl") return WORK_MODE.SL;
+  if (compact === "sl") return WORK_MODE.SICK_LEAVE;
 
   return WORK_MODE.FULL_DAY_ONSITE;
 }

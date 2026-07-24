@@ -12,6 +12,10 @@ export const NOTIFICATION_TYPES = {
   COMPLAINT_SUBMITTED: "complaint_submitted",
   COMPLAINT_APPROVED: "complaint_approved",
   COMPLAINT_REJECTED: "complaint_rejected",
+  CORRECTION_SUBMITTED: "correction_submitted",
+  CORRECTION_SUBMITTED_EMPLOYEE: "correction_submitted_employee",
+  CORRECTION_APPROVED: "correction_approved",
+  CORRECTION_REJECTED: "correction_rejected",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];

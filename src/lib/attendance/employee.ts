@@ -73,45 +73,19 @@ export async function resolveAttendanceEmployee(
   const form = sheetRowToForm(record.headers, record.row);
   const employeeId = form.employeeId.trim();
   const employeeName = form.name.trim() || user.name;
-  let attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(record.headers, record.row);
-  if (
-    attendanceSpreadsheetId &&
-    !(await isAttendanceSpreadsheetAccessible(attendanceSpreadsheetId))
-  ) {
-    attendanceSpreadsheetId = "";
-  }
 
-  const parentFolderId = await resolveEmployeeFolderId(form.documentsFolderId, {
+  const attendanceSpreadsheetId = await resolveAttendanceSpreadsheetIdForRow({
+    headers: record.headers,
+    row: record.row,
+    sheetRow: record.sheetRow,
     employeeId,
     employeeName,
+    documentsFolderId: form.documentsFolderId,
+    birthdayDate: form.birthdayDate,
+    createIfMissing: true,
   });
 
-  if (!attendanceSpreadsheetId && parentFolderId) {
-    attendanceSpreadsheetId =
-      (await findAttendanceSpreadsheetInFolder(parentFolderId, employeeId, employeeName)) ?? "";
-  }
-
-  if (!attendanceSpreadsheetId) {
-    if (!employeeId || !parentFolderId) return null;
-
-    attendanceSpreadsheetId = await getOrCreateEmployeeAttendanceSpreadsheet(
-      employeeId,
-      employeeName,
-      parentFolderId,
-      form.birthdayDate,
-    );
-  }
-
-  const persistedId = getAttendanceSpreadsheetIdFromRow(record.headers, record.row);
-  if (persistedId !== attendanceSpreadsheetId) {
-    const headers = await getSheetHeadersData();
-    const updatedRow = withSheetRowUpdatedAt(
-      record.headers,
-      setAttendanceSpreadsheetIdOnRow(record.headers, record.row, attendanceSpreadsheetId),
-    );
-
-    await updateSheetRow(sheetRowToRange(record.sheetRow, headers.length), [updatedRow]);
-  }
+  if (!attendanceSpreadsheetId) return null;
 
   return {
     employeeId,
@@ -159,42 +133,18 @@ export async function resolveAttendanceEmployeeForTarget(
   const employeeId = form.employeeId.trim();
   const employeeName = form.name.trim() || "Employee";
 
-  let attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(headers, row);
-  if (
-    attendanceSpreadsheetId &&
-    !(await isAttendanceSpreadsheetAccessible(attendanceSpreadsheetId))
-  ) {
-    attendanceSpreadsheetId = "";
-  }
-  const parentFolderId = await resolveEmployeeFolderId(form.documentsFolderId, {
+  const attendanceSpreadsheetId = await resolveAttendanceSpreadsheetIdForRow({
+    headers,
+    row,
+    sheetRow: targetSheetRow,
     employeeId,
     employeeName,
+    documentsFolderId: form.documentsFolderId,
+    birthdayDate: form.birthdayDate,
+    createIfMissing: true,
   });
 
-  if (!attendanceSpreadsheetId && parentFolderId) {
-    attendanceSpreadsheetId =
-      (await findAttendanceSpreadsheetInFolder(parentFolderId, employeeId, employeeName)) ?? "";
-  }
-
-  if (!attendanceSpreadsheetId) {
-    if (!employeeId || !parentFolderId) return null;
-    attendanceSpreadsheetId = await getOrCreateEmployeeAttendanceSpreadsheet(
-      employeeId,
-      employeeName,
-      parentFolderId,
-      form.birthdayDate,
-    );
-  }
-
-  const persistedId = getAttendanceSpreadsheetIdFromRow(headers, row);
-  if (persistedId !== attendanceSpreadsheetId) {
-    const sheetHeaders = await getSheetHeadersData();
-    const updatedRow = withSheetRowUpdatedAt(
-      headers,
-      setAttendanceSpreadsheetIdOnRow(headers, row, attendanceSpreadsheetId),
-    );
-    await updateSheetRow(sheetRowToRange(targetSheetRow, sheetHeaders.length), [updatedRow]);
-  }
+  if (!attendanceSpreadsheetId) return null;
 
   return {
     employeeId,
@@ -214,12 +164,91 @@ export async function resolveAttendanceEmployeeBySheetRow(
   const headers = raw[0] as string[];
   const row = raw[sheetRow - 1] ?? [];
   const form = sheetRowToForm(headers, row);
+  const employeeId = form.employeeId.trim();
+  const employeeName = form.name.trim() || "Employee";
+
+  const attendanceSpreadsheetId = await resolveAttendanceSpreadsheetIdForRow({
+    headers,
+    row,
+    sheetRow,
+    employeeId,
+    employeeName,
+    documentsFolderId: form.documentsFolderId,
+    createIfMissing: false,
+  });
 
   return {
     employeeId: form.employeeId,
-    employeeName: form.name.trim() || "Employee",
-    attendanceSpreadsheetId: getAttendanceSpreadsheetIdFromRow(headers, row),
+    employeeName,
+    attendanceSpreadsheetId,
     sheetRow,
     birthdayDate: form.birthdayDate.trim(),
   };
+}
+
+/**
+ * Resolve an employee's attendance spreadsheet the same way punch/manual APIs do:
+ * stored ID → accessibility check → search employee folder → optional create.
+ * Used by payroll so Attend Days is not stuck at 0 when the Employees sheet ID is blank/stale.
+ */
+export async function resolveAttendanceSpreadsheetIdForRow(params: {
+  headers: string[];
+  row: string[];
+  sheetRow: number;
+  employeeId: string;
+  employeeName: string;
+  documentsFolderId: string;
+  birthdayDate?: string;
+  /** When false (e.g. payroll reads), never create an empty attendance workbook. */
+  createIfMissing?: boolean;
+  /** Ignore the Employees-sheet ID and resolve from the employee Drive folder. */
+  preferFolderSearch?: boolean;
+}): Promise<string> {
+  let attendanceSpreadsheetId = params.preferFolderSearch
+    ? ""
+    : getAttendanceSpreadsheetIdFromRow(params.headers, params.row);
+  if (
+    attendanceSpreadsheetId &&
+    !(await isAttendanceSpreadsheetAccessible(attendanceSpreadsheetId))
+  ) {
+    attendanceSpreadsheetId = "";
+  }
+
+  const parentFolderId = await resolveEmployeeFolderId(params.documentsFolderId, {
+    employeeId: params.employeeId,
+    employeeName: params.employeeName,
+  });
+
+  if (!attendanceSpreadsheetId && parentFolderId) {
+    attendanceSpreadsheetId =
+      (await findAttendanceSpreadsheetInFolder(
+        parentFolderId,
+        params.employeeId,
+        params.employeeName,
+      )) ?? "";
+  }
+
+  if (!attendanceSpreadsheetId && params.createIfMissing !== false) {
+    if (!params.employeeId || !parentFolderId) return "";
+    attendanceSpreadsheetId = await getOrCreateEmployeeAttendanceSpreadsheet(
+      params.employeeId,
+      params.employeeName,
+      parentFolderId,
+      params.birthdayDate ?? "",
+    );
+  }
+
+  if (!attendanceSpreadsheetId) return "";
+
+  const persistedId = getAttendanceSpreadsheetIdFromRow(params.headers, params.row);
+  if (persistedId !== attendanceSpreadsheetId) {
+    const sheetHeaders = await getSheetHeadersData();
+    const updatedRow = withSheetRowUpdatedAt(
+      params.headers,
+      setAttendanceSpreadsheetIdOnRow(params.headers, params.row, attendanceSpreadsheetId),
+    );
+    await updateSheetRow(sheetRowToRange(params.sheetRow, sheetHeaders.length), [updatedRow]);
+  }
+
+  return attendanceSpreadsheetId;
 }

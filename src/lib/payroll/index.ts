@@ -21,6 +21,8 @@ export {
   DEFAULT_LWF,
   HOURS_PER_DAY,
   PAYROLL_DAY_CODE,
+  PAYROLL_DAY_CODE_LABEL,
+  PAYROLL_DAY_CODE_LEGEND,
 } from "@/lib/payroll/constants";
 export type { PayrollDayCode } from "@/lib/payroll/constants";
 export {

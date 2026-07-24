@@ -31,6 +31,8 @@ export type AttendanceHistoryRow = {
   workMode?: string;
   punchIn: string;
   punchOut: string;
+  breakStart?: string;
+  breakEnd?: string;
   breakTime: string;
   workingHours: string;
   overtime: string;
@@ -308,6 +310,26 @@ export async function fetchOvertimeRequests(): Promise<OvertimeRequestDto[]> {
   const data = await res.json();
   if (!data.success) throw new Error(data.message ?? "Failed to load overtime requests");
   return data.requests ?? [];
+}
+
+export async function saveHrAttendance(body: {
+  employeeSheetRow: number;
+  date: string;
+  workMode?: string;
+  punchIn?: string;
+  punchOut?: string;
+  breakStart?: string;
+  breakEnd?: string;
+}): Promise<{ message: string }> {
+  const res = await fetch("/api/attendance/manual", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.message ?? "Failed to save attendance");
+  return { message: data.message ?? "Attendance saved" };
 }
 
 export async function reviewOvertimeRequest(

@@ -6,12 +6,18 @@ import { AttendanceHistoryView } from "@/components/attendance/attendance-histor
 import { useAuth } from "@/contexts/auth-provider";
 import {
   fetchAttendanceHistory,
-  fetchAttendancePeriods,
   importAttendanceCsv,
+  saveHrAttendance,
   submitOvertimeRequest,
   type AttendanceHistoryRow,
-  type AttendancePeriod,
 } from "@/lib/attendance/client";
+import { localTodayIso } from "@/lib/attendance/manual-entry";
+import {
+  buildAttendancePeriodOptions,
+  clampMonthForYear,
+  defaultAttendancePeriodSelection,
+} from "@/lib/attendance/period-options";
+import type { HrAttendanceFormValues } from "@/components/attendance/hr-attendance-form";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { parseEmployeeListApiResponse } from "@/lib/employee/list";
 import type { Employee } from "@/types/employee";
@@ -72,7 +78,7 @@ function exportCsv(
   const employeeIdPart = options?.employeeId ? safeFilePart(options.employeeId) : "";
   const monthPart =
     options?.year != null && options?.month != null
-      ? `${options.year}-${String(options.month).padStart(2, "0")}`
+      ? `${options.year}-${String(options.month + 1).padStart(2, "0")}`
       : "all-months";
   const parts = ["attendance", employeePart, employeeIdPart, monthPart].filter(Boolean);
   a.download = `${parts.join("-")}.csv`;
@@ -85,17 +91,22 @@ export default function AttendanceHistoryPage() {
   const isHr = user ? canManageEmployees(user.role) : false;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const periods = useMemo(() => buildAttendancePeriodOptions(), []);
+  const initialPeriod = useMemo(() => defaultAttendancePeriodSelection(), []);
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedSheetRow, setSelectedSheetRow] = useState<number | null>(user?.sheetRow ?? null);
-  const [periods, setPeriods] = useState<AttendancePeriod[]>([]);
-  const [year, setYear] = useState<number | null>(null);
-  const [month, setMonth] = useState<number | null>(null);
+  const [year, setYear] = useState<number | null>(initialPeriod.year);
+  const [month, setMonth] = useState<number | null>(initialPeriod.month);
   const [rows, setRows] = useState<AttendanceHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [requestingOvertimeId, setRequestingOvertimeId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [hrFormMode, setHrFormMode] = useState<"closed" | "add" | "edit">("closed");
+  const [hrFormRow, setHrFormRow] = useState<AttendanceHistoryRow | null>(null);
+  const [savingHrAttendance, setSavingHrAttendance] = useState(false);
 
   const targetSheetRow = isHr
     ? (selectedSheetRow ?? user?.sheetRow ?? null)
@@ -108,59 +119,6 @@ export default function AttendanceHistoryPage() {
       .then((data) => setEmployees(parseEmployeeListApiResponse(data)))
       .catch(() => {});
   }, [isHr]);
-
-  const applyPeriods = useCallback((data: AttendancePeriod[]) => {
-    setPeriods(data);
-    const first = data[0];
-    if (first) {
-      setYear(first.year);
-      const lastMonth = first.months[first.months.length - 1];
-      setMonth(lastMonth?.month ?? null);
-    } else {
-      setYear(null);
-      setMonth(null);
-      setRows([]);
-    }
-  }, []);
-
-  const loadPeriods = useCallback(async () => {
-    if (targetSheetRow == null) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchAttendancePeriods(targetSheetRow);
-      applyPeriods(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load periods");
-    } finally {
-      setLoading(false);
-    }
-  }, [targetSheetRow, applyPeriods]);
-
-  useEffect(() => {
-    if (targetSheetRow == null) return;
-
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await fetchAttendancePeriods(targetSheetRow);
-        if (cancelled) return;
-        applyPeriods(data);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load periods");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [targetSheetRow, applyPeriods]);
 
   const loadHistory = useCallback(async () => {
     if (year == null || month == null || targetSheetRow == null) return;
@@ -191,6 +149,7 @@ export default function AttendanceHistoryPage() {
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load attendance");
+          setRows([]);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -224,7 +183,6 @@ export default function AttendanceHistoryPage() {
         selectedEmployee?.name ??
         (isHr ? `sheet row ${targetSheetRow}` : "your account");
       setImportMessage(`${result.message}${extra} For: ${employeeLabel}.`);
-      await loadPeriods();
       if (year != null && month != null) {
         await loadHistory();
       }
@@ -238,8 +196,7 @@ export default function AttendanceHistoryPage() {
 
   function handleYearChange(y: number) {
     setYear(y);
-    const months = periods.find((p) => p.year === y)?.months ?? [];
-    setMonth(months[0]?.month ?? null);
+    setMonth(clampMonthForYear(y, month, periods));
   }
 
   async function handleRequestOvertime(row: AttendanceHistoryRow) {
@@ -259,6 +216,44 @@ export default function AttendanceHistoryPage() {
       setError(err instanceof Error ? err.message : "Failed to submit overtime request");
     } finally {
       setRequestingOvertimeId(null);
+    }
+  }
+
+  function defaultHrFormDate(): string {
+    const today = localTodayIso();
+    if (year != null && month != null) {
+      const [y, m] = today.split("-").map((part) => Number(part));
+      if (y === year && m === month + 1) return today;
+      return `${year}-${String(month + 1).padStart(2, "0")}-01`;
+    }
+    return today;
+  }
+
+  async function handleSaveHrAttendance(values: HrAttendanceFormValues) {
+    if (targetSheetRow == null) {
+      throw new Error("Select an employee first");
+    }
+    setSavingHrAttendance(true);
+    setError(null);
+    setImportMessage(null);
+    try {
+      const result = await saveHrAttendance({
+        employeeSheetRow: targetSheetRow,
+        date: values.date,
+        workMode: values.workMode,
+        punchIn: values.punchIn || undefined,
+        punchOut: values.punchOut || undefined,
+        breakStart: values.breakStart || undefined,
+        breakEnd: values.breakEnd || undefined,
+      });
+      setImportMessage(result.message);
+      setHrFormMode("closed");
+      setHrFormRow(null);
+      if (year != null && month != null) {
+        await loadHistory();
+      }
+    } finally {
+      setSavingHrAttendance(false);
     }
   }
 
@@ -302,6 +297,23 @@ export default function AttendanceHistoryPage() {
         canExport={rows.length > 0}
         requestingOvertimeId={requestingOvertimeId}
         onRequestOvertime={(row) => void handleRequestOvertime(row)}
+        hrFormMode={hrFormMode}
+        hrFormRow={hrFormRow}
+        hrFormDate={defaultHrFormDate()}
+        savingHrAttendance={savingHrAttendance}
+        onOpenAddAttendance={() => {
+          setHrFormRow(null);
+          setHrFormMode("add");
+        }}
+        onOpenEditAttendance={(row) => {
+          setHrFormRow(row);
+          setHrFormMode("edit");
+        }}
+        onCloseHrForm={() => {
+          setHrFormMode("closed");
+          setHrFormRow(null);
+        }}
+        onSaveHrAttendance={handleSaveHrAttendance}
       />
     </div>
   );

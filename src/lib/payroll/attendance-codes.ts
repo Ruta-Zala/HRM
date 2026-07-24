@@ -1,4 +1,9 @@
-import { WORK_MODE, WORKING_STATUS } from "@/lib/attendance/constants";
+import {
+  canonicalizeWorkMode,
+  WORK_MODE_DAY_CODE,
+  WORKING_STATUS,
+  type WorkMode,
+} from "@/lib/attendance/constants";
 import { PAYROLL_DAY_CODE, type PayrollDayCode } from "@/lib/payroll/constants";
 
 export type DayWeights = {
@@ -23,56 +28,45 @@ export function weightsForCode(code: PayrollDayCode): DayWeights {
   return { code, ...WEIGHTS[code] };
 }
 
+function dayCodeFromWorkMode(workMode: string): PayrollDayCode | null {
+  const code = WORK_MODE_DAY_CODE[workMode as WorkMode];
+  if (!code) return null;
+  return code as PayrollDayCode;
+}
+
 /**
- * Map HRMS work mode / status into salary-sheet day codes (P/A/H/U/F).
- * Missing attendance on a scheduled working day should be treated as full unpaid (F).
+ * Map attendance-sheet work modes into payroll day codes:
+ * P = Full Day Onsite, A = Paid Leave, H = Half Day Paid Leave,
+ * U = Half Day Unpaid Leave, F = Unpaid Leave.
+ *
+ * Missing attendance on a due scheduled working day = F.
  */
 export function mapAttendanceToPayrollCode(input: {
   workMode?: string;
   status?: string;
   hasRow: boolean;
+  punchIn?: string;
+  punchOut?: string;
 }): PayrollDayCode {
   if (!input.hasRow) return PAYROLL_DAY_CODE.UNPAID_FULL;
 
-  const workMode = String(input.workMode ?? "").trim();
+  const workMode = canonicalizeWorkMode(String(input.workMode ?? ""));
   const status = String(input.status ?? "").trim();
+  const hasPunch = Boolean(input.punchIn?.trim() || input.punchOut?.trim());
 
   if (status === WORKING_STATUS.ABSENT) {
     return PAYROLL_DAY_CODE.UNPAID_FULL;
   }
 
-  if (workMode === WORK_MODE.UNPAID_LEAVE) {
-    return PAYROLL_DAY_CODE.UNPAID_FULL;
-  }
+  const fromMode = dayCodeFromWorkMode(workMode);
+  if (fromMode) return fromMode;
 
-  if (workMode === WORK_MODE.HALF_DAY_UNPAID_LEAVE) {
-    return PAYROLL_DAY_CODE.UNPAID_HALF;
-  }
-
-  if (
-    workMode === WORK_MODE.PAID_LEAVE ||
-    workMode === WORK_MODE.SICK_LEAVE ||
-    workMode === WORK_MODE.CASUAL_LEAVE ||
-    workMode === WORK_MODE.SL ||
-    workMode === WORK_MODE.FULL_DAY_LEAVE
-  ) {
-    return PAYROLL_DAY_CODE.PAID_FULL;
-  }
-
-  if (
-    workMode === WORK_MODE.HALF_DAY_PAID_LEAVE ||
-    workMode === WORK_MODE.HALF_DAY_LEAVE ||
-    workMode === WORK_MODE.WFH_HALF_DAY
-  ) {
-    return PAYROLL_DAY_CODE.PAID_HALF;
-  }
-
-  if (workMode === WORK_MODE.PUBLIC_HOLIDAY || workMode === WORK_MODE.WEEKEND_HOLIDAY) {
-    // Scheduled working calendar already excludes leave-type holidays / weekends.
-    // If a holiday row still appears, do not deduct pay.
+  // Punched day with blank/unknown work mode = P (present)
+  if (hasPunch) {
     return PAYROLL_DAY_CODE.PRESENT;
   }
 
+  // Leave marked only by status (no explicit work mode) = A (paid leave, no deduction)
   if (status === WORKING_STATUS.ON_LEAVE) {
     return PAYROLL_DAY_CODE.PAID_FULL;
   }
@@ -82,7 +76,10 @@ export function mapAttendanceToPayrollCode(input: {
 
 export function summarizeAttendanceDays(
   scheduledDates: string[],
-  attendanceByDate: Map<string, { workMode?: string; status?: string }>,
+  attendanceByDate: Map<
+    string,
+    { workMode?: string; status?: string; punchIn?: string; punchOut?: string }
+  >,
 ): {
   halfPaidLeave: number;
   fullPaidLeave: number;
@@ -108,6 +105,8 @@ export function summarizeAttendanceDays(
       workMode: row?.workMode,
       status: row?.status,
       hasRow: Boolean(row),
+      punchIn: row?.punchIn,
+      punchOut: row?.punchOut,
     });
     const weights = weightsForCode(code);
     dayCodes[date] = code;

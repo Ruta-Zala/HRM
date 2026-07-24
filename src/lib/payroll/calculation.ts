@@ -17,9 +17,14 @@ export type PayrollEmployeeInput = {
   loyaltyPercent?: number;
   professionalTax?: number;
   lwf?: number;
+  /** Salary advance recovery for this payroll month. */
+  salaryAdvance?: number;
   workingDays: number;
   scheduledDates: string[];
-  attendanceByDate: Map<string, { workMode?: string; status?: string }>;
+  attendanceByDate: Map<
+    string,
+    { workMode?: string; status?: string; punchIn?: string; punchOut?: string }
+  >;
 };
 
 export type PayrollEmployeeResult = {
@@ -42,6 +47,7 @@ export type PayrollEmployeeResult = {
   loyaltyBonus: number;
   professionalTax: number;
   lwf: number;
+  salaryAdvance: number;
   totalFixedDeductions: number;
   finalPayment: number;
   dayCodes: Record<string, string>;
@@ -57,12 +63,13 @@ export type PayrollEmployeeResult = {
  * 3. perDay = monthlySalary / workingDays
  * 4. perHour = perDay / 8
  * 5. Attendance is evaluated only on the employee's employment dates in that month
- *    (after joining / before last working day). Unpaid leave reduces pay:
+ *    (after joining / before last working day), using each employee's punch attendance sheet.
+ *    Unpaid leave reduces pay; Paid / Sick / Casual leave do not.
  *    amountAfterAttendance = (employmentWorkingDays − unpaidLeaveDays) × perDay
  *    For a full-month employee this equals monthlySalary − unpaidLeaveAmount.
- * 6. finalPayment = amountAfterAttendance − loyaltyBonus − PT − LWF
+ * 6. finalPayment = amountAfterAttendance − loyaltyBonus − PT − LWF − salaryAdvance
  *
- * Paid leave (A/H) does not reduce pay.
+ * Paid leave (Paid / Sick / Casual / Half Day Paid) does not reduce pay.
  */
 export function calculateEmployeePayroll(input: PayrollEmployeeInput): PayrollEmployeeResult {
   const monthlySalary = Math.max(0, Number(input.monthlySalary) || 0);
@@ -77,12 +84,12 @@ export function calculateEmployeePayroll(input: PayrollEmployeeInput): PayrollEm
       : DEFAULT_PROFESSIONAL_TAX;
   const lwf =
     input.lwf != null && Number.isFinite(input.lwf) ? Math.max(0, input.lwf) : DEFAULT_LWF;
+  const salaryAdvance = Math.max(0, Number(input.salaryAdvance) || 0);
 
   // Step 1 — fixed deductions based on monthly salary
   const loyaltyBonus = round2((monthlySalary * loyaltyPercent) / 100);
   const pt = round2(professionalTax);
   const lwfAmount = round2(lwf);
-  const totalFixedDeductions = round2(loyaltyBonus + pt + lwfAmount);
 
   // Steps 2–4 — working-day rates (company calendar)
   const perDay = workingDays > 0 ? monthlySalary / workingDays : 0;
@@ -96,7 +103,13 @@ export function calculateEmployeePayroll(input: PayrollEmployeeInput): PayrollEm
   const payableDayWeight = Math.max(0, employmentWorkingDays - attendance.totalUnpaidLeave);
   const amountAfterAttendance = round2(payableDayWeight * perDay);
 
-  // Step 6 — deduct loyalty, PT, LWF from post-attendance amount
+  // Step 6 — deduct loyalty, PT, LWF, and salary advance from post-attendance amount.
+  // Always surface the scheduled advance installment; only the applied portion can
+  // reduce final pay (never below zero after loyalty/PT/LWF).
+  const scheduledAdvance = round2(salaryAdvance);
+  const availableForAdvance = Math.max(0, amountAfterAttendance - loyaltyBonus - pt - lwfAmount);
+  const advanceApplied = round2(Math.min(scheduledAdvance, availableForAdvance));
+  const totalFixedDeductions = round2(loyaltyBonus + pt + lwfAmount + advanceApplied);
   const finalPayment = round2(Math.max(0, amountAfterAttendance - totalFixedDeductions));
 
   return {
@@ -118,6 +131,7 @@ export function calculateEmployeePayroll(input: PayrollEmployeeInput): PayrollEm
     loyaltyBonus,
     professionalTax: pt,
     lwf: lwfAmount,
+    salaryAdvance: scheduledAdvance,
     totalFixedDeductions,
     finalPayment,
     dayCodes: attendance.dayCodes,
@@ -131,16 +145,23 @@ export type PayrollPeriodAggregate = {
   totalProfessionalTax: number;
   totalLwf: number;
   totalUnpaidLeaveAmount: number;
+  totalSalaryAdvance: number;
   employeesWithPt: number;
   employeesWithLwf: number;
   employeesWithLoyalty: number;
   employeesWithUnpaid: number;
+  employeesWithAdvance: number;
 };
 
 export function aggregatePayroll(
   rows: Pick<
     PayrollEmployeeResult,
-    "finalPayment" | "loyaltyBonus" | "professionalTax" | "lwf" | "unpaidLeaveAmount"
+    | "finalPayment"
+    | "loyaltyBonus"
+    | "professionalTax"
+    | "lwf"
+    | "unpaidLeaveAmount"
+    | "salaryAdvance"
   >[],
 ): PayrollPeriodAggregate {
   let totalNetPayable = 0;
@@ -148,10 +169,12 @@ export function aggregatePayroll(
   let totalProfessionalTax = 0;
   let totalLwf = 0;
   let totalUnpaidLeaveAmount = 0;
+  let totalSalaryAdvance = 0;
   let employeesWithPt = 0;
   let employeesWithLwf = 0;
   let employeesWithLoyalty = 0;
   let employeesWithUnpaid = 0;
+  let employeesWithAdvance = 0;
 
   for (const row of rows) {
     totalNetPayable += row.finalPayment;
@@ -159,10 +182,12 @@ export function aggregatePayroll(
     totalProfessionalTax += row.professionalTax;
     totalLwf += row.lwf;
     totalUnpaidLeaveAmount += row.unpaidLeaveAmount;
+    totalSalaryAdvance += row.salaryAdvance;
     if (row.professionalTax > 0) employeesWithPt += 1;
     if (row.lwf > 0) employeesWithLwf += 1;
     if (row.loyaltyBonus > 0) employeesWithLoyalty += 1;
     if (row.unpaidLeaveAmount > 0) employeesWithUnpaid += 1;
+    if (row.salaryAdvance > 0) employeesWithAdvance += 1;
   }
 
   return {
@@ -172,9 +197,11 @@ export function aggregatePayroll(
     totalProfessionalTax: round2(totalProfessionalTax),
     totalLwf: round2(totalLwf),
     totalUnpaidLeaveAmount: round2(totalUnpaidLeaveAmount),
+    totalSalaryAdvance: round2(totalSalaryAdvance),
     employeesWithPt,
     employeesWithLwf,
     employeesWithLoyalty,
     employeesWithUnpaid,
+    employeesWithAdvance,
   };
 }

@@ -18,7 +18,12 @@ import {
   updateDailyUpdate,
   type CorrectionRequestDto,
 } from "@/lib/attendance/client";
-import { CORRECTION_STATUS, WORK_MODE, WORK_MODE_OPTIONS } from "@/lib/attendance/constants";
+import {
+  CORRECTION_STATUS,
+  WORK_MODE,
+  WORK_MODE_OPTIONS,
+  workModeOptionLabel,
+} from "@/lib/attendance/constants";
 
 export default function PunchPage() {
   const { user } = useAuth();
@@ -123,7 +128,7 @@ export default function PunchPage() {
             >
               {WORK_MODE_OPTIONS.map((option) => (
                 <option key={option} value={option}>
-                  {option}
+                  {workModeOptionLabel(option)}
                 </option>
               ))}
             </Select>
