@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 
 import { sheets } from "@/lib/google/auth";
 import { applySheetHeaderFormatByTitle } from "@/lib/google/sheet-format";
+import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
+import { headerToFormKey } from "@/lib/employee/form";
+import { toPayrollDateOnly } from "@/lib/payroll/employment";
 
 import {
   SALARY_HISTORY_SHEET_NAME,
@@ -64,11 +67,32 @@ function asNumber(value: string): number {
 }
 
 function normalizeDateOnly(value: string): string {
-  const v = String(value ?? "").trim();
-  if (!v) return "";
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10);
+  return toPayrollDateOnly(value);
+}
+
+/** effectiveFrom + 1 year − 1 day (12-month salary window). */
+export function defaultSalaryEffectiveTo(effectiveFrom: string): string {
+  const from = normalizeDateOnly(effectiveFrom);
+  if (!from) return "";
+  const [y, m, d] = from.split("-").map(Number);
+  const dt = new Date(Date.UTC(y + 1, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+function historyRowValues(payload: SalaryHistoryRecord): (string | number)[] {
+  return [
+    payload.employeeSheetRow,
+    payload.employeeName,
+    payload.effectiveFrom,
+    payload.effectiveTo,
+    payload.basic,
+    payload.loyaltyBonus,
+    payload.professionalTax,
+    payload.status,
+    payload.createdAt,
+    payload.updatedAt,
+  ];
 }
 
 async function getSheetMeta() {
@@ -145,31 +169,119 @@ function readCell(row: string[], headers: readonly string[], key: string): strin
   return idx >= 0 ? String(row[idx] ?? "") : "";
 }
 
-export async function listSalaryHistoryRecords(): Promise<SalaryHistoryRecord[]> {
+function looksLikePersonName(value: string): boolean {
+  const v = value.trim();
+  if (!v) return false;
+  if (normalizeDateOnly(v)) return false;
+  if (/^\d+(\.\d+)?$/.test(v)) return false;
+  return /[a-zA-Z]/.test(v);
+}
+
+/** True when a history row can be shown as an effective salary period. */
+export function isValidSalaryHistoryRecord(record: SalaryHistoryRecord): boolean {
+  return (
+    Number.isInteger(record.employeeSheetRow) &&
+    record.employeeSheetRow >= 2 &&
+    Boolean(record.effectiveFrom) &&
+    Number(record.basic) > 0
+  );
+}
+
+function parseSalaryHistoryRow(row: string[], sheetRow: number): SalaryHistoryRecord | null {
+  const employeeSheetRow = asNumber(readCell(row, SALARY_HISTORY_HEADERS, "employeeSheetRow"));
+  let employeeName = readCell(row, SALARY_HISTORY_HEADERS, "employeeName").trim();
+  let effectiveFrom = normalizeDateOnly(readCell(row, SALARY_HISTORY_HEADERS, "effectiveFrom"));
+  let effectiveTo = normalizeDateOnly(readCell(row, SALARY_HISTORY_HEADERS, "effectiveTo"));
+  let basic = asNumber(readCell(row, SALARY_HISTORY_HEADERS, "basic"));
+  let loyaltyBonus = asNumber(readCell(row, SALARY_HISTORY_HEADERS, "loyaltyBonus"));
+  let professionalTax = asNumber(readCell(row, SALARY_HISTORY_HEADERS, "professionalTax"));
+  let statusRaw = readCell(row, SALARY_HISTORY_HEADERS, "status");
+  const createdAt = readCell(row, SALARY_HISTORY_HEADERS, "createdAt");
+  const updatedAt = readCell(row, SALARY_HISTORY_HEADERS, "updatedAt");
+
+  // Recover rows written without employeeName (values shifted left by one).
+  const nameAsDate = normalizeDateOnly(employeeName);
+  if (nameAsDate && !effectiveFrom) {
+    effectiveFrom = nameAsDate;
+    effectiveTo = normalizeDateOnly(String(row[2] ?? "")) || effectiveTo;
+    basic = asNumber(String(row[3] ?? ""));
+    loyaltyBonus = asNumber(String(row[4] ?? ""));
+    professionalTax = asNumber(String(row[5] ?? ""));
+    statusRaw = String(row[6] ?? statusRaw);
+    employeeName = "";
+  }
+
+  if (!Number.isInteger(employeeSheetRow) || employeeSheetRow < 2) return null;
+
+  // If "to" landed in an absurd far-future year from bad Date math, recompute from from+1y-1d.
+  if (effectiveFrom && effectiveTo) {
+    const fromYear = Number(effectiveFrom.slice(0, 4));
+    const toYear = Number(effectiveTo.slice(0, 4));
+    if (Number.isFinite(fromYear) && Number.isFinite(toYear) && toYear - fromYear > 2) {
+      effectiveTo = defaultSalaryEffectiveTo(effectiveFrom);
+    }
+  }
+  if (effectiveFrom && !effectiveTo) {
+    effectiveTo = defaultSalaryEffectiveTo(effectiveFrom);
+  }
+
+  if (!looksLikePersonName(employeeName)) {
+    employeeName = "";
+  }
+
+  const status =
+    String(statusRaw).trim().toLowerCase() === "inactive"
+      ? ("Inactive" as const)
+      : ("Active" as const);
+
+  return {
+    sheetRow,
+    employeeSheetRow,
+    employeeName,
+    effectiveFrom,
+    effectiveTo,
+    basic,
+    loyaltyBonus,
+    professionalTax: professionalTax > 0 ? professionalTax : 200,
+    status,
+    createdAt,
+    updatedAt,
+  };
+}
+
+export async function listSalaryHistoryRecords(options?: {
+  /** When true (default), omit corrupt rows (no start date / no basic). */
+  validOnly?: boolean;
+}): Promise<SalaryHistoryRecord[]> {
   await ensureHeadersWithFormat(SALARY_HISTORY_SHEET_NAME, SALARY_HISTORY_HEADERS);
   const rows = await readRows(SALARY_HISTORY_SHEET_NAME);
   if (rows.length <= 1) return [];
 
-  return rows.slice(1).map((row, i) => ({
-    sheetRow: i + 2,
-    employeeSheetRow: asNumber(readCell(row, SALARY_HISTORY_HEADERS, "employeeSheetRow")),
-    employeeName: readCell(row, SALARY_HISTORY_HEADERS, "employeeName"),
-    effectiveFrom: normalizeDateOnly(readCell(row, SALARY_HISTORY_HEADERS, "effectiveFrom")),
-    effectiveTo: normalizeDateOnly(readCell(row, SALARY_HISTORY_HEADERS, "effectiveTo")),
-    basic: asNumber(readCell(row, SALARY_HISTORY_HEADERS, "basic")),
-    loyaltyBonus: asNumber(readCell(row, SALARY_HISTORY_HEADERS, "loyaltyBonus")),
-    professionalTax: asNumber(readCell(row, SALARY_HISTORY_HEADERS, "professionalTax")),
-    status:
-      readCell(row, SALARY_HISTORY_HEADERS, "status").toLowerCase() === "inactive"
-        ? "Inactive"
-        : "Active",
-    createdAt: readCell(row, SALARY_HISTORY_HEADERS, "createdAt"),
-    updatedAt: readCell(row, SALARY_HISTORY_HEADERS, "updatedAt"),
-  }));
+  const validOnly = options?.validOnly !== false;
+  const parsed = rows
+    .slice(1)
+    .map((row, i) => parseSalaryHistoryRow(row, i + 2))
+    .filter((row): row is SalaryHistoryRecord => Boolean(row));
+
+  return validOnly ? parsed.filter(isValidSalaryHistoryRecord) : parsed;
+}
+
+/**
+ * Delete Active salary-history rows that are corrupt (blank start / zero basic)
+ * so they no longer appear for an employee.
+ */
+export async function cleanupCorruptSalaryHistoryRecords(): Promise<number> {
+  const all = await listSalaryHistoryRecords({ validOnly: false });
+  const corrupt = all.filter((row) => row.status === "Active" && !isValidSalaryHistoryRecord(row));
+  if (!corrupt.length) return 0;
+  await deleteSalaryHistorySheetRows(corrupt.map((row) => row.sheetRow));
+  return corrupt.length;
 }
 
 export function assertNonOverlappingEffectiveRanges(records: SalaryHistoryRecord[]): void {
-  const sorted = [...records].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+  const sorted = [...records]
+    .filter((row) => row.status !== "Inactive" && row.effectiveFrom)
+    .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
 
   for (let i = 1; i < sorted.length; i += 1) {
     const prev = sorted[i - 1];
@@ -183,6 +295,166 @@ export function assertNonOverlappingEffectiveRanges(records: SalaryHistoryRecord
   }
 }
 
+async function getSalaryHistorySheetId(): Promise<number> {
+  const meta = await getSheetMeta();
+  const sheet = meta.find((s) => s.properties?.title === SALARY_HISTORY_SHEET_NAME);
+  const sheetId = sheet?.properties?.sheetId;
+  if (sheetId == null) {
+    throw new Error(`Sheet "${SALARY_HISTORY_SHEET_NAME}" not found`);
+  }
+  return sheetId;
+}
+
+/** Physically remove sheet rows (1-based), highest index first so indices stay valid. */
+async function deleteSalaryHistorySheetRows(sheetRows: number[]): Promise<void> {
+  const unique = [...new Set(sheetRows.filter((row) => Number.isInteger(row) && row >= 2))].sort(
+    (a, b) => b - a,
+  );
+  if (!unique.length) return;
+
+  const sheetId = await getSalaryHistorySheetId();
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: unique.map((row) => ({
+        deleteDimension: {
+          range: {
+            sheetId,
+            dimension: "ROWS",
+            startIndex: row - 1,
+            endIndex: row,
+          },
+        },
+      })),
+    },
+  });
+}
+
+/**
+ * Remove every Active salary-history row for an employee so a new effective
+ * salary can be added without overlap.
+ */
+async function deleteActiveSalaryHistoryForEmployee(
+  employeeSheetRow: number,
+): Promise<SalaryHistoryRecord[]> {
+  const all = await listSalaryHistoryRecords({ validOnly: false });
+  const employeeRows = all.filter((r) => r.employeeSheetRow === employeeSheetRow);
+  const activeRows = employeeRows.filter((r) => r.status === "Active");
+  await deleteSalaryHistorySheetRows(activeRows.map((r) => r.sheetRow));
+  return employeeRows.filter((r) => r.status !== "Active" && isValidSalaryHistoryRecord(r));
+}
+
+/**
+ * Keep the Employees sheet salary column in sync with the latest salary revision
+ * (HR / Super Admin employee list & profile read from that column).
+ */
+async function syncEmployeeSheetSalary(params: {
+  employeeSheetRow: number;
+  basic: number;
+  effectiveFrom: string;
+}): Promise<void> {
+  const sheetRow = params.employeeSheetRow;
+  if (!Number.isInteger(sheetRow) || sheetRow < 2) return;
+
+  const amount = Number(params.basic);
+  const salaryValue =
+    Number.isFinite(amount) && amount > 0 ? String(Math.round(amount * 100) / 100) : "";
+  if (!salaryValue) {
+    throw new Error("Cannot sync employee salary: basic must be greater than 0");
+  }
+
+  const sheet = await readSheet(EMPLOYEE_SHEET_RANGE);
+  if (sheetRow > sheet.length) {
+    throw new Error("Employee not found while syncing salary");
+  }
+
+  // Prefer the first-row headers as returned by Sheets (do not trim mid-row blanks away).
+  const headerRow = (sheet[0] ?? []).map((cell) => String(cell ?? ""));
+  const updates: Array<{ range: string; values: string[][] }> = [];
+
+  for (let index = 0; index < headerRow.length; index += 1) {
+    const header = headerRow[index] ?? "";
+    if (!header.trim()) continue;
+    const formKey = headerToFormKey(header);
+    const colLetter = columnIndexToA1Letter(index + 1);
+    const cell = `Employees!${colLetter}${sheetRow}`;
+
+    if (formKey === "salary") {
+      updates.push({ range: cell, values: [[salaryValue]] });
+    }
+    if (formKey === "lastIncrementDate" && params.effectiveFrom) {
+      updates.push({ range: cell, values: [[params.effectiveFrom]] });
+    }
+    if (formKey === "updatedAt") {
+      updates.push({ range: cell, values: [[nowIso()]] });
+    }
+  }
+
+  if (!updates.some((u) => u.values[0]?.[0] === salaryValue)) {
+    throw new Error(
+      'Employees sheet is missing a Salary column (expected header like "salary" or "Salary (monthly)")',
+    );
+  }
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      valueInputOption: "USER_ENTERED",
+      data: updates,
+    },
+  });
+}
+
+/** 1-based column number → A1 letter(s), e.g. 1→A, 10→J, 27→AA. */
+function columnIndexToA1Letter(columnNumber: number): string {
+  let letter = "";
+  let n = Math.max(1, columnNumber);
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letter = String.fromCharCode(65 + rem) + letter;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letter;
+}
+
+/** Latest Active salary-history row for an employee (by effectiveFrom desc). */
+export async function findLatestActiveSalaryForEmployee(
+  employeeSheetRow: number,
+): Promise<SalaryHistoryRecord | null> {
+  const records = await listSalaryHistoryRecords();
+  const filtered = records
+    .filter((r) => r.employeeSheetRow === employeeSheetRow && r.status === "Active")
+    .filter((r) => Boolean(r.effectiveFrom) && r.basic > 0)
+    .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
+  return filtered[0] ?? null;
+}
+
+/**
+ * If the Employees sheet salary cell is blank, fill it from Active salary history
+ * (in-memory only — used by employee GET so Edit form shows the current basic).
+ */
+export function hydrateEmployeeRowSalaryFromHistory(
+  headers: string[],
+  row: string[],
+  history: SalaryHistoryRecord | null,
+): string[] {
+  if (!history || !(history.basic > 0)) return row;
+  const next = [...row];
+  while (next.length < headers.length) next.push("");
+
+  let wrote = false;
+  headers.forEach((header, index) => {
+    if (headerToFormKey(header) !== "salary") return;
+    const current = String(next[index] ?? "")
+      .replace(/,/g, "")
+      .trim();
+    if (current && Number(current) > 0) return;
+    next[index] = String(history.basic);
+    wrote = true;
+  });
+  return wrote ? next : next;
+}
+
 export async function createSalaryHistoryRecord(input: {
   employeeSheetRow: number;
   employeeName: string;
@@ -194,49 +466,56 @@ export async function createSalaryHistoryRecord(input: {
   status?: "Active" | "Inactive";
 }) {
   await ensureHeaders(SALARY_HISTORY_SHEET_NAME, SALARY_HISTORY_HEADERS);
-  const all = await listSalaryHistoryRecords();
-  const employeeRows = all.filter((r) => r.employeeSheetRow === input.employeeSheetRow);
+
+  const effectiveFrom = normalizeDateOnly(input.effectiveFrom);
+  if (!effectiveFrom) {
+    throw new Error("effectiveFrom is required (YYYY-MM-DD)");
+  }
+
+  const basicAmount = Number(input.basic);
+  if (!Number.isFinite(basicAmount) || basicAmount <= 0) {
+    throw new Error("Basic salary must be greater than 0");
+  }
+
+  const effectiveTo =
+    normalizeDateOnly(input.effectiveTo ?? "") || defaultSalaryEffectiveTo(effectiveFrom);
+
+  // Delete the employee's current effective salary row(s), then insert the new one.
+  const remainingRows = await deleteActiveSalaryHistoryForEmployee(input.employeeSheetRow);
+
   const payload: SalaryHistoryRecord = {
     sheetRow: 0,
     employeeSheetRow: input.employeeSheetRow,
     employeeName: input.employeeName,
-    effectiveFrom: normalizeDateOnly(input.effectiveFrom),
-    effectiveTo: normalizeDateOnly(input.effectiveTo ?? ""),
-    basic: input.basic,
-    loyaltyBonus: Math.min(20, Math.max(0, input.loyaltyBonus)),
-    professionalTax: input.professionalTax > 0 ? input.professionalTax : 200,
+    effectiveFrom,
+    effectiveTo,
+    basic: Math.round(basicAmount * 100) / 100,
+    loyaltyBonus: Math.min(20, Math.max(0, Number(input.loyaltyBonus) || 0)),
+    professionalTax: Number(input.professionalTax) > 0 ? Number(input.professionalTax) : 200,
     status: input.status ?? "Active",
     createdAt: nowIso(),
     updatedAt: nowIso(),
   };
 
-  if (!payload.effectiveFrom) {
-    throw new Error("effectiveFrom is required (YYYY-MM-DD)");
-  }
-
-  assertNonOverlappingEffectiveRanges([...employeeRows, payload]);
+  assertNonOverlappingEffectiveRanges([...remainingRows, payload]);
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
     range: SALARY_HISTORY_SHEET_NAME,
     valueInputOption: "USER_ENTERED",
     requestBody: {
-      values: [
-        [
-          payload.employeeSheetRow,
-          payload.employeeName,
-          payload.effectiveFrom,
-          payload.effectiveTo,
-          payload.basic,
-          payload.loyaltyBonus,
-          payload.professionalTax,
-          payload.status,
-          payload.createdAt,
-          payload.updatedAt,
-        ],
-      ],
+      values: [historyRowValues(payload)],
     },
   });
+
+  // Mirror basic salary onto the Employees sheet for HR / Super Admin views.
+  if (payload.status === "Active") {
+    await syncEmployeeSheetSalary({
+      employeeSheetRow: payload.employeeSheetRow,
+      basic: payload.basic,
+      effectiveFrom: payload.effectiveFrom,
+    });
+  }
 }
 
 export async function findEffectiveSalaryForPeriod(args: {
@@ -247,6 +526,7 @@ export async function findEffectiveSalaryForPeriod(args: {
   const records = await listSalaryHistoryRecords();
   const filtered = records
     .filter((r) => r.employeeSheetRow === args.employeeSheetRow && r.status === "Active")
+    .filter((r) => Boolean(r.effectiveFrom))
     .filter((r) => r.effectiveFrom <= args.periodEnd)
     .filter((r) => !r.effectiveTo || r.effectiveTo >= args.periodStart)
     .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
@@ -263,6 +543,7 @@ export function findEffectiveSalaryForPeriodFromRecords(
 ): SalaryHistoryRecord | null {
   const filtered = records
     .filter((r) => r.employeeSheetRow === args.employeeSheetRow && r.status === "Active")
+    .filter((r) => Boolean(r.effectiveFrom))
     .filter((r) => r.effectiveFrom <= args.periodEnd)
     .filter((r) => !r.effectiveTo || r.effectiveTo >= args.periodStart)
     .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -10,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { parseEmployeeListApiResponse } from "@/lib/employee";
+import type { Column } from "@/types/table";
 
 type SalarySlipRow = {
   id: string;
@@ -18,6 +20,7 @@ type SalarySlipRow = {
   status: string;
   netPay: string;
   employeeSheetRow: number;
+  employeeName?: string;
 };
 
 type EmployeeOption = {
@@ -25,12 +28,60 @@ type EmployeeOption = {
   name: string;
 };
 
+type SalaryHistoryRecord = {
+  sheetRow: number;
+  employeeSheetRow: number;
+  employeeName: string;
+  effectiveFrom: string;
+  effectiveTo: string;
+  basic: number;
+  loyaltyBonus: number;
+  professionalTax: number;
+  status: string;
+};
+
+type HistoryTableRow = {
+  id: string;
+  employee: string;
+  basic: string;
+  effectiveFrom: string;
+  effectiveTo: string;
+  period: string;
+  loyalty: string;
+  professionalTax: string;
+  status: string;
+};
+
+function formatInr(amount: number): string {
+  return `Rs. ${Number(amount || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function formatDate(value: string): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "—";
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    const [y, m, d] = raw.slice(0, 10).split("-");
+    return `${d}/${m}/${y}`;
+  }
+  return raw;
+}
+
+function statusVariant(status: string) {
+  if (status === "Active") return "success" as const;
+  return "warning" as const;
+}
+
 export default function SalarySlipsPage() {
   const { user } = useAuth();
   const canManage = user ? canManageEmployees(user.role) : false;
 
   const [slips, setSlips] = useState<SalarySlipRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [historyRecords, setHistoryRecords] = useState<SalaryHistoryRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(String(currentYear));
@@ -86,17 +137,47 @@ export default function SalarySlipsPage() {
 
   const loadEmployees = useCallback(async () => {
     if (!canManage) return;
-    const res = await fetch("/api/employee?pageSize=100", { credentials: "include" });
+    const res = await fetch("/api/employee?pageSize=200&status=Active", {
+      credentials: "include",
+    });
     const data = await res.json();
     const list = parseEmployeeListApiResponse(data);
-    setEmployees(list.map((e) => ({ sheetRow: e.sheetRow, name: `${e.name} (${e.employeeId})` })));
+    setEmployees(
+      list
+        .map((e) => ({ sheetRow: e.sheetRow, name: `${e.name} (${e.employeeId})` }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
+  }, [canManage]);
+
+  const loadHistory = useCallback(async () => {
+    if (!canManage) return;
+    setHistoryLoading(true);
+    try {
+      const res = await fetch("/api/salary-history", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = (await res.json()) as {
+        success: boolean;
+        message?: string;
+        records?: SalaryHistoryRecord[];
+      };
+      if (!data.success) throw new Error(data.message ?? "Failed to load salary history");
+      setHistoryRecords(data.records ?? []);
+    } catch (error) {
+      console.error(error);
+      setHistoryRecords([]);
+    } finally {
+      setHistoryLoading(false);
+    }
   }, [canManage]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadSlips();
     void loadEmployees();
-  }, [loadSlips, loadEmployees]);
+    void loadHistory();
+  }, [loadSlips, loadEmployees, loadHistory]);
 
   const monthOptions = useMemo(
     () =>
@@ -104,6 +185,64 @@ export default function SalarySlipsPage() {
         value: String(i + 1),
         label: new Date(2026, i, 1).toLocaleString("en-IN", { month: "short" }),
       })),
+    [],
+  );
+
+  const filteredHistoryRecords = useMemo(() => {
+    const selected = Number(historyEmployeeSheetRow);
+    const rows =
+      Number.isInteger(selected) && selected >= 2
+        ? historyRecords.filter((r) => r.employeeSheetRow === selected)
+        : historyRecords;
+
+    return [...rows]
+      .filter((r) => Boolean(r.effectiveFrom) && Number(r.basic) > 0)
+      .sort((a, b) => {
+        const nameCmp = String(a.employeeName ?? "").localeCompare(String(b.employeeName ?? ""));
+        if (nameCmp !== 0) return nameCmp;
+        return String(b.effectiveFrom ?? "").localeCompare(String(a.effectiveFrom ?? ""));
+      });
+  }, [historyEmployeeSheetRow, historyRecords]);
+
+  const historyTableRows: HistoryTableRow[] = useMemo(() => {
+    const nameBySheetRow = new Map(employees.map((e) => [Number(e.sheetRow), e.name]));
+    return filteredHistoryRecords.map((record, index) => {
+      const rosterName = nameBySheetRow.get(record.employeeSheetRow);
+      const rawName = String(record.employeeName ?? "").trim();
+      const employee =
+        rosterName ||
+        (rawName && !/^\d{4}-\d{2}-\d{2}/.test(rawName) ? rawName : "") ||
+        `Employee #${record.employeeSheetRow}`;
+
+      return {
+        id: `${record.sheetRow}-${record.employeeSheetRow}-${record.effectiveFrom}-${index}`,
+        employee,
+        basic: formatInr(record.basic),
+        effectiveFrom: formatDate(record.effectiveFrom),
+        effectiveTo: formatDate(record.effectiveTo),
+        period: `${formatDate(record.effectiveFrom)} → ${formatDate(record.effectiveTo)}`,
+        loyalty: `${Number(record.loyaltyBonus || 0)}%`,
+        professionalTax: formatInr(record.professionalTax),
+        status: record.status || "Active",
+      };
+    });
+  }, [filteredHistoryRecords, employees]);
+
+  const historyColumns: Column<HistoryTableRow>[] = useMemo(
+    () => [
+      { key: "employee", header: "Employee", sortable: true },
+      { key: "basic", header: "Basic salary" },
+      { key: "period", header: "Effective period" },
+      { key: "effectiveFrom", header: "Start date" },
+      { key: "effectiveTo", header: "End date" },
+      { key: "loyalty", header: "Loyalty" },
+      { key: "professionalTax", header: "PT" },
+      {
+        key: "status",
+        header: "Status",
+        render: (row) => <Badge variant={statusVariant(row.status)}>{row.status}</Badge>,
+      },
+    ],
     [],
   );
 
@@ -137,6 +276,46 @@ export default function SalarySlipsPage() {
   };
 
   const addSalaryHistory = async () => {
+    const selectedRow = Number(historyEmployeeSheetRow);
+    if (!Number.isInteger(selectedRow) || selectedRow < 2) {
+      window.alert("Select an employee first.");
+      return;
+    }
+    if (!effectiveFrom.trim()) {
+      window.alert("Select an effective date.");
+      return;
+    }
+    const basicAmount = Number(basic || 0);
+    if (!(basicAmount > 0)) {
+      window.alert("Enter a basic salary greater than 0.");
+      return;
+    }
+
+    const employeeLabel =
+      employees.find((e) => e.sheetRow === historyEmployeeSheetRow)?.name ?? "This employee";
+
+    const existingActive = historyRecords.filter(
+      (record) =>
+        record.employeeSheetRow === selectedRow &&
+        String(record.status ?? "").toLowerCase() !== "inactive" &&
+        Boolean(String(record.effectiveFrom ?? "").trim()),
+    );
+
+    if (existingActive.length > 0) {
+      const latest = [...existingActive].sort((a, b) =>
+        String(b.effectiveFrom).localeCompare(String(a.effectiveFrom)),
+      )[0];
+      const currentPeriod = `${formatDate(latest.effectiveFrom)} → ${formatDate(latest.effectiveTo)}`;
+      const confirmed = window.confirm(
+        `${employeeLabel} already has an effective salary of ${formatInr(latest.basic)} ` +
+          `(${currentPeriod}).\n\n` +
+          `If you save, that current effective salary will be replaced with ` +
+          `${formatInr(basicAmount)} starting ${formatDate(effectiveFrom)}.\n\n` +
+          `Do you want to continue and update it?`,
+      );
+      if (!confirmed) return;
+    }
+
     setBusy(true);
     try {
       const employeeName = employees.find((e) => e.sheetRow === historyEmployeeSheetRow)?.name;
@@ -145,10 +324,10 @@ export default function SalarySlipsPage() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employeeSheetRow: Number(historyEmployeeSheetRow),
+          employeeSheetRow: selectedRow,
           employeeName,
           effectiveFrom,
-          basic: Number(basic || 0),
+          basic: basicAmount,
           loyaltyBonus: Number(loyaltyBonus || 0),
           professionalTax: Number(professionalTax || 0),
         }),
@@ -156,6 +335,9 @@ export default function SalarySlipsPage() {
       const data = await res.json();
       if (!data.success) throw new Error(data.message ?? "Failed to save salary history");
       window.alert("Salary history saved");
+      setBasic("");
+      setEffectiveFrom("");
+      await loadHistory();
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Failed to save salary history");
     } finally {
@@ -281,8 +463,16 @@ export default function SalarySlipsPage() {
 
       {canManage ? (
         <Card>
-          <CardContent className="space-y-3 p-4">
-            <h3 className="text-sm font-semibold">Salary history (effective-dated)</h3>
+          <CardContent className="space-y-4 p-4">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold">Salary history (effective-dated)</h3>
+              <p className="text-ex-muted text-xs">
+                All employees&apos; effective salary periods are listed below. Select an employee to
+                filter that list and to add a new revision (replaces their current effective
+                salary).
+              </p>
+            </div>
+
             <div className="grid gap-3 md:grid-cols-4">
               <div>
                 <p className="text-ex-muted mt-1.5 max-w-sm text-sm leading-relaxed">
@@ -293,7 +483,7 @@ export default function SalarySlipsPage() {
                   value={historyEmployeeSheetRow}
                   onChange={(e) => setHistoryEmployeeSheetRow(e.target.value)}
                 >
-                  <option value="">Select employee</option>
+                  <option value="">All employees</option>
                   {employees.map((e) => (
                     <option key={e.sheetRow} value={e.sheetRow}>
                       {e.name}
@@ -309,6 +499,7 @@ export default function SalarySlipsPage() {
                   type="date"
                   value={effectiveFrom}
                   onChange={(e) => setEffectiveFrom(e.target.value)}
+                  disabled={!historyEmployeeSheetRow}
                 />
               </div>
               <div>
@@ -319,6 +510,7 @@ export default function SalarySlipsPage() {
                   value={basic}
                   onChange={(e) => setBasic(e.target.value)}
                   placeholder="Basic"
+                  disabled={!historyEmployeeSheetRow}
                 />
               </div>
               <div>
@@ -329,6 +521,7 @@ export default function SalarySlipsPage() {
                   className="border-ex-border bg-ex-surface w-full rounded-md border px-3 py-2"
                   value={loyaltyBonus}
                   onChange={(e) => setLoyaltyBonus(e.target.value)}
+                  disabled={!historyEmployeeSheetRow}
                 >
                   <option value="5">Loyalty bonus 5%</option>
                   <option value="10">Loyalty bonus 10%</option>
@@ -346,15 +539,46 @@ export default function SalarySlipsPage() {
                   value={professionalTax}
                   onChange={(e) => setProfessionalTax(e.target.value)}
                   placeholder="Professional Tax"
+                  disabled={!historyEmployeeSheetRow}
                 />
               </div>
             </div>
             <Button
-              onClick={addSalaryHistory}
-              disabled={busy || !historyEmployeeSheetRow || !effectiveFrom}
+              onClick={() => void addSalaryHistory()}
+              disabled={busy || !historyEmployeeSheetRow || !effectiveFrom || !basic}
             >
               Save salary revision
             </Button>
+
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-ex-primary text-sm font-medium">
+                  {historyEmployeeSheetRow
+                    ? "Effective salary for selected employee"
+                    : "Effective salary for all employees"}
+                </h4>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={historyLoading || busy}
+                  onClick={() => void loadHistory()}
+                >
+                  Refresh list
+                </Button>
+              </div>
+              <DataTable
+                loading={historyLoading}
+                columns={historyColumns}
+                rows={historyTableRows}
+                emptyTitle="No salary history"
+                emptyDescription={
+                  historyEmployeeSheetRow
+                    ? "No effective salary records for this employee yet."
+                    : "Save a salary revision to see effective periods here."
+                }
+              />
+            </div>
           </CardContent>
         </Card>
       ) : null}
