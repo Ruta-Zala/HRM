@@ -80,6 +80,7 @@ const SHEET_KEY_TO_FORM: Record<string, keyof EmployeeFormState> = {
   last_increment_date: "lastIncrementDate",
   salary: "salary",
   monthly_salary: "salary",
+  salary_monthly: "salary",
   annual_salary: "salary",
   ctc: "salary",
   marksheet: "marksheet",
@@ -100,13 +101,18 @@ const SHEET_KEY_TO_FORM: Record<string, keyof EmployeeFormState> = {
   updatedat: "updatedAt",
 };
 
-/** Normalize sheet header for form lookup (camelCase, spaces → snake_case). */
+/** Normalize sheet header for form lookup (camelCase, spaces/punctuation → snake_case). */
 function headerToSheetFormLookupKey(header: string): string {
-  return header
-    .trim()
-    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
-    .replace(/\s+/g, "_")
-    .toLowerCase();
+  return (
+    header
+      .trim()
+      .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+      // "Salary (monthly)" → "Salary_monthly", "Bank A/C No" → "Bank_A_C_No"
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .replace(/_+/g, "_")
+      .toLowerCase()
+  );
 }
 
 export function headerToFormKey(header: string): keyof EmployeeFormState | null {

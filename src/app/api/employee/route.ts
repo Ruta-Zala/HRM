@@ -38,6 +38,10 @@ import { canManageEmployees } from "@/lib/auth/server";
 import { prepareEmployeeCredentialsForSave } from "@/lib/auth/credentials-setup";
 import { redactPasswordFromRow, redactPasswordsFromSheetData } from "@/lib/auth/row-credentials";
 import { filesToUploadBuffers, parseEmployeeSubmit } from "@/lib/employee/server";
+import {
+  findLatestActiveSalaryForEmployee,
+  hydrateEmployeeRowSalaryFromHistory,
+} from "@/lib/salary-slips/sheets";
 
 /**
  * GET
@@ -100,7 +104,7 @@ export const GET = withActiveSession(async (req, user) => {
       }
 
       const headers = getSheetHeaders(raw);
-      const row = raw[sheetRow - 1] ?? [];
+      let row = [...(raw[sheetRow - 1] ?? [])];
 
       if (!canViewFullDetails) {
         const statusColIndex = headers.map(headerToFormKey).indexOf("status");
@@ -109,6 +113,16 @@ export const GET = withActiveSession(async (req, user) => {
             { success: false, message: "Employee not found" },
             { status: 404 },
           );
+        }
+      }
+
+      // If Employees.salary is blank, show Active salary-history basic on Edit form.
+      if (canViewFullDetails) {
+        try {
+          const history = await findLatestActiveSalaryForEmployee(sheetRow);
+          row = hydrateEmployeeRowSalaryFromHistory(headers, row, history);
+        } catch (error) {
+          console.error("Employee salary hydrate from history failed:", error);
         }
       }
 
