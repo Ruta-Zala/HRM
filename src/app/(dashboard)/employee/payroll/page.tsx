@@ -14,6 +14,7 @@ import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { PAYROLL_DAY_CODE_LEGEND } from "@/lib/payroll/constants";
 import type { Column } from "@/types/table";
 
 type DeductionBucket = { payable: number; employeeCount: number };
@@ -44,6 +45,7 @@ type PayrollEmployeeRow = {
     loyaltyBonus: number;
     professionalTax: number;
     lwf: number;
+    salaryAdvance: number;
     finalPayment: number;
   } | null;
 };
@@ -66,6 +68,7 @@ type PayrollApiResponse = {
     lwf: DeductionBucket;
     loyalty: DeductionBucket;
     unpaidLeave: DeductionBucket;
+    salaryAdvance: DeductionBucket;
   };
   employees?: PayrollEmployeeRow[];
 };
@@ -83,6 +86,7 @@ type TableRow = {
   fullUnpaidLeave: string;
   unpaidLeave: string;
   unpaidAmount: string;
+  advance: string;
   loyalty: string;
   pt: string;
   lwf: string;
@@ -171,7 +175,12 @@ export default function PayrollPage() {
 
   const yearOptions = useMemo(() => {
     const current = new Date().getFullYear();
-    return Array.from({ length: 6 }, (_, i) => String(current - i));
+    // Past decade through a few future years (advance schedules / planning).
+    const start = current - 10;
+    const end = current + 5;
+    const years: string[] = [];
+    for (let y = end; y >= start; y -= 1) years.push(String(y));
+    return years;
   }, []);
 
   const loadPayroll = useCallback(async () => {
@@ -180,7 +189,10 @@ export default function PayrollPage() {
     setError(null);
     try {
       const params = new URLSearchParams({ year, month });
-      const res = await fetch(`/api/payroll?${params.toString()}`, { credentials: "include" });
+      const res = await fetch(`/api/payroll?${params.toString()}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
       const json = (await res.json()) as PayrollApiResponse;
       if (!json.success) throw new Error(json.message ?? "Failed to load payroll");
       setData(json);
@@ -215,6 +227,7 @@ export default function PayrollPage() {
           fullUnpaidLeave: "—",
           unpaidLeave: "—",
           unpaidAmount: "—",
+          advance: "—",
           loyalty: "—",
           pt: "—",
           lwf: "—",
@@ -236,6 +249,7 @@ export default function PayrollPage() {
         fullUnpaidLeave: String(payroll.fullUnpaidLeave),
         unpaidLeave: String(payroll.totalUnpaidLeave),
         unpaidAmount: formatInr(payroll.unpaidLeaveAmount),
+        advance: formatInr(payroll.salaryAdvance),
         loyalty: formatInr(payroll.loyaltyBonus),
         pt: formatInr(payroll.professionalTax),
         lwf: formatInr(payroll.lwf),
@@ -262,6 +276,7 @@ export default function PayrollPage() {
       { key: "fullUnpaidLeave", header: "Full Unpaid Leave" },
       { key: "unpaidLeave", header: "Total Unpaid Leave" },
       { key: "unpaidAmount", header: "Unpaid Amount" },
+      { key: "advance", header: "Salary Advance" },
       { key: "loyalty", header: "Loyalty" },
       { key: "pt", header: "PT" },
       { key: "lwf", header: "LWF" },
@@ -307,7 +322,7 @@ export default function PayrollPage() {
     <div className="space-y-8">
       <PageHeader
         title="Payroll"
-        description="Final pay = monthly salary − unpaid leave − 10% loyalty − PT (Rs. 200) − LWF (Rs. 6). Per-day rate uses Mon–Fri working days excluding leave-type holidays."
+        description="Final pay = monthly salary − unpaid leave − salary advance − 10% loyalty − PT (Rs. 200) − LWF (Rs. 6). Paid / Sick / Casual leave do not deduct. Per-day rate uses Mon–Fri working days excluding leave-type holidays."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Select
@@ -444,10 +459,37 @@ export default function PayrollPage() {
             />
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="border-0 pb-0">
+            <CardTitle className="text-ex-secondary">Salary Advance Recovery</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-6 sm:grid-cols-2">
+            <Metric
+              label="Advance Deducted"
+              value={formatInr(deductions?.salaryAdvance.payable ?? 0)}
+              loading={loading}
+            />
+            <Metric
+              label="Employees Affected"
+              value={String(deductions?.salaryAdvance.employeeCount ?? 0)}
+              loading={loading}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       <div className="space-y-3">
         <h2 className="text-ex-primary text-base font-semibold">Employee payroll breakdown</h2>
+        <p className="text-ex-muted text-sm">
+          Day codes:{" "}
+          {PAYROLL_DAY_CODE_LEGEND.map((item, index) => (
+            <span key={item.code}>
+              {index > 0 ? " · " : null}
+              <span className="text-ex-primary font-medium">{item.code}</span> = {item.label}
+            </span>
+          ))}
+        </p>
         <DataTable
           columns={columns}
           rows={tableRows}
@@ -460,8 +502,9 @@ export default function PayrollPage() {
       <p className="text-ex-muted text-sm">
         Flow: fix loyalty (10% of salary), PT (Rs. 200), LWF (Rs. 6) → working days (Mon–Fri,
         exclude leave-type holidays) → per day / per hour → deduct unpaid leave (U/F; missing/absent
-        scheduled days count as unpaid) from salary → then deduct loyalty, PT, and LWF for final
-        pay. Paid leave (A/H) is not deducted.
+        scheduled days count as F) and salary advance recovery from salary → then deduct loyalty,
+        PT, and LWF for final pay. Paid leave (A/H) is not deducted. Attend Days counts P (and half
+        of H/U present portion). Manage advances under Employee → Salary advances.
       </p>
     </div>
   );

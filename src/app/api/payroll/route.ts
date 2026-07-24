@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { canonicalizeWorkMode } from "@/lib/attendance/constants";
+import {
+  getAttendanceSpreadsheetIdFromRow,
+  resolveAttendanceSpreadsheetIdForRow,
+} from "@/lib/attendance/employee";
 import { sheetRowToForm } from "@/lib/employee";
 import { listCompanyHolidays } from "@/lib/company-holiday-sheets";
 import { listLeaveApplications } from "@/lib/attendance/leave-approvals";
@@ -28,6 +33,7 @@ import {
   findEffectiveSalaryForPeriodFromRecords,
   listSalaryHistoryRecords,
 } from "@/lib/salary-slips/sheets";
+import { mapSalaryAdvanceDeductionsForPeriod } from "@/lib/salary-advances";
 
 export const GET = withActiveSession(async (req, user) => {
   if (!canManageEmployees(user.role)) {
@@ -46,10 +52,11 @@ export const GET = withActiveSession(async (req, user) => {
       return NextResponse.json({ success: false, message: "Invalid month" }, { status: 400 });
     }
 
-    const [employeeSheet, holidays, salaryHistory] = await Promise.all([
+    const [employeeSheet, holidays, salaryHistory, advanceDeductions] = await Promise.all([
       readSheet(EMPLOYEE_SHEET_RANGE),
       listCompanyHolidays(year),
       listSalaryHistoryRecords(),
+      mapSalaryAdvanceDeductionsForPeriod(year, month),
     ]);
 
     if (!employeeSheet.length) {
@@ -62,6 +69,7 @@ export const GET = withActiveSession(async (req, user) => {
           lwf: { payable: 0, employeeCount: 0 },
           loyalty: { payable: 0, employeeCount: 0 },
           unpaidLeave: { payable: 0, employeeCount: 0 },
+          salaryAdvance: { payable: 0, employeeCount: 0 },
         },
         employees: [],
       });
@@ -133,47 +141,131 @@ export const GET = withActiveSession(async (req, user) => {
       }
 
       const attendanceByDate = new Map<string, { workMode?: string; status?: string }>();
-      const attendanceSpreadsheetId = form.attendanceSpreadsheetId?.trim() ?? "";
+
+      // Prefer the stored Employees-sheet ID (same workbook punch uses). Avoid a Drive
+      // accessibility check per employee — that was exhausting Sheets/Drive quota and
+      // silently leaving Attend Days at 0 when loads failed.
+      let attendanceSpreadsheetId =
+        form.attendanceSpreadsheetId?.trim() || getAttendanceSpreadsheetIdFromRow(headers, row);
+
+      if (!attendanceSpreadsheetId) {
+        attendanceSpreadsheetId = await resolveAttendanceSpreadsheetIdForRow({
+          headers,
+          row,
+          sheetRow,
+          employeeId: form.employeeId.trim(),
+          employeeName: form.name.trim() || "Employee",
+          documentsFolderId: form.documentsFolderId,
+          birthdayDate: form.birthdayDate,
+          createIfMissing: false,
+        });
+      }
+
+      const loadMonthRows = async (spreadsheetId: string) => {
+        const rows = await getMonthAttendance(spreadsheetId, year, month - 1);
+        attendanceByDate.clear();
+        for (const attendance of rows) {
+          if (!attendance.date) continue;
+          attendanceByDate.set(attendance.date, {
+            workMode: canonicalizeWorkMode(attendance.workMode ?? ""),
+            status: attendance.status,
+            punchIn: attendance.punchIn,
+            punchOut: attendance.punchOut,
+          });
+        }
+        return rows.length;
+      };
+
       if (attendanceSpreadsheetId) {
         try {
-          const rows = await getMonthAttendance(attendanceSpreadsheetId, year, month - 1);
-          for (const attendance of rows) {
-            if (!attendance.date) continue;
-            attendanceByDate.set(attendance.date, {
-              workMode: attendance.workMode,
-              status: attendance.status,
+          const loaded = await loadMonthRows(attendanceSpreadsheetId);
+          if (loaded === 0 && form.documentsFolderId.trim()) {
+            const folderResolved = await resolveAttendanceSpreadsheetIdForRow({
+              headers,
+              row,
+              sheetRow,
+              employeeId: form.employeeId.trim(),
+              employeeName: form.name.trim() || "Employee",
+              documentsFolderId: form.documentsFolderId,
+              birthdayDate: form.birthdayDate,
+              createIfMissing: false,
+              preferFolderSearch: true,
             });
+            if (folderResolved && folderResolved !== attendanceSpreadsheetId) {
+              attendanceSpreadsheetId = folderResolved;
+              await loadMonthRows(attendanceSpreadsheetId);
+            }
           }
         } catch (error) {
           console.error(`Payroll attendance load failed for row ${sheetRow}`, error);
+          try {
+            const folderResolved = await resolveAttendanceSpreadsheetIdForRow({
+              headers,
+              row,
+              sheetRow,
+              employeeId: form.employeeId.trim(),
+              employeeName: form.name.trim() || "Employee",
+              documentsFolderId: form.documentsFolderId,
+              birthdayDate: form.birthdayDate,
+              createIfMissing: false,
+              preferFolderSearch: true,
+            });
+            if (folderResolved) {
+              attendanceSpreadsheetId = folderResolved;
+              await loadMonthRows(attendanceSpreadsheetId);
+            }
+          } catch (retryError) {
+            console.error(`Payroll attendance folder retry failed for row ${sheetRow}`, retryError);
+          }
         }
 
-        try {
-          const leaveApplications = await listLeaveApplications({
-            employeeId: form.employeeId,
-            employeeName: form.name,
-            attendanceSpreadsheetId,
-            statusFilter: LEAVE_STATUS.ACCEPTED,
-          });
-          const overlays = buildAcceptedLeaveAttendanceOverlays(leaveApplications).filter(
-            (overlay) => overlay.dateIso >= periodStart && overlay.dateIso <= periodEnd,
-          );
-          const merged = mergeAttendanceWithApprovedLeaves(attendanceByDate, overlays);
-          attendanceByDate.clear();
-          for (const [date, value] of merged) {
-            attendanceByDate.set(date, value);
+        if (attendanceSpreadsheetId) {
+          try {
+            const leaveApplications = await listLeaveApplications({
+              employeeId: form.employeeId,
+              employeeName: form.name,
+              attendanceSpreadsheetId,
+              statusFilter: LEAVE_STATUS.ACCEPTED,
+            });
+            const overlays = buildAcceptedLeaveAttendanceOverlays(leaveApplications).filter(
+              (overlay) => overlay.dateIso >= periodStart && overlay.dateIso <= periodEnd,
+            );
+            const merged = mergeAttendanceWithApprovedLeaves(attendanceByDate, overlays);
+            attendanceByDate.clear();
+            for (const [date, value] of merged) {
+              attendanceByDate.set(date, {
+                workMode: canonicalizeWorkMode(value.workMode ?? ""),
+                status: value.status,
+                punchIn: value.punchIn,
+                punchOut: value.punchOut,
+              });
+            }
+          } catch (error) {
+            console.error(`Payroll leave bucket load failed for row ${sheetRow}`, error);
           }
-        } catch (error) {
-          console.error(`Payroll leave bucket load failed for row ${sheetRow}`, error);
         }
       }
 
       // Do not treat blank future days as unpaid, but keep days that already have
       // attendance or an approved leave (e.g. leave booked for tomorrow).
+      // For a whole future payroll month (planning), use the full schedule and
+      // assume present on days without a punch yet so projected pay + advance show.
       const asOfIso = localDateIso();
-      const dueScheduledDates = employeeScheduledDates.filter(
-        (date) => date <= asOfIso || attendanceByDate.has(date),
-      );
+      const periodIsFuture = periodStart > asOfIso;
+      const dueScheduledDates = periodIsFuture
+        ? employeeScheduledDates
+        : employeeScheduledDates.filter((date) => date <= asOfIso || attendanceByDate.has(date));
+
+      if (periodIsFuture) {
+        for (const date of dueScheduledDates) {
+          if (!attendanceByDate.has(date)) {
+            attendanceByDate.set(date, {
+              workMode: "Full Day Onsite",
+              status: "Working",
+            });
+          }
+        }
+      }
 
       const payroll = calculateEmployeePayroll({
         monthlySalary,
@@ -184,6 +276,7 @@ export const GET = withActiveSession(async (req, user) => {
             ? history.professionalTax
             : DEFAULT_PROFESSIONAL_TAX,
         lwf: DEFAULT_LWF,
+        salaryAdvance: advanceDeductions.get(sheetRow) ?? 0,
         workingDays,
         scheduledDates: dueScheduledDates,
         attendanceByDate,
@@ -228,6 +321,10 @@ export const GET = withActiveSession(async (req, user) => {
         unpaidLeave: {
           payable: summary.totalUnpaidLeaveAmount,
           employeeCount: summary.employeesWithUnpaid,
+        },
+        salaryAdvance: {
+          payable: summary.totalSalaryAdvance,
+          employeeCount: summary.employeesWithAdvance,
         },
       },
       employees,

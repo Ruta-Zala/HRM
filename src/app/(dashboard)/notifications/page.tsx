@@ -85,6 +85,10 @@ function typeLabel(type: string): string {
     complaint_submitted: "New complaint",
     complaint_approved: "Complaint approved",
     complaint_rejected: "Complaint rejected",
+    correction_submitted: "New correction",
+    correction_submitted_employee: "Submitted",
+    correction_approved: "Correction approved",
+    correction_rejected: "Correction rejected",
   };
   return labels[type] ?? "Notification";
 }

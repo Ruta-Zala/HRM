@@ -6,7 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { WORK_MODE, WORK_MODE_OPTIONS } from "@/lib/attendance/constants";
+import {
+  WORK_MODE,
+  WORK_MODE_OPTIONS,
+  isPunchOptionalWorkMode,
+  workModeOptionLabel,
+} from "@/lib/attendance/constants";
 import type { AttendanceHistoryRow } from "@/lib/attendance/client";
 import { clockToTimeInput, localTodayIso } from "@/lib/attendance/manual-entry";
 
@@ -73,6 +78,7 @@ export function HrAttendanceForm({
   const [form, setForm] = useState(() => buildInitialForm(initialDate, initialRow));
   const [error, setError] = useState<string | null>(null);
   const maxDate = localTodayIso();
+  const punchOptional = isPunchOptionalWorkMode(form.workMode);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -120,61 +126,81 @@ export function HrAttendanceForm({
           <Select
             id="hr-attendance-work-mode"
             value={form.workMode}
-            onChange={(e) => setForm((prev) => ({ ...prev, workMode: e.target.value }))}
+            onChange={(e) =>
+              setForm((prev) => {
+                const workMode = e.target.value;
+                if (isPunchOptionalWorkMode(workMode)) {
+                  return {
+                    ...prev,
+                    workMode,
+                    punchIn: "",
+                    punchOut: "",
+                    breakStart: "",
+                    breakEnd: "",
+                  };
+                }
+                return { ...prev, workMode };
+              })
+            }
             disabled={submitting}
           >
             {WORK_MODE_OPTIONS.map((option) => (
               <option key={option} value={option}>
-                {option}
+                {workModeOptionLabel(option)}
               </option>
             ))}
           </Select>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="hr-attendance-punch-in">Punch in</Label>
-          <Input
-            id="hr-attendance-punch-in"
-            type="time"
-            value={form.punchIn}
-            onChange={(e) => setForm((prev) => ({ ...prev, punchIn: e.target.value }))}
-            disabled={submitting}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="hr-attendance-punch-out">Punch out</Label>
-          <Input
-            id="hr-attendance-punch-out"
-            type="time"
-            value={form.punchOut}
-            onChange={(e) => setForm((prev) => ({ ...prev, punchOut: e.target.value }))}
-            disabled={submitting}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="hr-attendance-break-start">Break start</Label>
-          <Input
-            id="hr-attendance-break-start"
-            type="time"
-            value={form.breakStart}
-            onChange={(e) => setForm((prev) => ({ ...prev, breakStart: e.target.value }))}
-            disabled={submitting}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="hr-attendance-break-end">Break end</Label>
-          <Input
-            id="hr-attendance-break-end"
-            type="time"
-            value={form.breakEnd}
-            onChange={(e) => setForm((prev) => ({ ...prev, breakEnd: e.target.value }))}
-            disabled={submitting}
-          />
-        </div>
+        {!punchOptional ? (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="hr-attendance-punch-in">Punch in</Label>
+              <Input
+                id="hr-attendance-punch-in"
+                type="time"
+                value={form.punchIn}
+                onChange={(e) => setForm((prev) => ({ ...prev, punchIn: e.target.value }))}
+                disabled={submitting}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hr-attendance-punch-out">Punch out</Label>
+              <Input
+                id="hr-attendance-punch-out"
+                type="time"
+                value={form.punchOut}
+                onChange={(e) => setForm((prev) => ({ ...prev, punchOut: e.target.value }))}
+                disabled={submitting}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hr-attendance-break-start">Break start</Label>
+              <Input
+                id="hr-attendance-break-start"
+                type="time"
+                value={form.breakStart}
+                onChange={(e) => setForm((prev) => ({ ...prev, breakStart: e.target.value }))}
+                disabled={submitting}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hr-attendance-break-end">Break end</Label>
+              <Input
+                id="hr-attendance-break-end"
+                type="time"
+                value={form.breakEnd}
+                onChange={(e) => setForm((prev) => ({ ...prev, breakEnd: e.target.value }))}
+                disabled={submitting}
+              />
+            </div>
+          </>
+        ) : null}
       </div>
 
       <p className="text-ex-muted text-xs">
-        Set punch in/out for missed punches. Break start and end must both be filled to record break
-        time. Working hours and status are recalculated automatically when punch out is set.
+        {punchOptional
+          ? "Punch and break times are not needed for leave or holiday. Saving marks the day as On Leave."
+          : "Set punch in/out for missed punches. Break start and end must both be filled to record break time. Working hours and status are recalculated automatically when punch out is set."}
       </p>
 
       {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}

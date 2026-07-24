@@ -20,6 +20,9 @@ import {
   WORK_MODE,
   WORK_MODE_OPTIONS,
   WORKING_STATUS,
+  canonicalizeWorkMode,
+  isHalfDayUnpaidWorkMode,
+  isPunchOptionalWorkMode,
 } from "@/lib/attendance/constants";
 import {
   computeAttendanceMetrics,
@@ -142,8 +145,15 @@ async function getAttendanceSpreadsheetMeta(spreadsheetId: string): Promise<{
   return meta;
 }
 
-async function resolveYearSpreadsheetId(baseSpreadsheetId: string, year: number): Promise<string> {
-  const cacheKey = `${baseSpreadsheetId}:${year}`;
+async function resolveYearSpreadsheetId(
+  baseSpreadsheetId: string,
+  year: number,
+  options?: { createIfMissing?: boolean },
+): Promise<string> {
+  const createIfMissing = options?.createIfMissing !== false;
+  // Separate cache keys so a read-only fallback to the base workbook is never
+  // reused by write paths that should create/find the year spreadsheet.
+  const cacheKey = `${baseSpreadsheetId}:${year}:${createIfMissing ? "w" : "r"}`;
   const cached = yearSpreadsheetIdCache.get(cacheKey);
   if (cached) return cached;
 
@@ -210,6 +220,12 @@ async function resolveYearSpreadsheetId(baseSpreadsheetId: string, year: number)
   if (legacyId) {
     yearSpreadsheetIdCache.set(cacheKey, legacyId);
     return legacyId;
+  }
+
+  // Read paths must not create empty year workbooks — that hid real data on the base sheet.
+  if (!createIfMissing) {
+    yearSpreadsheetIdCache.set(cacheKey, baseSpreadsheetId);
+    return baseSpreadsheetId;
   }
 
   const created = await withQuotaRetry(() =>
@@ -1092,12 +1108,12 @@ async function applyWorkModeDropdownByTitle(
   const workModeColors: Record<string, { red: number; green: number; blue: number }> = {
     [WORK_MODE.WFH]: { red: 0.86, green: 0.93, blue: 1 },
     [WORK_MODE.WFH_HALF_DAY]: { red: 0.82, green: 0.9, blue: 1 },
-    [WORK_MODE.FULL_DAY_LEAVE]: { red: 1, green: 0.9, blue: 0.9 },
+    [WORK_MODE.UNPAID_LEAVE]: { red: 1, green: 0.9, blue: 0.9 },
+    [WORK_MODE.SICK_LEAVE]: { red: 1, green: 0.9, blue: 0.95 },
     [WORK_MODE.PUBLIC_HOLIDAY]: { red: 0.95, green: 0.88, blue: 1 },
     [WORK_MODE.WEEKEND_HOLIDAY]: { red: 0.92, green: 0.92, blue: 0.92 },
     [WORK_MODE.FULL_DAY_ONSITE]: { red: 0.86, green: 0.97, blue: 0.89 },
-    [WORK_MODE.HALF_DAY_LEAVE]: { red: 1, green: 0.95, blue: 0.83 },
-    [WORK_MODE.SL]: { red: 1, green: 0.9, blue: 0.95 },
+    [WORK_MODE.HALF_DAY_UNPAID_LEAVE]: { red: 1, green: 0.95, blue: 0.83 },
   };
 
   const requests = [
@@ -1583,8 +1599,8 @@ export async function startBreak(
   if (found.row[ATTENDANCE_COL.punchOut]?.trim()) {
     throw new Error("Cannot start a break after punch out");
   }
-  if ((found.row[ATTENDANCE_COL.workMode] ?? "").trim() === WORK_MODE.HALF_DAY_LEAVE) {
-    throw new Error("Break is not allowed for Half Day Leave");
+  if (isHalfDayUnpaidWorkMode(found.row[ATTENDANCE_COL.workMode])) {
+    throw new Error("Break is not allowed for Half Day Unpaid Leave");
   }
   if (found.row[ATTENDANCE_COL.breakStart]?.trim() && !found.row[ATTENDANCE_COL.breakEnd]?.trim()) {
     throw new Error("Already on break");
@@ -1647,21 +1663,50 @@ export async function getMonthAttendance(
   monthIndex: number,
 ): Promise<AttendanceRow[]> {
   const date = new Date(year, monthIndex, 1);
-  const targetSpreadsheetId = await resolveSpreadsheetForDate(spreadsheetId, date);
   const sheetTitle = monthlySheetTitle(date);
-  const sheetId = await getSheetId(targetSpreadsheetId, sheetTitle);
-  if (sheetId == null) return [];
 
-  const rows = await readMonthlyRows(targetSpreadsheetId, sheetTitle);
-  const records: AttendanceRow[] = [];
+  // Never create year workbooks while reading — that previously pointed payroll at an
+  // empty new file while punches still lived on the employee's base attendance sheet.
+  const yearSpreadsheetId = await resolveYearSpreadsheetId(spreadsheetId, year, {
+    createIfMissing: false,
+  });
 
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i] ?? [];
-    if (!(row[ATTENDANCE_COL.date] ?? "").trim()) continue;
-    records.push(rowFromValues(row, i + 1));
+  const tried = new Set<string>();
+  const candidateIds =
+    yearSpreadsheetId === spreadsheetId ? [yearSpreadsheetId] : [yearSpreadsheetId, spreadsheetId];
+
+  const readCandidate = async (candidateId: string): Promise<AttendanceRow[]> => {
+    if (tried.has(candidateId)) return [];
+    tried.add(candidateId);
+    const sheetId = await getSheetId(candidateId, sheetTitle);
+    if (sheetId == null) return [];
+
+    const rows = await readMonthlyRows(candidateId, sheetTitle);
+    const records: AttendanceRow[] = [];
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i] ?? [];
+      if (!String(row[ATTENDANCE_COL.date] ?? "").trim()) continue;
+      records.push(rowFromValues(row, i + 1));
+    }
+    return records;
+  };
+
+  for (const candidateId of candidateIds) {
+    const records = await readCandidate(candidateId);
+    if (records.length > 0) return records;
   }
 
-  return records;
+  // Empty year workbook / wrong stored ID: scan sibling attendance files in the folder.
+  try {
+    for (const siblingId of await listYearlySpreadsheetIds(spreadsheetId)) {
+      const records = await readCandidate(siblingId);
+      if (records.length > 0) return records;
+    }
+  } catch (error) {
+    console.error("getMonthAttendance: sibling workbook scan failed", error);
+  }
+
+  return [];
 }
 
 /**
@@ -1693,8 +1738,8 @@ export async function upsertApprovedLeaveAttendance(params: {
   const isHalfDay =
     params.workMode === WORK_MODE.HALF_DAY_UNPAID_LEAVE ||
     params.workMode === WORK_MODE.HALF_DAY_PAID_LEAVE ||
-    params.workMode === WORK_MODE.HALF_DAY_LEAVE ||
-    params.workMode === WORK_MODE.WFH_HALF_DAY;
+    params.workMode === WORK_MODE.WFH_HALF_DAY ||
+    isHalfDayUnpaidWorkMode(params.workMode);
 
   // Full-day leave should not keep punch metrics; half-day may keep existing punches.
   if (!isHalfDay) {
@@ -1741,35 +1786,51 @@ export async function upsertManualAttendanceRecord(params: {
 
   rowValues[ATTENDANCE_COL.date] = formatSheetDateLiteral(baseDate);
 
-  if (params.workMode?.trim()) {
-    rowValues[ATTENDANCE_COL.workMode] = params.workMode.trim();
-  }
+  const workMode = canonicalizeWorkMode(
+    params.workMode?.trim() || rowValues[ATTENDANCE_COL.workMode] || WORK_MODE.FULL_DAY_ONSITE,
+  );
+  rowValues[ATTENDANCE_COL.workMode] = workMode;
 
-  if (params.punchIn !== undefined) {
-    rowValues[ATTENDANCE_COL.punchIn] = params.punchIn;
-  }
-  if (params.punchOut !== undefined) {
-    rowValues[ATTENDANCE_COL.punchOut] = params.punchOut;
-  }
+  const punchOptional = isPunchOptionalWorkMode(workMode);
 
-  // Keep break start/end on the row so HR can edit them later (unlike live punch flow).
-  if (
-    params.breakStart !== undefined ||
-    params.breakEnd !== undefined ||
-    params.totalBreakTime !== undefined
-  ) {
-    rowValues[ATTENDANCE_COL.breakStart] = params.breakStart ?? "";
-    rowValues[ATTENDANCE_COL.breakEnd] = params.breakEnd ?? "";
-    rowValues[ATTENDANCE_COL.totalBreakTime] = params.totalBreakTime ?? "";
-  }
-
-  const punchedOut = Boolean((rowValues[ATTENDANCE_COL.punchOut] ?? "").trim());
-  if (punchedOut) {
-    applyAttendanceMetrics(rowValues, baseDate);
-  } else if ((rowValues[ATTENDANCE_COL.punchIn] ?? "").trim()) {
-    rowValues[ATTENDANCE_COL.status] = WORKING_STATUS.IN_PROGRESS;
-    rowValues[ATTENDANCE_COL.overtime] = "—";
+  if (punchOptional && !params.punchIn?.trim() && !params.punchOut?.trim()) {
+    // Full-day leave / holiday: clear punch metrics and mark as on leave.
+    rowValues[ATTENDANCE_COL.punchIn] = "";
+    rowValues[ATTENDANCE_COL.punchOut] = "";
+    rowValues[ATTENDANCE_COL.breakStart] = "";
+    rowValues[ATTENDANCE_COL.breakEnd] = "";
+    rowValues[ATTENDANCE_COL.totalBreakTime] = "";
     rowValues[ATTENDANCE_COL.workingHours] = "";
+    rowValues[ATTENDANCE_COL.overtime] = "—";
+    rowValues[ATTENDANCE_COL.earlyLeaveReason] = "";
+    rowValues[ATTENDANCE_COL.status] = WORKING_STATUS.ON_LEAVE;
+  } else {
+    if (params.punchIn !== undefined) {
+      rowValues[ATTENDANCE_COL.punchIn] = params.punchIn;
+    }
+    if (params.punchOut !== undefined) {
+      rowValues[ATTENDANCE_COL.punchOut] = params.punchOut;
+    }
+
+    // Keep break start/end on the row so HR can edit them later (unlike live punch flow).
+    if (
+      params.breakStart !== undefined ||
+      params.breakEnd !== undefined ||
+      params.totalBreakTime !== undefined
+    ) {
+      rowValues[ATTENDANCE_COL.breakStart] = params.breakStart ?? "";
+      rowValues[ATTENDANCE_COL.breakEnd] = params.breakEnd ?? "";
+      rowValues[ATTENDANCE_COL.totalBreakTime] = params.totalBreakTime ?? "";
+    }
+
+    const punchedOut = Boolean((rowValues[ATTENDANCE_COL.punchOut] ?? "").trim());
+    if (punchedOut) {
+      applyAttendanceMetrics(rowValues, baseDate);
+    } else if ((rowValues[ATTENDANCE_COL.punchIn] ?? "").trim()) {
+      rowValues[ATTENDANCE_COL.status] = WORKING_STATUS.IN_PROGRESS;
+      rowValues[ATTENDANCE_COL.overtime] = "—";
+      rowValues[ATTENDANCE_COL.workingHours] = "";
+    }
   }
 
   await ensureSheetHasRows(targetSpreadsheetId, sheetTitle, targetRow);
@@ -1849,17 +1910,14 @@ export async function importAttendanceRecords(
     );
   };
   const isLeaveMode = (mode: string): boolean => {
-    const normalized = mode.trim().toLowerCase();
+    const normalized = canonicalizeWorkMode(mode).toLowerCase();
     return (
-      normalized === WORK_MODE.FULL_DAY_LEAVE.toLowerCase() ||
-      normalized === WORK_MODE.HALF_DAY_LEAVE.toLowerCase() ||
       normalized === WORK_MODE.HALF_DAY_PAID_LEAVE.toLowerCase() ||
       normalized === WORK_MODE.HALF_DAY_UNPAID_LEAVE.toLowerCase() ||
       normalized === WORK_MODE.PAID_LEAVE.toLowerCase() ||
       normalized === WORK_MODE.SICK_LEAVE.toLowerCase() ||
       normalized === WORK_MODE.CASUAL_LEAVE.toLowerCase() ||
-      normalized === WORK_MODE.UNPAID_LEAVE.toLowerCase() ||
-      normalized === WORK_MODE.SL.toLowerCase()
+      normalized === WORK_MODE.UNPAID_LEAVE.toLowerCase()
     );
   };
   let imported = 0;
@@ -1911,8 +1969,11 @@ export async function importAttendanceRecords(
       rowValues[ATTENDANCE_COL.dailyUpdate] = record.dailyUpdate?.trim() ?? "";
       rowValues[ATTENDANCE_COL.breakStart] = "";
       rowValues[ATTENDANCE_COL.breakEnd] = "";
-      rowValues[ATTENDANCE_COL.totalBreakTime] =
-        rowValues[ATTENDANCE_COL.workMode] === WORK_MODE.HALF_DAY_LEAVE ? "" : IMPORT_DEFAULT_BREAK;
+      rowValues[ATTENDANCE_COL.totalBreakTime] = isHalfDayUnpaidWorkMode(
+        rowValues[ATTENDANCE_COL.workMode],
+      )
+        ? ""
+        : IMPORT_DEFAULT_BREAK;
 
       const hasIn = record.punchIn.trim().length > 0;
       const hasOut = record.punchOut.trim().length > 0;
@@ -2014,7 +2075,7 @@ export function computeLiveWorkedMs(record: AttendanceRow, now: Date = new Date(
   const punchInMs = parseSheetClockTime(record.punchIn, baseDate, { role: "in" });
   if (punchInMs == null) return 0;
 
-  const skipBreak = record.workMode === WORK_MODE.HALF_DAY_LEAVE;
+  const skipBreak = isHalfDayUnpaidWorkMode(record.workMode);
   let totalBreakMs = resolveLiveBreakMs(record.totalBreakTime, record.workMode, {
     inProgress: true,
   });

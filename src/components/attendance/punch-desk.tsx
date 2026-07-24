@@ -19,7 +19,7 @@ import {
   IDEAL_BREAK_HOURS,
   IDEAL_SHIFT_HOURS,
   IDEAL_WORKING_HOURS,
-  WORK_MODE,
+  isHalfDayUnpaidWorkMode,
 } from "@/lib/attendance/constants";
 import { formatBreakAllowance, parseDurationToMs } from "@/lib/attendance/time";
 import type { TodayAttendance } from "@/lib/attendance/client";
@@ -212,7 +212,7 @@ export function PunchDesk({
   const hasPunchedIn = today?.hasPunchedIn ?? false;
   const hasPunchedOut = today?.hasPunchedOut ?? false;
   const onBreak = today?.onBreak ?? false;
-  const isHalfDayLeave = today?.workMode === WORK_MODE.HALF_DAY_LEAVE;
+  const isHalfDayLeave = isHalfDayUnpaidWorkMode(today?.workMode);
   const phase = getPhase(today, hasPunchedIn, hasPunchedOut, onBreak);
   const dayOutcome = getDayOutcome(today);
   const shortfallAmount = parseShortfallAmount(today?.overtime);

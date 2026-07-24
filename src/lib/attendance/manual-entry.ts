@@ -1,3 +1,4 @@
+import { canonicalizeWorkMode, isPunchOptionalWorkMode } from "@/lib/attendance/constants";
 import { parseLegacyImportClockTime, parseTimeOnDate, formatDuration } from "@/lib/attendance/time";
 
 export type ManualAttendanceInput = {
@@ -10,6 +11,8 @@ export type ManualAttendanceInput = {
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export { isPunchOptionalWorkMode };
 
 /** Local calendar date as YYYY-MM-DD. */
 export function localTodayIso(date: Date = new Date()): string {
@@ -60,13 +63,15 @@ export function normalizeManualAttendanceInput(input: ManualAttendanceInput): {
 } {
   assertValidManualAttendanceDate(input.dateIso);
   const baseDate = new Date(`${input.dateIso}T12:00:00`);
+  const workMode = canonicalizeWorkMode(input.workMode?.trim() ?? "");
+  const punchOptional = isPunchOptionalWorkMode(workMode);
 
   const punchIn = timeInputToClock(input.punchIn ?? "", "in", baseDate);
   const punchOut = timeInputToClock(input.punchOut ?? "", "out", baseDate);
   const breakStart = timeInputToClock(input.breakStart ?? "", "in", baseDate);
   const breakEnd = timeInputToClock(input.breakEnd ?? "", "out", baseDate);
 
-  if (!punchIn && !punchOut && !breakStart && !breakEnd) {
+  if (!punchOptional && !punchIn && !punchOut && !breakStart && !breakEnd) {
     throw new Error("Enter at least punch in, punch out, or break times");
   }
 
@@ -91,6 +96,6 @@ export function normalizeManualAttendanceInput(input: ManualAttendanceInput): {
     breakStart,
     breakEnd,
     totalBreakTime,
-    workMode: input.workMode?.trim() ?? "",
+    workMode,
   };
 }

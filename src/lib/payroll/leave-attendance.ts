@@ -44,8 +44,7 @@ export function leaveDateToIso(value: string): string {
 
 /**
  * Build attendance overlays from accepted Leave Bucket applications.
- * Approved leave wins over a missing attendance row (and over a plain present row
- * without an explicit leave work mode).
+ * Used only to fill dates that have no monthly attendance row yet.
  */
 export function buildAcceptedLeaveAttendanceOverlays(
   applications: Array<{
@@ -75,27 +74,23 @@ export function buildAcceptedLeaveAttendanceOverlays(
   return overlays;
 }
 
+/**
+ * Merge approved leave into attendance.
+ * The employee's monthly attendance sheet is the source of truth — leave overlays
+ * only fill missing dates and must never overwrite punched / sheet work modes
+ * (that was turning present days into paid-leave "A" and Attend Days = 0).
+ */
 export function mergeAttendanceWithApprovedLeaves(
-  attendanceByDate: Map<string, { workMode?: string; status?: string }>,
+  attendanceByDate: Map<
+    string,
+    { workMode?: string; status?: string; punchIn?: string; punchOut?: string }
+  >,
   overlays: LeaveAttendanceOverlay[],
-): Map<string, { workMode?: string; status?: string }> {
+): Map<string, { workMode?: string; status?: string; punchIn?: string; punchOut?: string }> {
   const merged = new Map(attendanceByDate);
 
   for (const overlay of overlays) {
-    const existing = merged.get(overlay.dateIso);
-    const existingMode = String(existing?.workMode ?? "").trim();
-    const alreadyLeave =
-      existingMode === WORK_MODE.UNPAID_LEAVE ||
-      existingMode === WORK_MODE.HALF_DAY_UNPAID_LEAVE ||
-      existingMode === WORK_MODE.PAID_LEAVE ||
-      existingMode === WORK_MODE.HALF_DAY_PAID_LEAVE ||
-      existingMode === WORK_MODE.SICK_LEAVE ||
-      existingMode === WORK_MODE.CASUAL_LEAVE ||
-      existingMode === WORK_MODE.FULL_DAY_LEAVE ||
-      existingMode === WORK_MODE.HALF_DAY_LEAVE ||
-      existingMode === WORK_MODE.SL;
-
-    if (alreadyLeave) continue;
+    if (merged.has(overlay.dateIso)) continue;
 
     merged.set(overlay.dateIso, {
       workMode: overlay.workMode,

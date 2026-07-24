@@ -11,6 +11,10 @@ import { getTodayAttendance } from "@/lib/google/attendance-sheets";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/server";
 import type { CorrectionField } from "@/lib/attendance/constants";
+import {
+  notifyCorrectionReviewed,
+  notifyCorrectionSubmitted,
+} from "@/lib/notifications/correction-events";
 
 export const GET = withActiveSession(async (_req, user) => {
   try {
@@ -85,6 +89,15 @@ export const POST = withActiveSession(async (req, user) => {
       reason,
     });
 
+    try {
+      await notifyCorrectionSubmitted({
+        request,
+        employeeSheetRow: employee.sheetRow,
+      });
+    } catch (notificationError) {
+      console.error("Correction submission notification error:", notificationError);
+    }
+
     return NextResponse.json({ success: true, request });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to submit correction";
@@ -126,6 +139,12 @@ export const PATCH = withActiveSession(async (req, user) => {
       remarks,
       reviewerName: user.name,
     });
+
+    try {
+      await notifyCorrectionReviewed(request);
+    } catch (notificationError) {
+      console.error("Correction review notification error:", notificationError);
+    }
 
     return NextResponse.json({ success: true, request });
   } catch (error: unknown) {

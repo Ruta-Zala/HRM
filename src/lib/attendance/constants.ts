@@ -50,7 +50,6 @@ export const ATTENDANCE_COL = {
 export const WORK_MODE = {
   WFH: "WFH",
   WFH_HALF_DAY: "WFH - HD",
-  FULL_DAY_LEAVE: "Full Day Leave",
   PAID_LEAVE: "Paid Leave",
   SICK_LEAVE: "Sick Leave",
   CASUAL_LEAVE: "Casual Leave",
@@ -60,14 +59,11 @@ export const WORK_MODE = {
   PUBLIC_HOLIDAY: "Public Holiday",
   WEEKEND_HOLIDAY: "Weekend Holiday",
   FULL_DAY_ONSITE: "Full Day Onsite",
-  HALF_DAY_LEAVE: "Half Day Leave",
-  SL: "SL",
 } as const;
 
 export const WORK_MODE_OPTIONS = [
   WORK_MODE.WFH,
   WORK_MODE.WFH_HALF_DAY,
-  WORK_MODE.FULL_DAY_LEAVE,
   WORK_MODE.PAID_LEAVE,
   WORK_MODE.SICK_LEAVE,
   WORK_MODE.CASUAL_LEAVE,
@@ -77,11 +73,68 @@ export const WORK_MODE_OPTIONS = [
   WORK_MODE.PUBLIC_HOLIDAY,
   WORK_MODE.WEEKEND_HOLIDAY,
   WORK_MODE.FULL_DAY_ONSITE,
-  WORK_MODE.HALF_DAY_LEAVE,
-  WORK_MODE.SL,
 ] as const;
 
 export type WorkMode = (typeof WORK_MODE_OPTIONS)[number];
+
+export const WORK_MODE_DAY_CODE: Record<WorkMode, "P" | "A" | "H" | "U" | "F"> = {
+  [WORK_MODE.FULL_DAY_ONSITE]: "P",
+  [WORK_MODE.WFH]: "P",
+  [WORK_MODE.PUBLIC_HOLIDAY]: "P",
+  [WORK_MODE.WEEKEND_HOLIDAY]: "P",
+  [WORK_MODE.PAID_LEAVE]: "A",
+  [WORK_MODE.SICK_LEAVE]: "A",
+  [WORK_MODE.CASUAL_LEAVE]: "A",
+  [WORK_MODE.HALF_DAY_PAID_LEAVE]: "H",
+  [WORK_MODE.HALF_DAY_UNPAID_LEAVE]: "U",
+  [WORK_MODE.WFH_HALF_DAY]: "U",
+  [WORK_MODE.UNPAID_LEAVE]: "F",
+};
+
+/**
+ * Map removed/legacy sheet values onto current work modes.
+ * "Full Day Leave" → Unpaid Leave, "SL" → Sick Leave,
+ * "Half Day Leave" → Half Day Unpaid Leave.
+ * Also normalizes casing to the canonical WORK_MODE option.
+ */
+export function canonicalizeWorkMode(value: string): string {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return trimmed;
+
+  const key = trimmed.toLowerCase();
+  if (key === "full day leave") return WORK_MODE.UNPAID_LEAVE;
+  if (key === "half day leave") return WORK_MODE.HALF_DAY_UNPAID_LEAVE;
+  if (key === "sl") return WORK_MODE.SICK_LEAVE;
+
+  const known = WORK_MODE_OPTIONS.find((mode) => mode.toLowerCase() === key);
+  if (known) return known;
+
+  return trimmed;
+}
+
+/** Dropdown label with letter code, e.g. "Full Day Onsite (P)". */
+export function workModeOptionLabel(mode: string): string {
+  const canonical = canonicalizeWorkMode(mode);
+  const code = WORK_MODE_DAY_CODE[canonical as WorkMode];
+  return code ? `${canonical} (${code})` : canonical || mode;
+}
+
+export function isHalfDayUnpaidWorkMode(value?: string | null): boolean {
+  return canonicalizeWorkMode(value ?? "") === WORK_MODE.HALF_DAY_UNPAID_LEAVE;
+}
+
+/** Full-day leave / holiday modes that do not require punch or break times. */
+export function isPunchOptionalWorkMode(workMode?: string | null): boolean {
+  const mode = canonicalizeWorkMode(workMode ?? "");
+  return (
+    mode === WORK_MODE.PAID_LEAVE ||
+    mode === WORK_MODE.SICK_LEAVE ||
+    mode === WORK_MODE.CASUAL_LEAVE ||
+    mode === WORK_MODE.UNPAID_LEAVE ||
+    mode === WORK_MODE.PUBLIC_HOLIDAY ||
+    mode === WORK_MODE.WEEKEND_HOLIDAY
+  );
+}
 
 /** Minimum characters for early leave reason on punch-out. */
 export const EARLY_LEAVE_REASON_MIN_LENGTH = 10;

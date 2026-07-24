@@ -13,7 +13,7 @@ import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import { amountToIndianWords, calculateSalaryBreakdown } from "@/lib/salary-slips/calculation";
 import { renderSalarySlipPdf } from "@/lib/salary-slips/pdf";
 import { getMonthAttendance, type AttendanceRow } from "@/lib/google/attendance-sheets";
-import { WORK_MODE } from "@/lib/attendance/constants";
+import { WORK_MODE, canonicalizeWorkMode } from "@/lib/attendance/constants";
 import {
   findEffectiveSalaryForPeriodFromRecords,
   listSalaryHistoryRecords,
@@ -44,14 +44,12 @@ function countWeekdaysInMonth(year: number, month: number): number {
 }
 
 function getWorkModeDayValue(workMode: string): number | null {
-  const normalized = String(workMode ?? "").trim();
+  const normalized = canonicalizeWorkMode(String(workMode ?? ""));
   if (
-    normalized === WORK_MODE.FULL_DAY_LEAVE ||
     normalized === WORK_MODE.PAID_LEAVE ||
     normalized === WORK_MODE.SICK_LEAVE ||
     normalized === WORK_MODE.CASUAL_LEAVE ||
     normalized === WORK_MODE.UNPAID_LEAVE ||
-    normalized === WORK_MODE.SL ||
     normalized === WORK_MODE.PUBLIC_HOLIDAY ||
     normalized === WORK_MODE.WEEKEND_HOLIDAY
   ) {
@@ -61,7 +59,6 @@ function getWorkModeDayValue(workMode: string): number | null {
   if (
     normalized === WORK_MODE.HALF_DAY_PAID_LEAVE ||
     normalized === WORK_MODE.HALF_DAY_UNPAID_LEAVE ||
-    normalized === WORK_MODE.HALF_DAY_LEAVE ||
     normalized === WORK_MODE.WFH_HALF_DAY
   ) {
     return 0.5;
