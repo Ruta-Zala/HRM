@@ -131,8 +131,9 @@ async function getAttendanceSpreadsheetMeta(spreadsheetId: string): Promise<{
       supportsAllDrives: true,
     }),
   );
-  const name = file.data.name ?? "Attendance";
-  const parentFolderId = file.data.parents?.[0] ?? null;
+  const fileData = file.data as { name?: string | null; parents?: string[] | null };
+  const name = fileData.name ?? "Attendance";
+  const parentFolderId = fileData.parents?.[0] ?? null;
   const parsed = parseAttendanceFileName(name);
   const meta = {
     name,

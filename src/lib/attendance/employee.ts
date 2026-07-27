@@ -58,7 +58,8 @@ export async function isAttendanceSpreadsheetAccessible(spreadsheetId: string): 
       fields: "id,trashed",
       supportsAllDrives: true,
     });
-    return Boolean(file.data.id) && file.data.trashed !== true;
+    const fileData = file.data as { id?: string | null; trashed?: boolean | null };
+    return Boolean(fileData.id) && fileData.trashed !== true;
   } catch {
     return false;
   }
