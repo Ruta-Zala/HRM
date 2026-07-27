@@ -28,6 +28,11 @@ import {
   parseMonthlySheetTitle,
 } from "@/lib/attendance/time";
 import { withActiveSession } from "@/lib/auth/api-guard";
+import { roleRequiresAbsenceExplanationGate } from "@/lib/attendance/absence-gate";
+import {
+  applyAbsenceGateCookie,
+  invalidateAbsenceExplanationCache,
+} from "@/lib/attendance/absence-gate-sync";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
 
@@ -239,7 +244,7 @@ export const POST = withActiveSession(async (req, user) => {
 
     const workedMs = computeLiveWorkedMs(record);
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       success: true,
       record: {
         date: record.date,
@@ -264,6 +269,13 @@ export const POST = withActiveSession(async (req, user) => {
         idealShiftHours: isHalfDayUnpaidWorkMode(record.workMode) ? 4 : IDEAL_SHIFT_HOURS,
       },
     });
+
+    if (action === "punch-in" && roleRequiresAbsenceExplanationGate(user.role)) {
+      invalidateAbsenceExplanationCache(employee.employeeId);
+      await applyAbsenceGateCookie(res, user, { forceRefresh: true });
+    }
+
+    return res;
   } catch (error: unknown) {
     const message = formatGoogleApiClientMessage(error, {
       forHrAdmin: canManageEmployees(user.role),

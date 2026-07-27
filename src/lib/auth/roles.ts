@@ -8,3 +8,8 @@ export function canManageEmployees(role: UserRole): boolean {
 export function canReviewOvertime(role: UserRole): boolean {
   return role === ROLES.SUPER_ADMIN;
 }
+
+export {
+  roleRequiresAbsenceExplanationGate,
+  PUNCH_GATE_ROUTE,
+} from "@/lib/attendance/absence-gate";

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { syncAbsenceGateForUser } from "@/lib/attendance/absence-gate-sync";
+import { setAbsenceGateCookie } from "@/lib/attendance/absence-gate-cookie";
+import { roleRequiresAbsenceExplanationGate } from "@/lib/attendance/absence-gate";
 import { authenticateFromSheet } from "@/lib/auth/login";
 import { COOKIE, encodeSession, SESSION_COOKIE_OPTIONS } from "@/lib/session";
 
@@ -32,9 +35,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
+    let requiresAbsenceExplanation = false;
+    if (roleRequiresAbsenceExplanationGate(result.user.role)) {
+      requiresAbsenceExplanation = await syncAbsenceGateForUser(result.user, {
+        forceRefresh: true,
+      });
+    }
+
     const token = encodeSession(result.user);
-    const res = NextResponse.json({ ok: true, user: result.user });
+    const res = NextResponse.json({
+      ok: true,
+      user: result.user,
+      requiresAbsenceExplanation,
+    });
     res.cookies.set(COOKIE, token, SESSION_COOKIE_OPTIONS);
+    setAbsenceGateCookie(res, requiresAbsenceExplanation);
     return res;
   } catch (error) {
     console.error("[auth/login]", error);

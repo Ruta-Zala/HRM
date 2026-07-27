@@ -1,37 +1,74 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-provider";
 import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { TodayAttendanceProvider } from "@/contexts/today-attendance-provider";
 import { NotificationsProvider } from "@/contexts/notifications-provider";
+import {
+  PUNCH_GATE_ROUTE,
+  roleRequiresAbsenceExplanationGate,
+} from "@/lib/attendance/absence-gate";
+import { parseJsonResponse } from "@/lib/api/json-response";
+import {
+  readAbsenceGateSessionHint,
+  setAbsenceGateSessionHint,
+} from "@/lib/attendance/absence-gate-session";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const gateRole = user ? roleRequiresAbsenceExplanationGate(user.role) : false;
+  const onPunchPage = pathname === PUNCH_GATE_ROUTE || pathname.startsWith(`${PUNCH_GATE_ROUTE}/`);
+  const gateApplies = gateRole && !onPunchPage;
+  const [gateActive, setGateActive] = useState<boolean | null>(() => {
+    if (!gateApplies) return false;
+    return readAbsenceGateSessionHint();
+  });
 
   useEffect(() => {
     if (!loading && !user) {
-      // #region agent log
-      fetch("http://127.0.0.1:7279/ingest/f049b175-207b-4058-92d9-83f5639a1829", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "41e469" },
-        body: JSON.stringify({
-          sessionId: "41e469",
-          runId: "pre-fix",
-          hypothesisId: "H6",
-          location: "dashboard-shell.tsx:useEffect",
-          message: "dashboard shell redirecting to /login (no user)",
-          data: { loading, path: typeof window !== "undefined" ? window.location.pathname : "" },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       router.replace("/login");
     }
   }, [loading, user, router]);
+
+  useEffect(() => {
+    if (!gateApplies || loading || !user) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/absence-gate", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const parsed = await parseJsonResponse<{ active?: boolean }>(res);
+        if (cancelled || parsed.invalid || parsed.empty) return;
+        const active = Boolean(parsed.data?.active);
+        setAbsenceGateSessionHint(active);
+        setGateActive(active);
+        if (active) {
+          router.replace(PUNCH_GATE_ROUTE);
+        }
+      } catch {
+        const hint = readAbsenceGateSessionHint();
+        if (!cancelled && hint === true) {
+          setGateActive(true);
+          router.replace(PUNCH_GATE_ROUTE);
+        } else if (!cancelled) {
+          setGateActive(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gateApplies, loading, user, router]);
 
   if (loading || !user) {
     return (
@@ -39,6 +76,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col items-center gap-3">
           <div className="border-ex-border border-t-ex-secondary size-10 animate-spin rounded-full border-2" />
           <p className="text-ex-muted text-sm">Loading workspace…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (gateApplies && gateActive !== false) {
+    return (
+      <div className="bg-ex-bg flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="border-ex-border border-t-ex-secondary size-10 animate-spin rounded-full border-2" />
+          <p className="text-ex-muted text-sm">Redirecting to punch desk…</p>
         </div>
       </div>
     );

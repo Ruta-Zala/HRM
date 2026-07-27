@@ -9,6 +9,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiResponseErrorMessage, parseJsonResponse } from "@/lib/api/json-response";
+import { setAbsenceGateSessionHint } from "@/lib/attendance/absence-gate-session";
 
 export default function LoginPage() {
   return (
@@ -47,16 +48,26 @@ function LoginPageContent() {
         body: JSON.stringify({ login, password }),
       });
 
-      const parsed = await parseJsonResponse<{ error?: string; ok?: boolean }>(res);
+      const parsed = await parseJsonResponse<{
+        error?: string;
+        ok?: boolean;
+        requiresAbsenceExplanation?: boolean;
+      }>(res);
       if (parsed.invalid || parsed.empty) {
         setError(apiResponseErrorMessage(res, parsed, "Sign-in failed"));
         return;
       }
-      const data = parsed.data;
-      if (!res.ok) {
-        setError(data?.error ?? "Sign-in failed");
+      if (!res.ok || !parsed.data?.ok) {
+        setError(parsed.data?.error ?? "Sign-in failed");
         return;
       }
+      const data = parsed.data;
+      if (data.requiresAbsenceExplanation) {
+        setAbsenceGateSessionHint(true);
+        window.location.assign("/employee/punch");
+        return;
+      }
+      setAbsenceGateSessionHint(false);
       window.location.assign(from);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "An unexpected error occurred";

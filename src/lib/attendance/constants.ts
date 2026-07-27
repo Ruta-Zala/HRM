@@ -219,3 +219,18 @@ export const OVERTIME_REQUEST_HEADERS = [
   "Reviewed Date",
   "Created At",
 ] as const;
+
+export const ABSENCE_EXPLANATION_SHEET_TITLE = "AbsenceExplanations";
+
+/** Minimum characters for absence explanation after rejected leave. */
+export const ABSENCE_EXPLANATION_MIN_LENGTH = 10;
+
+export const ABSENCE_EXPLANATION_HEADERS = [
+  "ID",
+  "Date",
+  "Leave Type",
+  "Leave Row Index",
+  "Reject Reason",
+  "Explanation",
+  "Submitted At",
+] as const;

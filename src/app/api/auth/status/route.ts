@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { isSessionUserActive } from "@/lib/auth/account-status";
 import { getSessionFromCookie } from "@/lib/auth/server";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const user = await getSessionFromCookie();
