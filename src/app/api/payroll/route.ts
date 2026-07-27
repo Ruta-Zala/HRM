@@ -140,7 +140,10 @@ export const GET = withActiveSession(async (req, user) => {
         continue;
       }
 
-      const attendanceByDate = new Map<string, { workMode?: string; status?: string }>();
+      const attendanceByDate = new Map<
+        string,
+        { workMode?: string; status?: string; punchIn?: string; punchOut?: string }
+      >();
 
       // Prefer the stored Employees-sheet ID (same workbook punch uses). Avoid a Drive
       // accessibility check per employee — that was exhausting Sheets/Drive quota and
