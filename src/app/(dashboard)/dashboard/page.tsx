@@ -167,8 +167,8 @@ function UpcomingHolidayItem({ holiday }: { holiday: CompanyHoliday }) {
         className={cn(
           "flex size-12 shrink-0 flex-col items-center justify-center rounded-xl",
           isLeave
-            ? "bg-sky-500/15 text-sky-700 dark:text-sky-300"
-            : "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+            ? "border-ex-chip-info-border bg-ex-chip-info-bg text-ex-chip-info-fg"
+            : "border-ex-chip-accent-border bg-ex-chip-accent-bg text-ex-chip-accent-fg",
         )}
       >
         <span className="text-base leading-none font-bold">{date.day}</span>
@@ -182,7 +182,7 @@ function UpcomingHolidayItem({ holiday }: { holiday: CompanyHoliday }) {
           <span
             className={cn(
               "inline-flex items-center gap-1 text-xs font-medium",
-              isLeave ? "text-sky-700 dark:text-sky-300" : "text-amber-700 dark:text-amber-300",
+              isLeave ? "text-ex-chip-info-fg" : "text-ex-chip-accent-fg",
             )}
           >
             {isLeave ? <CalendarDays className="size-3" /> : <Sparkles className="size-3" />}

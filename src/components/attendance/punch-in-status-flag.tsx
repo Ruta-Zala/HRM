@@ -12,21 +12,21 @@ export function PunchInBanner({ className }: { className?: string }) {
     <div
       role="status"
       className={cn(
-        "flex items-start gap-3 rounded-xl border border-amber-200/90 bg-amber-50 px-4 py-3 dark:border-amber-800/60 dark:bg-amber-950/40",
+        "border-ex-banner-warning-border bg-ex-banner-warning-bg flex items-start gap-3 rounded-xl border px-4 py-3",
         className,
       )}
     >
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
-        <LogIn className="size-4 text-amber-700 dark:text-amber-300" aria-hidden />
+      <div className="bg-ex-banner-warning-icon-bg text-ex-banner-warning-icon-fg flex size-9 shrink-0 items-center justify-center rounded-full">
+        <LogIn className="size-4" aria-hidden />
       </div>
       <div className="min-w-0 flex-1 space-y-1">
-        <p className="text-sm font-semibold text-amber-950 dark:text-amber-50">Punch in not done</p>
-        <p className="text-sm leading-relaxed text-amber-900/85 dark:text-amber-100/85">
+        <p className="text-ex-banner-warning-fg text-sm font-semibold">Punch in not done</p>
+        <p className="text-ex-banner-warning-muted text-sm leading-relaxed">
           You haven&apos;t punched in for today yet. Start your day to begin tracking work hours.
         </p>
         <Link
           href="/employee/punch"
-          className="inline-flex text-sm font-medium text-amber-800 underline-offset-2 hover:underline dark:text-amber-200"
+          className="text-ex-banner-warning-link inline-flex text-sm font-medium underline-offset-2 hover:underline"
         >
           Go to punch desk
         </Link>

@@ -20,6 +20,30 @@
   --ex-accent: #c27803;
   --ex-accent-muted: #fef3c7;
 
+  /* Status chips & alert banners */
+  --ex-chip-warning-bg: #fef3c7;
+  --ex-chip-warning-fg: #92400e;
+  --ex-chip-warning-border: #fcd34d;
+  --ex-chip-accent-bg: #fef3c7;
+  --ex-chip-accent-fg: #78350f;
+  --ex-chip-accent-border: #fbbf24;
+  --ex-chip-success-bg: #d1fae5;
+  --ex-chip-success-fg: #047857;
+  --ex-chip-success-border: #6ee7b7;
+  --ex-chip-danger-bg: #ffe4e6;
+  --ex-chip-danger-fg: #be123c;
+  --ex-chip-danger-border: #fda4af;
+  --ex-chip-info-bg: #e0f2fe;
+  --ex-chip-info-fg: #0369a1;
+  --ex-chip-info-border: #7dd3fc;
+  --ex-banner-warning-bg: #fffbeb;
+  --ex-banner-warning-fg: #78350f;
+  --ex-banner-warning-muted: #92400e;
+  --ex-banner-warning-link: #b45309;
+  --ex-banner-warning-border: #fcd34d;
+  --ex-banner-warning-icon-bg: #fef3c7;
+  --ex-banner-warning-icon-fg: #b45309;
+
   /* Charts */
   --ex-chart-1: #0f766e;
   --ex-chart-2: #059669;
@@ -44,6 +68,29 @@
   --ex-accent: #fbbf24;
   --ex-accent-muted: #422006;
 
+  --ex-chip-warning-bg: #5c4828;
+  --ex-chip-warning-fg: #fde68a;
+  --ex-chip-warning-border: #d97706;
+  --ex-chip-accent-bg: #5c4828;
+  --ex-chip-accent-fg: #fbbf24;
+  --ex-chip-accent-border: #f59e0b;
+  --ex-chip-success-bg: #064e3b;
+  --ex-chip-success-fg: #6ee7b7;
+  --ex-chip-success-border: #059669;
+  --ex-chip-danger-bg: #4c0519;
+  --ex-chip-danger-fg: #fda4af;
+  --ex-chip-danger-border: #be123c;
+  --ex-chip-info-bg: #1e3a5f;
+  --ex-chip-info-fg: #7dd3fc;
+  --ex-chip-info-border: #0284c7;
+  --ex-banner-warning-bg: #5c4828;
+  --ex-banner-warning-fg: #fde68a;
+  --ex-banner-warning-muted: #fcd34d;
+  --ex-banner-warning-link: #fbbf24;
+  --ex-banner-warning-border: #d97706;
+  --ex-banner-warning-icon-bg: #6d5735;
+  --ex-banner-warning-icon-fg: #fde68a;
+
   --ex-chart-1: #2dd4bf;
   --ex-chart-2: #34d399;
   --ex-chart-3: #fbbf24;
@@ -58,6 +105,29 @@
   --color-ex-primary: var(--ex-primary);
   --color-ex-secondary: var(--ex-secondary);
   --color-ex-accent: var(--ex-accent);
+  --color-ex-accent-muted: var(--ex-accent-muted);
+  --color-ex-chip-warning-bg: var(--ex-chip-warning-bg);
+  --color-ex-chip-warning-fg: var(--ex-chip-warning-fg);
+  --color-ex-chip-warning-border: var(--ex-chip-warning-border);
+  --color-ex-chip-accent-bg: var(--ex-chip-accent-bg);
+  --color-ex-chip-accent-fg: var(--ex-chip-accent-fg);
+  --color-ex-chip-accent-border: var(--ex-chip-accent-border);
+  --color-ex-chip-success-bg: var(--ex-chip-success-bg);
+  --color-ex-chip-success-fg: var(--ex-chip-success-fg);
+  --color-ex-chip-success-border: var(--ex-chip-success-border);
+  --color-ex-chip-danger-bg: var(--ex-chip-danger-bg);
+  --color-ex-chip-danger-fg: var(--ex-chip-danger-fg);
+  --color-ex-chip-danger-border: var(--ex-chip-danger-border);
+  --color-ex-chip-info-bg: var(--ex-chip-info-bg);
+  --color-ex-chip-info-fg: var(--ex-chip-info-fg);
+  --color-ex-chip-info-border: var(--ex-chip-info-border);
+  --color-ex-banner-warning-bg: var(--ex-banner-warning-bg);
+  --color-ex-banner-warning-fg: var(--ex-banner-warning-fg);
+  --color-ex-banner-warning-muted: var(--ex-banner-warning-muted);
+  --color-ex-banner-warning-link: var(--ex-banner-warning-link);
+  --color-ex-banner-warning-border: var(--ex-banner-warning-border);
+  --color-ex-banner-warning-icon-bg: var(--ex-banner-warning-icon-bg);
+  --color-ex-banner-warning-icon-fg: var(--ex-banner-warning-icon-fg);
   --color-ex-border: var(--ex-border);
   --color-ex-muted: var(--ex-muted);
   --color-ex-ring: var(--ex-ring);
