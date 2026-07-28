@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,28 +103,28 @@ export function AbsenceExplanationPanel({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const applyGroups = useCallback(
-    (items: PendingAbsenceGroup[]) => {
-      setGroups(items);
-      setAbsenceGateSessionHint(items.length > 0);
-      onPendingChange?.(items.length);
-      setExplanations((current) => {
-        const next = { ...current };
-        for (const item of items) {
-          if (next[item.id] == null) next[item.id] = "";
-        }
-        return next;
-      });
-    },
-    [onPendingChange],
-  );
+  // Keep parent callbacks in refs so the mount fetch does not re-run when
+  // parents pass inline functions (which would otherwise loop: fetch → setState
+  // → new callback → effect deps change → fetch again).
+  const onPendingChangeRef = useRef(onPendingChange);
+  const onSubmittedRef = useRef(onSubmitted);
+  useEffect(() => {
+    onPendingChangeRef.current = onPendingChange;
+    onSubmittedRef.current = onSubmitted;
+  });
 
-  const reload = useCallback(async () => {
-    const result = await fetchPendingGroups();
-    setError(result.error);
-    applyGroups(result.groups);
-    setLoading(false);
-  }, [applyGroups]);
+  const applyGroups = useCallback((items: PendingAbsenceGroup[]) => {
+    setGroups(items);
+    setAbsenceGateSessionHint(items.length > 0);
+    onPendingChangeRef.current?.(items.length);
+    setExplanations((current) => {
+      const next = { ...current };
+      for (const item of items) {
+        if (next[item.id] == null) next[item.id] = "";
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -169,15 +169,20 @@ export function AbsenceExplanationPanel({
         }),
       });
 
-      const parsed = await parseJsonResponse<{ success?: boolean; message?: string }>(res);
+      const parsed = await parseJsonResponse<{
+        success?: boolean;
+        message?: string;
+        groups?: PendingAbsenceGroup[];
+      }>(res);
       if (parsed.invalid || parsed.empty || !res.ok || !parsed.data?.success) {
         setError(apiResponseErrorMessage(res, parsed, "Failed to submit explanation"));
         return;
       }
 
-      await reload();
+      // Use groups from POST response — avoid a second GET round-trip.
+      applyGroups(parsed.data.groups ?? []);
       setAbsenceGateSessionHint(false);
-      onSubmitted?.();
+      onSubmittedRef.current?.();
     } catch (submitError) {
       const message =
         submitError instanceof Error ? submitError.message : "Failed to submit explanation";
@@ -192,7 +197,7 @@ export function AbsenceExplanationPanel({
       <Card className="border-amber-200 dark:border-amber-900/60">
         <CardContent className="text-ex-muted flex items-center justify-center gap-2 py-10 text-sm">
           <Loader2 className="size-4 animate-spin" aria-hidden />
-          Checking attendance explanations…
+          Checking attendance...
         </CardContent>
       </Card>
     );

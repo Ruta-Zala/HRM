@@ -200,8 +200,14 @@ export const navStructure: NavItem[] = [
     label: "Access control",
     href: "/settings/network",
     icon: "Shield",
-    roles: [],
-    children: [{ roles: [], label: "LAN / Wi-Fi restriction", href: "/settings/network" }],
+    roles: [SUPER_ADMIN, HR_MANAGER],
+    children: [
+      {
+        roles: [SUPER_ADMIN, HR_MANAGER],
+        label: "LAN / Wi-Fi restriction",
+        href: "/settings/network",
+      },
+    ],
   },
 ];
 
@@ -250,7 +256,6 @@ export function canAccessPath(role: UserRole, pathname: string): boolean {
     }
   }
 
-  if (pathname.startsWith("/settings/network")) return false;
   if (pathname.startsWith("/integrations") && role === "employee") return false;
   return true;
 }

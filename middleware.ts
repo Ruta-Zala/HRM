@@ -10,18 +10,34 @@ import {
   PUNCH_GATE_ROUTE,
   roleRequiresAbsenceExplanationGate,
 } from "@/lib/attendance/absence-gate";
+import { NETWORK_BLOCKED_PATH } from "@/lib/network-access/constants";
+import {
+  NETWORK_GATE_COOKIE,
+  readNetworkGateDecision,
+} from "@/lib/network-access/network-gate-cookie";
+import { canManageEmployees } from "@/lib/auth/roles";
 import type { UserRole } from "@/types/auth";
 
 const PUBLIC_PATHS = [
   "/login",
   "/account-inactive",
+  NETWORK_BLOCKED_PATH,
   "/api/auth/login",
   "/api/auth/logout",
   "/api/auth/me",
   "/api/auth/status",
   "/api/auth/absence-gate",
+  "/api/auth/network-access",
   "/api/integrations/google-drive/callback",
   "/api/cron/leave-reminders",
+];
+
+const NETWORK_GATE_ALLOWED_PATHS = [
+  NETWORK_BLOCKED_PATH,
+  "/api/auth/logout",
+  "/api/auth/me",
+  "/api/auth/status",
+  "/api/auth/network-access",
 ];
 
 const GATE_ALLOWED_PAGE_PATHS = [PUNCH_GATE_ROUTE];
@@ -53,6 +69,29 @@ async function fetchAccountActive(req: NextRequest): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function isNetworkGateAllowedPath(pathname: string): boolean {
+  return NETWORK_GATE_ALLOWED_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+function redirectToNetworkBlocked(req: NextRequest) {
+  const url = req.nextUrl.clone();
+  url.pathname = NETWORK_BLOCKED_PATH;
+  url.search = "";
+  return NextResponse.redirect(url);
+}
+
+/**
+ * Cookie-based network gate (no Google Sheets in middleware).
+ * Missing/stale cookie → /network-blocked to revalidate via Node API.
+ */
+function enforceNetworkGate(req: NextRequest, role: UserRole): NextResponse | null {
+  if (canManageEmployees(role)) return null;
+
+  const decision = readNetworkGateDecision(req.cookies.get(NETWORK_GATE_COOKIE)?.value, req);
+  if (decision === "allow") return null;
+  return redirectToNetworkBlocked(req);
 }
 
 function isGateRequired(req: NextRequest, gateRole: boolean): boolean {
@@ -101,11 +140,25 @@ export async function middleware(req: NextRequest) {
     }
     const active = await fetchAccountActive(req);
     if (active) {
+      const networkRedirect = enforceNetworkGate(req, user.role as UserRole);
+      if (networkRedirect) return networkRedirect;
       if (gateRequired) {
         return redirectToPunch(req);
       }
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
+    return NextResponse.next();
+  }
+
+  if (pathname === NETWORK_BLOCKED_PATH) {
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
+    const active = await fetchAccountActive(req);
+    if (!active) {
+      return NextResponse.redirect(new URL("/account-inactive", req.url));
+    }
+    // Always allow this page so the client can call /api/auth/network-access and refresh the cookie.
     return NextResponse.next();
   }
 
@@ -119,6 +172,8 @@ export async function middleware(req: NextRequest) {
       if (!active) {
         return NextResponse.redirect(new URL("/account-inactive", req.url));
       }
+      const networkRedirect = enforceNetworkGate(req, user.role as UserRole);
+      if (networkRedirect) return networkRedirect;
       if (gateRequired) {
         return redirectToPunch(req);
       }
@@ -153,6 +208,23 @@ export async function middleware(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.pathname = "/account-inactive";
     return NextResponse.redirect(url);
+  }
+
+  if (!isNetworkGateAllowedPath(pathname)) {
+    const networkRedirect = enforceNetworkGate(req, user.role as UserRole);
+    if (networkRedirect) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Access is limited to the office Wi‑Fi network.",
+            code: "NETWORK_RESTRICTED",
+          },
+          { status: 403 },
+        );
+      }
+      return networkRedirect;
+    }
   }
 
   if (gateRequired && !isGateAllowedPath(pathname)) {
