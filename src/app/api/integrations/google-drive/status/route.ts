@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { withActiveSession } from "@/lib/auth/api-guard";
+import { canManageEmployees } from "@/lib/auth/roles";
+import { getSessionFromCookie } from "@/lib/auth/server";
 import {
   getDriveOAuthRedirectUri,
   getDriveOAuthSetupRedirectUris,
@@ -12,18 +13,38 @@ import {
 import { getRequestAppOrigin } from "@/lib/google/drive-oauth-request";
 import { isDriveImpersonationEnabled } from "@/lib/google/auth";
 
-export const GET = withActiveSession(async (req) => {
-  const oauthConnected = await isDriveOAuthConnected();
+export async function GET(req: Request) {
+  const user = await getSessionFromCookie();
+  if (!user) {
+    return NextResponse.json({ success: false, message: "Not authenticated." }, { status: 401 });
+  }
+  if (!canManageEmployees(user.role)) {
+    return NextResponse.json({ success: false, message: "Forbidden." }, { status: 403 });
+  }
 
-  return NextResponse.json({
-    success: true,
-    oauthConfigured: isDriveOAuthConfigured(),
-    oauthConnected,
-    oauthRedirectUri: getDriveOAuthRedirectUri(getRequestAppOrigin(req)),
-    oauthSetupRedirectUris: getDriveOAuthSetupRedirectUris(),
-    tokenPersistence: getDriveOAuthTokenPersistence(),
-    needsEnvRefreshToken: needsDriveOAuthRefreshTokenInEnv(),
-    impersonation: isDriveImpersonationEnabled(),
-    driveReady: oauthConnected || isDriveImpersonationEnabled(),
-  });
-});
+  try {
+    const oauthConnected = await isDriveOAuthConnected();
+    const impersonation = isDriveImpersonationEnabled();
+    return NextResponse.json({
+      success: true,
+      oauthConfigured: isDriveOAuthConfigured(),
+      oauthConnected,
+      oauthRedirectUri: getDriveOAuthRedirectUri(getRequestAppOrigin(req)),
+      oauthSetupRedirectUris: getDriveOAuthSetupRedirectUris(),
+      tokenPersistence: getDriveOAuthTokenPersistence(),
+      needsEnvRefreshToken: needsDriveOAuthRefreshTokenInEnv(),
+      impersonation,
+      driveReady: oauthConnected || impersonation,
+    });
+  } catch (error) {
+    console.error("[google-drive/status]", error);
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Could not read Google Drive connection status.",
+        oauthConfigured: isDriveOAuthConfigured(),
+      },
+      { status: 200 },
+    );
+  }
+}

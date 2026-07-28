@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { withActiveSession } from "@/lib/auth/api-guard";
+import { canManageEmployees } from "@/lib/auth/roles";
+import { getSessionFromCookie } from "@/lib/auth/server";
 import {
   getDriveOAuthConsentUrl,
   getDriveOAuthRedirectUri,
@@ -10,7 +11,15 @@ import { getRequestAppOrigin } from "@/lib/google/drive-oauth-request";
 
 export const runtime = "nodejs";
 
-export const GET = withActiveSession(async (req) => {
+export async function GET(req: Request) {
+  const user = await getSessionFromCookie();
+  if (!user) {
+    return NextResponse.json({ success: false, message: "Not authenticated." }, { status: 401 });
+  }
+  if (!canManageEmployees(user.role)) {
+    return NextResponse.json({ success: false, message: "Forbidden." }, { status: 403 });
+  }
+
   if (!isDriveOAuthConfigured()) {
     return NextResponse.json(
       {
@@ -31,4 +40,4 @@ export const GET = withActiveSession(async (req) => {
   }
 
   return NextResponse.redirect(url);
-});
+}

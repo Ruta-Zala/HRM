@@ -113,7 +113,8 @@ function GoogleDriveIntegrationContent() {
     })();
   }, [connected]);
 
-  const isConnected = status?.oauthConnected || status?.impersonation || false;
+  // Keep UI stable right after OAuth callback even if status recheck is momentarily delayed.
+  const isConnected = connected || status?.oauthConnected || status?.impersonation || false;
 
   return (
     <div className="space-y-8">
