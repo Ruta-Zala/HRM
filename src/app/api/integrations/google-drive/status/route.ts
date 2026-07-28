@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 import { canManageEmployees } from "@/lib/auth/roles";
 import { getSessionFromCookie } from "@/lib/auth/server";
@@ -13,7 +14,7 @@ import {
 import { getRequestAppOrigin } from "@/lib/google/drive-oauth-request";
 import { isDriveImpersonationEnabled } from "@/lib/google/auth";
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   const user = await getSessionFromCookie();
   if (!user) {
     return NextResponse.json({ success: false, message: "Not authenticated." }, { status: 401 });
