@@ -65,12 +65,21 @@ async function fetchAccountActive(req: NextRequest): Promise<boolean> {
     headers: sessionCookie ? { cookie: `${COOKIE}=${sessionCookie}` } : {},
     cache: "no-store",
   });
-  if (!res.ok) return false;
+  if (!res.ok) return true;
   try {
-    const data = (await res.json()) as { active?: boolean };
-    return Boolean(data.active);
+    const data = (await res.json()) as {
+      authenticated?: boolean;
+      active?: boolean;
+      error?: string;
+    };
+    // Fail-open on transient status-check failures (common on serverless/edge):
+    // only treat as inactive when the API explicitly confirms it.
+    if (data.authenticated === true) {
+      return data.active !== false;
+    }
+    return true;
   } catch {
-    return false;
+    return true;
   }
 }
 
