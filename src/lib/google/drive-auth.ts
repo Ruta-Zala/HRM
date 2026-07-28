@@ -173,7 +173,25 @@ export async function saveDriveOAuthTokens(tokens: StoredDriveTokens, redirectUr
 export async function isDriveOAuthConnected(): Promise<boolean> {
   if (!shouldPreferOAuth()) return false;
   const stored = await readStoredTokens();
-  return Boolean(stored?.refresh_token);
+  if (!stored?.refresh_token) return false;
+
+  const redirectUri = stored.redirect_uri?.trim() || getDriveOAuthRedirectUri() || undefined;
+  const oauth2 = createDriveOAuth2Client(redirectUri);
+  if (!oauth2) return false;
+
+  oauth2.setCredentials(stored);
+  try {
+    const tokenResponse = await oauth2.getAccessToken();
+    return Boolean(tokenResponse.token);
+  } catch (error) {
+    if (isInvalidGrantError(error)) {
+      cachedOAuthClient = null;
+      await clearStoredOAuthTokensIfNotFromEnv();
+      return false;
+    }
+    console.error("[google-drive] oauth connected check failed:", error);
+    return false;
+  }
 }
 
 /** When false (default), Drive/Sheets APIs use the service account — not a stale local OAuth file. */

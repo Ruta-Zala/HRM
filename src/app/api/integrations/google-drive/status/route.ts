@@ -10,6 +10,7 @@ import {
   isDriveOAuthConfigured,
   isDriveOAuthConnected,
   needsDriveOAuthRefreshTokenInEnv,
+  shouldPreferOAuth,
 } from "@/lib/google/drive-auth";
 import { getRequestAppOrigin } from "@/lib/google/drive-oauth-request";
 import { isDriveImpersonationEnabled } from "@/lib/google/auth";
@@ -26,14 +27,19 @@ export async function GET(req: NextRequest) {
   try {
     const oauthConnected = await isDriveOAuthConnected();
     const impersonation = isDriveImpersonationEnabled();
+    const preferOAuth = shouldPreferOAuth();
+    const tokenPersistence = getDriveOAuthTokenPersistence();
+    const oauthNeedsReconnect = preferOAuth && tokenPersistence !== "none" && !oauthConnected;
     return NextResponse.json({
       success: true,
       oauthConfigured: isDriveOAuthConfigured(),
       oauthConnected,
       oauthRedirectUri: getDriveOAuthRedirectUri(getRequestAppOrigin(req)),
       oauthSetupRedirectUris: getDriveOAuthSetupRedirectUris(),
-      tokenPersistence: getDriveOAuthTokenPersistence(),
+      tokenPersistence,
       needsEnvRefreshToken: needsDriveOAuthRefreshTokenInEnv(),
+      preferOAuth,
+      oauthNeedsReconnect,
       impersonation,
       driveReady: oauthConnected || impersonation,
     });

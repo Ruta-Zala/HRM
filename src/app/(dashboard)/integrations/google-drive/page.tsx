@@ -15,6 +15,8 @@ type DriveStatus = {
   oauthRedirectUri: string;
   oauthSetupRedirectUris: string[];
   needsEnvRefreshToken?: boolean;
+  oauthNeedsReconnect?: boolean;
+  preferOAuth?: boolean;
   tokenPersistence?: string;
   impersonation: boolean;
 };
@@ -92,6 +94,8 @@ function GoogleDriveIntegrationContent() {
           oauthRedirectUri?: string;
           oauthSetupRedirectUris?: string[];
           needsEnvRefreshToken?: boolean;
+          oauthNeedsReconnect?: boolean;
+          preferOAuth?: boolean;
           tokenPersistence?: string;
           impersonation?: boolean;
         }>(res);
@@ -103,6 +107,8 @@ function GoogleDriveIntegrationContent() {
             oauthRedirectUri: data.oauthRedirectUri ?? "",
             oauthSetupRedirectUris: data.oauthSetupRedirectUris ?? [],
             needsEnvRefreshToken: data.needsEnvRefreshToken,
+            oauthNeedsReconnect: data.oauthNeedsReconnect,
+            preferOAuth: data.preferOAuth,
             tokenPersistence: data.tokenPersistence,
             impersonation: data.impersonation ?? false,
           });
@@ -160,6 +166,16 @@ function GoogleDriveIntegrationContent() {
                     ), open <code>.data/google-drive-oauth.json</code>, copy{" "}
                     <code>refresh_token</code> into Vercel as{" "}
                     <code>GOOGLE_OAUTH_REFRESH_TOKEN</code>, then redeploy.
+                  </p>
+                </div>
+              ) : null}
+              {status?.oauthNeedsReconnect ? (
+                <div className="border-ex-border bg-ex-surface-2 space-y-2 rounded-md border p-3 text-xs">
+                  <p className="font-medium text-amber-700">Google reconnect required</p>
+                  <p className="text-ex-muted">
+                    Saved OAuth token is no longer valid. Click{" "}
+                    <strong>Connect Google Drive</strong> to refresh access, then replace{" "}
+                    <code>GOOGLE_OAUTH_REFRESH_TOKEN</code> in Vercel and redeploy.
                   </p>
                 </div>
               ) : null}
