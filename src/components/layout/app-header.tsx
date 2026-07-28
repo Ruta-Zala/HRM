@@ -1,22 +1,75 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { Bell, LogOut } from "lucide-react";
+import { Bell, LogOut, User } from "lucide-react";
 import { useAuth } from "@/contexts/auth-provider";
 import { useNotificationsOptional } from "@/contexts/notifications-provider";
 import { PunchInStatusFlag } from "@/components/attendance/punch-in-status-flag";
 import { UnreadBadge } from "@/components/notifications/unread-badge";
 import { Badge } from "@/components/ui/badge";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { MobileDrawer } from "@/components/layout/app-sidebar";
 import { Button } from "@/components/ui/button";
 import { ROLES } from "@/app/consts/common";
+import { resolveProfileImageSrc, sheetRowToForm } from "@/lib/employee";
 
 const roleLabel: Record<string, string> = {
   [ROLES.SUPER_ADMIN]: "Super Administrator",
   [ROLES.HR_MANAGER]: "HR Manager",
   [ROLES.EMPLOYEE]: "Employee",
 };
+
+function HeaderProfileAvatar({ userName }: { userName?: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/employee/me", { credentials: "include", cache: "no-store" });
+        const data = (await res.json()) as {
+          success?: boolean;
+          headers?: string[];
+          row?: string[];
+        };
+        if (cancelled || !data.success || !data.headers || !data.row) return;
+
+        const form = sheetRowToForm(data.headers, data.row);
+        if (!cancelled) setSrc(resolveProfileImageSrc(form.profileImage));
+      } catch {
+        if (!cancelled) setSrc(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <Link
+      href="/employee/profile"
+      className="border-ex-border bg-ex-elevated hover:bg-ex-surface relative inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border shadow-sm transition"
+      aria-label={userName ? `${userName} profile` : "Your profile"}
+      title="Your profile"
+    >
+      {src ? (
+        <Image
+          src={src}
+          alt={userName ? `${userName} profile` : "Profile"}
+          width={40}
+          height={40}
+          unoptimized
+          className="size-full object-cover"
+        />
+      ) : (
+        <User className="text-ex-muted size-5" />
+      )}
+    </Link>
+  );
+}
 
 export function AppHeader() {
   const { user, logout } = useAuth();
@@ -42,7 +95,7 @@ export function AppHeader() {
           ) : null}
         </Link>
         <PunchInStatusFlag />
-        <ThemeToggle />
+        <HeaderProfileAvatar userName={user?.name} />
 
         <div className="hidden text-right sm:block">
           <p className="text-ex-primary text-sm leading-tight font-medium">{user?.name}</p>

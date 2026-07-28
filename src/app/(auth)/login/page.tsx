@@ -113,7 +113,7 @@ function LoginPageContent() {
           <div>
             <CardTitle className="text-xl">Sign in to HRM Admin</CardTitle>
             <CardDescription className="text-ex-muted">
-              Exhibyte Solutions internal workspace
+              ExhiByte Solutions Internal Workspace
             </CardDescription>
           </div>
         </CardHeader>
