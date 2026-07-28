@@ -58,8 +58,11 @@ function isPublicPath(pathname: string): boolean {
 
 async function fetchAccountActive(req: NextRequest): Promise<boolean> {
   const url = new URL("/api/auth/status", req.url);
+  // Next.js Edge middleware can behave inconsistently with `req.headers.get("cookie")`.
+  // We forward the session cookie explicitly from the parsed cookie store.
+  const sessionCookie = req.cookies.get(COOKIE)?.value ?? "";
   const res = await fetch(url, {
-    headers: { cookie: req.headers.get("cookie") ?? "" },
+    headers: sessionCookie ? { cookie: `${COOKIE}=${sessionCookie}` } : {},
     cache: "no-store",
   });
   if (!res.ok) return false;
