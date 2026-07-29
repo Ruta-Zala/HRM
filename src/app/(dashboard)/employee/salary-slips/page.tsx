@@ -390,7 +390,7 @@ export default function SalarySlipsPage() {
           </div>
           <div className="w-auto min-w-32">
             <Select value={month} onChange={(e) => setMonth(e.target.value)}>
-              <option value="">All months</option>
+              <option value="">All Months</option>
               {monthOptions.map((m) => (
                 <option key={m.value} value={m.value}>
                   {m.label}
@@ -400,7 +400,7 @@ export default function SalarySlipsPage() {
           </div>
           <div className="w-auto min-w-48 flex-1 sm:flex-none">
             <Select value={targetEmployee} onChange={(e) => setTargetEmployee(e.target.value)}>
-              <option value="">All active employees</option>
+              <option value="">All Active Employees</option>
               {employees.map((e) => (
                 <option key={e.sheetRow} value={e.sheetRow}>
                   {e.name}
@@ -460,7 +460,7 @@ export default function SalarySlipsPage() {
         <Card>
           <CardContent className="space-y-4 p-4">
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold">Salary history (effective-dated)</h3>
+              <h3 className="text-sm font-semibold">Salary History (Effective-dated)</h3>
               <p className="text-ex-muted text-xs">
                 All employees&apos; effective salary periods are listed below. Select an employee to
                 filter that list and to add a new revision (replaces their current effective
@@ -471,13 +471,13 @@ export default function SalarySlipsPage() {
             <div className="grid gap-3 md:grid-cols-4">
               <div>
                 <p className="text-ex-muted mt-1.5 max-w-sm text-sm leading-relaxed">
-                  Select employee
+                  Select Employee
                 </p>
                 <Select
                   value={historyEmployeeSheetRow}
                   onChange={(e) => setHistoryEmployeeSheetRow(e.target.value)}
                 >
-                  <option value="">All employees</option>
+                  <option value="">All</option>
                   {employees.map((e) => (
                     <option key={e.sheetRow} value={e.sheetRow}>
                       {e.name}
@@ -547,8 +547,8 @@ export default function SalarySlipsPage() {
               <div className="flex items-center justify-between gap-3">
                 <h4 className="text-ex-primary text-sm font-medium">
                   {historyEmployeeSheetRow
-                    ? "Effective salary for selected employee"
-                    : "Effective salary for all employees"}
+                    ? "Effective Salary For Selected Employee"
+                    : "Effective Salary For All Employees"}
                 </h4>
                 <Button
                   type="button"

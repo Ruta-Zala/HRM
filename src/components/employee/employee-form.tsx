@@ -431,7 +431,7 @@ export function EmployeeForm({
         <div className="w-full max-w-3xl space-y-6 xl:w-1/2">
           <Card>
             <CardHeader>
-              <CardTitle>Employee details</CardTitle>
+              <CardTitle>Employee Details</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <FormField label="Name" id="name" error={fieldErrors.name}>
@@ -519,7 +519,7 @@ export function EmployeeForm({
                   id="aadharNumber"
                   value={form.aadharNumber}
                   onChange={update("aadharNumber")}
-                  placeholder="12-digit Aadhaar"
+                  placeholder="12-digit Aadhaar Number"
                   inputMode="numeric"
                   autoComplete="off"
                   maxLength={12}
@@ -591,7 +591,7 @@ export function EmployeeForm({
 
           <Card>
             <CardHeader>
-              <CardTitle>Parent / guardian information</CardTitle>
+              <CardTitle>Parent / Guardian Information</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="mb-4 grid gap-4 sm:grid-cols-2">
@@ -712,7 +712,7 @@ export function EmployeeForm({
                       required
                       aria-invalid={Boolean(fieldErrors.position)}
                     >
-                      <option value="">Select Position</option>
+                      <option value="">Select</option>
                       {[
                         { value: POSITIONS.TRAINEE, label: "Trainee" },
                         { value: POSITIONS.FRONTEND_DEVELOPER, label: "Frontend Developer" },
@@ -750,7 +750,7 @@ export function EmployeeForm({
                       type="email"
                       value={form.email}
                       onChange={update("email")}
-                      placeholder="name@gmail.com"
+                      placeholder="Email Address"
                       required
                       aria-invalid={Boolean(fieldErrors.email)}
                     />
@@ -808,7 +808,7 @@ export function EmployeeForm({
                       id="contactNumber"
                       value={form.contactNumber}
                       onChange={(value) => updateField("contactNumber", value)}
-                      placeholder="Employee Contact Number"
+                      placeholder="Enter Number"
                       required
                       aria-invalid={Boolean(fieldErrors.contactNumber)}
                     />
@@ -914,10 +914,11 @@ export function EmployeeForm({
                   disabled={skillsLoading}
                 />
                 <p className="text-ex-muted text-xs">
-                  {skillsError ||
-                    (skillsLoading
-                      ? "Loading skill suggestions from existing employees…"
-                      : "Type a skill and click Add. Pick from suggestions or enter a new one.")}
+                  {skillsError
+                    ? skillsError
+                    : skillsLoading
+                      ? "Loading skill suggestions…"
+                      : "Type a skill and click Add. Click chips to select."}
                 </p>
               </FormField>
             </CardContent>

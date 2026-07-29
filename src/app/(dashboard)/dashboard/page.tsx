@@ -18,7 +18,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 // import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+// import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
@@ -285,16 +285,16 @@ export default function DashboardPage() {
       <PageHeader
         title="Executive Overview"
         description="Live signals across people, attendance, leave, and service requests. Data shown is sample scaffolding wired for charts and tables."
-        actions={
-          <>
-            <Button variant="outline" size="sm">
-              Export PDF
-            </Button>
-            <Button size="sm" variant="secondary">
-              New report
-            </Button>
-          </>
-        }
+        // actions={
+        //   <>
+        //     <Button variant="outline" size="sm">
+        //       Export PDF
+        //     </Button>
+        //     <Button size="sm" variant="secondary">
+        //       New report
+        //     </Button>
+        //   </>
+        // }
       />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -317,9 +317,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <CardTitle>Upcoming holidays</CardTitle>
-                <p className="text-ex-muted mt-0.5 text-sm">
-                  Company leave days and celebrations coming next
-                </p>
+                <p className="text-ex-muted mt-0.5 text-sm">Company leave days and celebrations</p>
               </div>
             </div>
             {upcomingHolidays.length > 0 ? (

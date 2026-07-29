@@ -96,7 +96,7 @@ export function DataTable<T extends { id: string }>({
     >
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="bg-ex-surface text-ex-muted text-xs tracking-wide uppercase">
+          <thead className="bg-ex-surface text-ex-muted text-xs tracking-wide capitalize">
             <tr>
               {columns.map((c) => {
                 const key = String(c.key);

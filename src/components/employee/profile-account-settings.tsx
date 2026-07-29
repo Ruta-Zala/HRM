@@ -159,7 +159,7 @@ export function ProfileAccountSettings({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sign-in account</CardTitle>
+        <CardTitle>Sign-in Account</CardTitle>
         <CardDescription>
           Use your username and password to sign in. For security, your saved password cannot be
           shown — you can verify or change it below.

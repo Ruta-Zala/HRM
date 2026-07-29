@@ -315,7 +315,7 @@ export default function NetworkAccessSettingsPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
-            <p className="text-ex-primary text-sm font-medium">Require office Wi‑Fi</p>
+            <p className="text-ex-primary text-sm font-medium">Require Office Wi‑Fi</p>
             <p className="text-ex-muted text-xs">
               When enabled, employees must use an IP from the Office Wi‑Fi list below (unless they
               are on the remote access list). Your public IP:{" "}
@@ -326,7 +326,7 @@ export default function NetworkAccessSettingsPage() {
                   (server headers: <span className="font-mono">{serverClientIp || "none"}</span>)
                 </>
               ) : null}
-              . Manage allowlisted IPs only on this page — no env var updates needed on Vercel.
+              .
             </p>
           </div>
           <Button
@@ -462,7 +462,7 @@ export default function NetworkAccessSettingsPage() {
                   onChange={(e) => setRemoteSheetRow(e.target.value)}
                   disabled={saving || loading}
                 >
-                  <option value="">Select employee</option>
+                  <option value="">Select</option>
                   {availableEmployees.map((employee) => (
                     <option key={employee.sheetRow} value={String(employee.sheetRow)}>
                       {employee.name}
