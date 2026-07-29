@@ -3,7 +3,7 @@ import { passwordStrengthError } from "@/lib/auth/password-rules";
 import type { EmployeeFormState } from "./form";
 
 export const EMPLOYEE_MIN_AGE = 18;
-export const EMPLOYEE_MAX_EXPERIENCE_YEARS = 60;
+export const EMPLOYEE_MAX_EXPERIENCE_YEARS = 35;
 
 /** CEO profile does not use experience / joining / increment / salary fields. */
 export function isCeoPosition(position: string): boolean {
@@ -16,10 +16,10 @@ export const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 /** 12-digit Aadhaar */
 export const AADHAAR_PATTERN = /^\d{12}$/;
 
-/** Optional bank account: 11–18 digits when provided */
-export const BANK_ACCOUNT_MIN_LENGTH = 11;
+/** Optional bank account: 5–18 digits when provided */
+export const BANK_ACCOUNT_MIN_LENGTH = 5;
 export const BANK_ACCOUNT_MAX_LENGTH = 18;
-export const BANK_ACCOUNT_PATTERN = /^\d{11,18}$/;
+export const BANK_ACCOUNT_PATTERN = /^\d{5,18}$/;
 
 /** Indian mobile: 10 digits starting 6–9 */
 export const INDIAN_MOBILE_PATTERN = /^[6-9]\d{9}$/;

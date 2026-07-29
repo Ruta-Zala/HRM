@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { listEmployeesOnLeave } from "@/lib/attendance/on-leave";
+import { listUnapprovedAbsenceEmployees } from "@/lib/attendance/unapproved-absence";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { notificationDateIso } from "@/lib/notifications/automation-date";
@@ -14,12 +14,16 @@ function isValidDateIso(value: string): boolean {
 }
 
 export const GET = withActiveSession(async (req, user) => {
+  if (!canManageEmployees(user.role)) {
+    return NextResponse.json(
+      { success: false, message: "You do not have permission to view unapproved absences" },
+      { status: 403 },
+    );
+  }
+
   try {
     const { searchParams } = new URL(req.url);
-    const canSelectDate = canManageEmployees(user.role);
-    const date = canSelectDate
-      ? searchParams.get("date")?.trim() || notificationDateIso()
-      : notificationDateIso();
+    const date = searchParams.get("date")?.trim() || notificationDateIso();
 
     if (!isValidDateIso(date)) {
       return NextResponse.json(
@@ -28,29 +32,22 @@ export const GET = withActiveSession(async (req, user) => {
       );
     }
 
-    const { employees, totalEmployees } = await listEmployeesOnLeave(date);
-    const visibleEmployees = canSelectDate
-      ? employees
-      : employees.map((employee) => ({
-          ...employee,
-          leaveType: "leave",
-          reason: "",
-        }));
+    const employees = await listUnapprovedAbsenceEmployees(date);
 
     return NextResponse.json({
       success: true,
       date,
-      count: visibleEmployees.length,
-      totalEmployees,
-      employees: visibleEmployees,
+      count: employees.length,
+      employees,
     });
   } catch (error) {
-    console.error("GET Dashboard On Leave Error:", error);
+    console.error("GET Dashboard Unapproved Absence Error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to load employees on leave",
+        message:
+          error instanceof Error ? error.message : "Failed to load unapproved absence employees",
       },
       { status: 500 },
     );

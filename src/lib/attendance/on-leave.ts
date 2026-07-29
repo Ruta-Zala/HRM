@@ -22,25 +22,25 @@ export type OnLeaveEmployee = {
   date: string;
 };
 
+export type OnLeaveDashboardData = {
+  employees: OnLeaveEmployee[];
+  totalEmployees: number;
+};
+
 type CachedOnLeave = {
   expiresAt: number;
-  value: OnLeaveEmployee[];
+  value: OnLeaveDashboardData;
 };
 
 const CACHE_TTL_MS = 60_000;
 const onLeaveCache = new Map<string, CachedOnLeave>();
-const onLeaveRequests = new Map<string, Promise<OnLeaveEmployee[]>>();
+const onLeaveRequests = new Map<string, Promise<OnLeaveDashboardData>>();
 
-function applicationDateIso(application: LeaveApplication): string {
-  const parsed = parseLeaveDisplayDate(application.date);
-  return parsed ? formatIsoDate(parsed) : "";
-}
-
-async function loadEmployeesOnLeave(dateIso: string): Promise<OnLeaveEmployee[]> {
+async function listActiveEmployeesForLeaveTracking() {
   const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
   const headers = getSheetHeaders(raw);
 
-  const employees = raw.slice(1).flatMap((row, index) => {
+  return raw.slice(1).flatMap((row, index) => {
     const form = sheetRowToForm(headers, row);
     if (!isEmployeeStatusActive(form.status)) return [];
 
@@ -57,6 +57,15 @@ async function loadEmployeesOnLeave(dateIso: string): Promise<OnLeaveEmployee[]>
       },
     ];
   });
+}
+
+function applicationDateIso(application: LeaveApplication): string {
+  const parsed = parseLeaveDisplayDate(application.date);
+  return parsed ? formatIsoDate(parsed) : "";
+}
+
+async function loadEmployeesOnLeave(dateIso: string): Promise<OnLeaveDashboardData> {
+  const employees = await listActiveEmployeesForLeaveTracking();
 
   const results = await Promise.allSettled(
     employees.map(async (employee) => {
@@ -92,10 +101,15 @@ async function loadEmployeesOnLeave(dateIso: string): Promise<OnLeaveEmployee[]>
     }
   }
 
-  return [...uniqueEmployees.values()].sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+  return {
+    employees: [...uniqueEmployees.values()].sort((a, b) =>
+      a.employeeName.localeCompare(b.employeeName),
+    ),
+    totalEmployees: employees.length,
+  };
 }
 
-export async function listEmployeesOnLeave(dateIso: string): Promise<OnLeaveEmployee[]> {
+export async function listEmployeesOnLeave(dateIso: string): Promise<OnLeaveDashboardData> {
   const cached = onLeaveCache.get(dateIso);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
