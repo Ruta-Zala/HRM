@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Bell, LogOut, User } from "lucide-react";
@@ -8,11 +8,11 @@ import { useAuth } from "@/contexts/auth-provider";
 import { useNotificationsOptional } from "@/contexts/notifications-provider";
 import { PunchInStatusFlag } from "@/components/attendance/punch-in-status-flag";
 import { UnreadBadge } from "@/components/notifications/unread-badge";
-import { Badge } from "@/components/ui/badge";
 import { MobileDrawer } from "@/components/layout/app-sidebar";
-import { Button } from "@/components/ui/button";
 import { ROLES } from "@/app/consts/common";
+import { roleCanPunchInOut } from "@/lib/auth/roles";
 import { resolveProfileImageSrc, sheetRowToForm } from "@/lib/employee";
+import { cn } from "@/lib/utils";
 
 const roleLabel: Record<string, string> = {
   [ROLES.SUPER_ADMIN]: "Super Administrator",
@@ -20,8 +20,10 @@ const roleLabel: Record<string, string> = {
   [ROLES.EMPLOYEE]: "Employee",
 };
 
-function HeaderProfileAvatar({ userName }: { userName?: string }) {
+function HeaderProfileAvatar({ userName, onLogout }: { userName?: string; onLogout: () => void }) {
   const [src, setSrc] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,26 +50,75 @@ function HeaderProfileAvatar({ userName }: { userName?: string }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
+  const menuItemClass =
+    "text-ex-primary hover:bg-ex-surface flex w-full items-center gap-2 px-3 py-2 text-sm transition";
+
   return (
-    <Link
-      href="/employee/profile"
-      className="border-ex-border bg-ex-elevated hover:bg-ex-surface relative inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border shadow-sm transition"
-      aria-label={userName ? `${userName} profile` : "Your profile"}
-      title="Your profile"
-    >
-      {src ? (
-        <Image
-          src={src}
-          alt={userName ? `${userName} profile` : "Profile"}
-          width={40}
-          height={40}
-          unoptimized
-          className="size-full object-cover"
-        />
-      ) : (
-        <User className="text-ex-muted size-5" />
-      )}
-    </Link>
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="border-ex-border bg-ex-elevated hover:bg-ex-surface relative inline-flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-full border shadow-sm transition"
+        aria-label={userName ? `${userName} account menu` : "Your account menu"}
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        {src ? (
+          <Image
+            src={src}
+            alt={userName ? `${userName} profile` : "Profile"}
+            width={40}
+            height={40}
+            unoptimized
+            className="size-full object-cover"
+          />
+        ) : (
+          <User className="text-ex-muted size-5" />
+        )}
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          className="border-ex-border bg-ex-elevated absolute top-full right-0 z-50 mt-2 min-w-40 overflow-hidden rounded-lg border py-1 shadow-lg"
+        >
+          <Link
+            href="/employee/profile"
+            role="menuitem"
+            className={menuItemClass}
+            onClick={() => setOpen(false)}
+          >
+            <User className="size-4" />
+            Profile
+          </Link>
+          <button
+            type="button"
+            role="menuitem"
+            className={cn(menuItemClass, "text-rose-600 dark:text-rose-400")}
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
+          >
+            <LogOut className="size-4" />
+            Sign out
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -94,22 +145,16 @@ export function AppHeader() {
             </span>
           ) : null}
         </Link>
-        <PunchInStatusFlag />
-        <HeaderProfileAvatar userName={user?.name} />
+        {user && roleCanPunchInOut(user.role) ? <PunchInStatusFlag /> : null}
 
         <div className="hidden text-right sm:block">
           <p className="text-ex-primary text-sm leading-tight font-medium">{user?.name}</p>
+
           <p className="text-ex-muted text-xs capitalize">
-            {user?.department?.split("_").join(" ")}
+            {user?.role ? (roleLabel[user.role] ?? user.role) : ""}
           </p>
         </div>
-        <Badge variant="accent" className="hidden capitalize sm:inline-flex">
-          {user?.role ? (roleLabel[user.role] ?? user.role) : ""}
-        </Badge>
-        <Button variant="outline" size="sm" className="gap-2" onClick={() => void logout()}>
-          <LogOut className="size-4" />
-          <span className="hidden sm:inline">Sign out</span>
-        </Button>
+        <HeaderProfileAvatar userName={user?.name} onLogout={() => void logout()} />
       </div>
     </header>
   );

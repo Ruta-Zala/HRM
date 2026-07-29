@@ -1,18 +1,21 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { CorrectionForm } from "@/components/attendance/correction-form";
 import { AbsenceExplanationPanel } from "@/components/attendance/absence-explanation-panel";
 import { EarlyLeaveDialog } from "@/components/attendance/early-leave-dialog";
 import { PunchDesk } from "@/components/attendance/punch-desk";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { useTodayAttendance } from "@/hooks/use-today-attendance";
 import { useAuth } from "@/contexts/auth-provider";
-import { canManageEmployees } from "@/lib/auth/roles";
+import { canManageEmployees, roleCanPunchInOut } from "@/lib/auth/roles";
 import { roleRequiresAbsenceExplanationGate } from "@/lib/attendance/absence-gate";
 import { readAbsenceGateSessionHint } from "@/lib/attendance/absence-gate-session";
 import {
@@ -29,7 +32,9 @@ import {
 } from "@/lib/attendance/constants";
 
 export default function PunchPage() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const canPunch = user ? roleCanPunchInOut(user.role) : false;
   const isHr = user ? canManageEmployees(user.role) : false;
   const showAbsenceGate = user ? roleRequiresAbsenceExplanationGate(user.role) : false;
   const { today, loading, error, acting, liveWorkedMs, runAction, refresh } = useTodayAttendance();
@@ -91,11 +96,17 @@ export default function PunchPage() {
   }
 
   useEffect(() => {
-    if (!isHr) return;
+    if (!authLoading && user && !canPunch) {
+      router.replace("/dashboard");
+    }
+  }, [authLoading, user, canPunch, router]);
+
+  useEffect(() => {
+    if (!isHr || !canPunch) return;
     void fetchCorrectionRequests()
       .then(setCorrections)
       .catch(() => {});
-  }, [isHr]);
+  }, [isHr, canPunch]);
 
   async function handleReview(id: string, status: "Approved" | "Rejected") {
     setReviewing({ id, status });
@@ -106,6 +117,33 @@ export default function PunchPage() {
     } finally {
       setReviewing(null);
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <Loader2 className="text-ex-muted size-8 animate-spin" aria-hidden />
+      </div>
+    );
+  }
+
+  if (!canPunch) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-6">
+        <AccessDenied
+          title="Punch desk unavailable"
+          description="Punch in/out is only available for Employee and HR Manager roles."
+          action={
+            <Link href="/dashboard">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="size-4" />
+                Back to dashboard
+              </Button>
+            </Link>
+          }
+        />
+      </div>
+    );
   }
 
   return (

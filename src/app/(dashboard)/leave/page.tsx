@@ -280,7 +280,7 @@ export default function LeaveDeskPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Leave desk"
+        title="Leave Desk"
         description="Apply for paid, sick, casual, birthday, or unpaid leave. Submitted requests show as Applied (pending approval) until HR accepts or rejects them."
       />
       <div className="grid items-start gap-4 lg:grid-cols-3">

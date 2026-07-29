@@ -83,7 +83,7 @@ export default function EmployeeProfilePage() {
   if (authLoading || loading) {
     return (
       <div className="space-y-8">
-        <PageHeader title="Employee profile" description="Your basic employment details." />
+        <PageHeader title="Employee Profile" description="Your basic employment details." />
         <FormSkeleton label="Loading profile…" fields={8} />
       </div>
     );
@@ -96,7 +96,7 @@ export default function EmployeeProfilePage() {
   if (error || !form) {
     return (
       <div className="space-y-8">
-        <PageHeader title="Employee profile" description="Your basic employment details." />
+        <PageHeader title="Employee Profile" description="Your basic employment details." />
         <AccessDenied
           title="Profile unavailable"
           description={
@@ -111,7 +111,7 @@ export default function EmployeeProfilePage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Employee profile"
+        title="Employee Profile"
         description={
           isEditing
             ? "Update your details and save changes."

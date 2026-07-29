@@ -8,6 +8,8 @@ import {
 } from "@/lib/attendance/absence-gate-cookie";
 import {
   PUNCH_GATE_ROUTE,
+  isPunchRoute,
+  roleCanPunchInOut,
   roleRequiresAbsenceExplanationGate,
 } from "@/lib/attendance/absence-gate";
 import { NETWORK_BLOCKED_PATH } from "@/lib/network-access/constants";
@@ -251,6 +253,22 @@ export async function middleware(req: NextRequest) {
       );
     }
     return redirectToPunch(req);
+  }
+
+  if (isPunchRoute(pathname) && !roleCanPunchInOut(user.role as UserRole)) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Punch in/out is not available for your role.",
+          code: "PUNCH_ACCESS_DENIED",
+        },
+        { status: 403 },
+      );
+    }
+    const url = req.nextUrl.clone();
+    url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
   }
 
   if (!canAccessPath(user.role as UserRole, pathname)) {

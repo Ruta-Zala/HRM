@@ -278,7 +278,7 @@ export default function NetworkAccessSettingsPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="LAN / Wi‑Fi restriction"
+          title="LAN / Wi‑Fi Restriction"
           description="Only HR can manage network access."
         />
         <p className="text-ex-muted text-sm">You do not have permission to view this page.</p>
@@ -289,7 +289,7 @@ export default function NetworkAccessSettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="LAN / Wi‑Fi restriction"
+        title="LAN / Wi‑Fi Restriction"
         description="Allow the portal only from office router public IPs. Work-from-home employees can be exempted. HR and Super Admin always bypass this check so you can update IPs after a power cut."
         actions={
           <Badge variant={restrictionEnabled ? "warning" : "accent"}>
@@ -335,7 +335,7 @@ export default function NetworkAccessSettingsPage() {
             disabled={loading || saving}
             onClick={() => void toggleRestriction(!restrictionEnabled)}
           >
-            {restrictionEnabled ? "Disable restriction" : "Enable restriction"}
+            {restrictionEnabled ? "Disable Restriction" : "Enable Restriction"}
           </Button>
         </CardContent>
       </Card>
@@ -477,7 +477,7 @@ export default function NetworkAccessSettingsPage() {
                 onClick={() => void addRemoteEmployee()}
               >
                 <Plus className="mr-1.5 size-4" />
-                Allow remote
+                Allow Remote
               </Button>
             </div>
 

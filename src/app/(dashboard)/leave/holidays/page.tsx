@@ -234,7 +234,7 @@ export default function CompanyHolidaysPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Company holiday calendar · ${holidayYear}`}
+        title={`Company Holiday Calendar · ${holidayYear}`}
         description="Official company leave days and workplace celebrations."
         actions={
           canManage ? (

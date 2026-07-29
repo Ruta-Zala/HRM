@@ -283,7 +283,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Executive overview"
+        title="Executive Overview"
         description="Live signals across people, attendance, leave, and service requests. Data shown is sample scaffolding wired for charts and tables."
         actions={
           <>

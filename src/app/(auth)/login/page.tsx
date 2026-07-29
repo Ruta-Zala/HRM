@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
+import { BrandLogo } from "@/components/brand/brand-logo";
 import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,16 +100,7 @@ function LoginPageContent() {
       />
       <Card className="border-ex-border relative z-10 w-full max-w-md shadow-lg dark:shadow-none">
         <CardHeader className="space-y-4 text-center">
-          <div className="ring-ex-border dark:bg-ex-surface relative mx-auto size-16 overflow-hidden rounded-2xl bg-white ring-1">
-            <Image
-              src="https://exhibytesolution.com/wp-content/uploads/2023/06/cropped-Exhibyte_Logo_Black_Logo-removebg-preview-1.png"
-              alt="Exhibyte Solutions"
-              fill
-              className="object-contain p-2 dark:invert"
-              sizes="64px"
-              priority
-            />
-          </div>
+          <BrandLogo size="lg" priority className="mx-auto" />
           <div>
             <CardTitle className="text-xl">Sign in to HRM Admin</CardTitle>
             <CardDescription className="text-ex-muted">

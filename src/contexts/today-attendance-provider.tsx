@@ -2,6 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
+import { useAuth } from "@/contexts/auth-provider";
+import { roleCanPunchInOut } from "@/lib/auth/roles";
+
 import {
   fetchTodayAttendance,
   postAttendanceAction,
@@ -26,14 +29,15 @@ type TodayAttendanceContextValue = {
 
 const TodayAttendanceContext = createContext<TodayAttendanceContextValue | null>(null);
 
-function useTodayAttendanceState(): TodayAttendanceContextValue {
+function useTodayAttendanceState(enabled: boolean): TodayAttendanceContextValue {
   const [today, setToday] = useState<TodayAttendance | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
   const [tick, setTick] = useState(0);
 
   const refresh = useCallback(async () => {
+    if (!enabled) return;
     setError(null);
     try {
       const data = await fetchTodayAttendance();
@@ -43,9 +47,11 @@ function useTodayAttendanceState(): TodayAttendanceContextValue {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
+
     let cancelled = false;
     void (async () => {
       try {
@@ -63,7 +69,7 @@ function useTodayAttendanceState(): TodayAttendanceContextValue {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
     if (!today?.hasPunchedIn || today.hasPunchedOut) return;
@@ -118,7 +124,9 @@ function useTodayAttendanceState(): TodayAttendanceContextValue {
 }
 
 export function TodayAttendanceProvider({ children }: { children: React.ReactNode }) {
-  const value = useTodayAttendanceState();
+  const { user } = useAuth();
+  const enabled = Boolean(user && roleCanPunchInOut(user.role));
+  const value = useTodayAttendanceState(enabled);
   return (
     <TodayAttendanceContext.Provider value={value}>{children}</TodayAttendanceContext.Provider>
   );

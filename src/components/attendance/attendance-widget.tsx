@@ -6,6 +6,8 @@ import { PunchInBanner } from "@/components/attendance/punch-in-status-flag";
 import { WorkTimer } from "@/components/attendance/work-timer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/contexts/auth-provider";
+import { roleCanPunchInOut } from "@/lib/auth/roles";
 import {
   IDEAL_BREAK_HOURS,
   IDEAL_SHIFT_HOURS,
@@ -15,7 +17,12 @@ import { formatDuration } from "@/lib/attendance/time";
 import { useTodayAttendance } from "@/hooks/use-today-attendance";
 
 export function AttendanceWidget() {
+  const { user } = useAuth();
   const { today, loading, liveWorkedMs } = useTodayAttendance();
+
+  if (!user || !roleCanPunchInOut(user.role)) {
+    return null;
+  }
 
   const remainingMs = Math.max(0, IDEAL_WORKING_HOURS * 60 * 60 * 1000 - liveWorkedMs);
 

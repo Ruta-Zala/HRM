@@ -193,7 +193,7 @@ export default function LeaveApprovalsPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Leave approvals"
+        title="Leave Approvals"
         description="Review leave requests from all employees. HR and Super Admin can accept or reject pending requests; rejection requires a reason."
         actions={
           <div className="flex items-center gap-2">

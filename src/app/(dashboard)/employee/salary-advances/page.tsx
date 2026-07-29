@@ -478,7 +478,7 @@ export default function SalaryAdvancesPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Salary advances"
+        title="Salary Advances"
         description="Give an employee an advance and recover it automatically from upcoming monthly payrolls, within their increment window."
         actions={
           <div className="flex flex-wrap gap-2">
@@ -742,7 +742,7 @@ export default function SalaryAdvancesPage() {
       ) : null}
 
       <div className="space-y-3">
-        <h2 className="text-ex-primary text-base font-semibold">Active & past advances</h2>
+        <h2 className="text-ex-primary text-base font-semibold">Active & Past Advances</h2>
         <DataTable
           columns={columns}
           rows={tableRows}

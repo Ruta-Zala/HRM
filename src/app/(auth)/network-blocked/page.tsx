@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
+import { BrandLogo } from "@/components/brand/brand-logo";
 import { useRouter } from "next/navigation";
 
 import { AccessDenied } from "@/components/ui/access-denied";
@@ -59,15 +59,7 @@ export default function NetworkBlockedPage() {
       />
       <Card className="border-ex-border relative z-10 w-full max-w-lg shadow-lg dark:shadow-none">
         <CardContent className="pt-8">
-          <div className="ring-ex-border dark:bg-ex-surface relative mx-auto mb-6 size-14 overflow-hidden rounded-2xl bg-white ring-1">
-            <Image
-              src="https://exhibytesolution.com/wp-content/uploads/2023/06/cropped-Exhibyte_Logo_Black_Logo-removebg-preview-1.png"
-              alt="Exhibyte Solutions"
-              fill
-              className="object-contain p-2 dark:invert"
-              sizes="56px"
-            />
-          </div>
+          <BrandLogo size="md" className="mx-auto mb-6" />
           <AccessDenied
             title="Office network required"
             description={
