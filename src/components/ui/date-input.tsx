@@ -57,6 +57,10 @@ export type DateInputProps = Omit<
   onChange: (value: string) => void;
   minYear?: number;
   maxYear?: number;
+  /** Inclusive lower bound as yyyy-mm-dd (overrides minYear when set). */
+  minDate?: string;
+  /** Inclusive upper bound as yyyy-mm-dd (overrides maxYear when set). */
+  maxDate?: string;
 };
 
 export function DateInput({
@@ -65,6 +69,8 @@ export function DateInput({
   onChange,
   minYear = 1900,
   maxYear = new Date().getFullYear(),
+  minDate,
+  maxDate,
   disabled = false,
   required = false,
   className,
@@ -76,8 +82,8 @@ export function DateInput({
   const [isEditing, setIsEditing] = useState(false);
 
   const normalizedValue = normalizeDateValue(value);
-  const min = toIsoDateBoundary(minYear, 1, 1);
-  const max = toIsoDateBoundary(maxYear, 12, 31);
+  const min = normalizeDateValue(minDate ?? "") || toIsoDateBoundary(minYear, 1, 1);
+  const max = normalizeDateValue(maxDate ?? "") || toIsoDateBoundary(maxYear, 12, 31);
   const displayedText = isEditing ? textValue : formatIsoToDisplay(value);
 
   const commitTextValue = (raw: string) => {

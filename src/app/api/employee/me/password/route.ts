@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { resolveEmployeeRecordForSession } from "@/lib/auth/employee-record";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { passwordStrengthError } from "@/lib/auth/password-rules";
 import {
   headerToFormKey,
   sheetRowToForm,
@@ -10,8 +11,6 @@ import {
   withSheetRowUpdatedAt,
 } from "@/lib/employee";
 import { updateSheetRow } from "@/lib/google/sheets";
-
-const MIN_PASSWORD_LENGTH = 6;
 
 export const PATCH = withActiveSession(async (req, user) => {
   try {
@@ -32,14 +31,9 @@ export const PATCH = withActiveSession(async (req, user) => {
       );
     }
 
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
-        },
-        { status: 400 },
-      );
+    const strengthError = passwordStrengthError(newPassword);
+    if (strengthError) {
+      return NextResponse.json({ success: false, message: strengthError }, { status: 400 });
     }
 
     if (newPassword !== confirmPassword) {

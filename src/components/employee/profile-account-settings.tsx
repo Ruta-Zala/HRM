@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { passwordStrengthError, PASSWORD_RULES_MESSAGE } from "@/lib/auth/password-rules";
 import { PasswordInput } from "@/components/ui/password-input";
 
 function PasswordField({
@@ -111,6 +112,19 @@ export function ProfileAccountSettings({
     setPending(true);
     setError(null);
     setSuccess(null);
+
+    const strengthError = passwordStrengthError(newPassword);
+    if (strengthError) {
+      setError(strengthError);
+      setPending(false);
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError("New password and confirmation do not match.");
+      setPending(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/employee/me/password", {
@@ -272,8 +286,9 @@ export function ProfileAccountSettings({
               value={newPassword}
               onChange={setNewPassword}
               required
-              minLength={6}
+              minLength={8}
             />
+            <p className="text-ex-muted text-xs">{PASSWORD_RULES_MESSAGE}</p>
 
             <PasswordField
               id="confirm-password"
@@ -282,7 +297,7 @@ export function ProfileAccountSettings({
               value={confirmPassword}
               onChange={setConfirmPassword}
               required
-              minLength={6}
+              minLength={8}
             />
 
             {error ? (

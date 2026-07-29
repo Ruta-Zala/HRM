@@ -7,6 +7,7 @@ import {
   updateSheetRow,
   clearSheetRange,
   getEmployeeCount,
+  getExistingEmployeeIds,
   getSheetHeadersData,
   EMPLOYEE_SHEET_RANGE,
 } from "@/lib/google/sheets";
@@ -27,6 +28,8 @@ import {
   mergeRowWithFormFields,
   sheetTimestampsForCreate,
   withSheetRowUpdatedAt,
+  validateEmployeeForm,
+  firstEmployeeValidationMessage,
 } from "@/lib/employee";
 import {
   filterEmployeeRowForViewer,
@@ -38,6 +41,7 @@ import { canManageEmployees } from "@/lib/auth/server";
 import { prepareEmployeeCredentialsForSave } from "@/lib/auth/credentials-setup";
 import { redactPasswordFromRow, redactPasswordsFromSheetData } from "@/lib/auth/row-credentials";
 import { filesToUploadBuffers, parseEmployeeSubmit } from "@/lib/employee/server";
+import { ensureSkillsInSkillsSheet } from "@/lib/employee/ensure-skills-in-sheet";
 import {
   findLatestActiveSalaryForEmployee,
   hydrateEmployeeRowSalaryFromHistory,
@@ -197,12 +201,25 @@ export const POST = withActiveSession(async (req) => {
     const { values, files } = await parseEmployeeSubmit(req);
 
     const headers = await getSheetHeadersData();
+    const form = sheetRowToForm(headers, values);
+    const validationErrors = validateEmployeeForm(form);
+    const validationMessage = firstEmployeeValidationMessage(validationErrors);
+    if (validationMessage) {
+      return Response.json(
+        { success: false, message: validationMessage, errors: validationErrors },
+        { status: 400 },
+      );
+    }
 
-    // Get employee count
-    const totalEmployees = await getEmployeeCount();
+    // If HR typed a new skill, persist it into the Skills sheet as well.
+    await ensureSkillsInSkillsSheet(form.skills);
 
-    // Generate employee ID
-    const employeeId = generateEmployeeId(totalEmployees);
+    // Row count for sheet append position; ids come from max existing EMP### + 1
+    const [totalEmployees, existingIds] = await Promise.all([
+      getEmployeeCount(),
+      getExistingEmployeeIds(),
+    ]);
+    const employeeId = generateEmployeeId(existingIds);
 
     const employeeName = getEmployeeNameFromRow(headers, values);
 
@@ -214,12 +231,11 @@ export const POST = withActiveSession(async (req) => {
       throw new Error("Failed to create employee documents folder");
     }
 
-    const formForSpreadsheet = sheetRowToForm(headers, values);
     const attendanceSpreadsheetId = await getOrCreateEmployeeAttendanceSpreadsheet(
       employeeId,
       employeeName,
       folders.employeeFolderId,
-      formForSpreadsheet.birthdayDate,
+      form.birthdayDate,
     );
 
     let rowValues = mergeRowWithFormFields(headers, values, {
@@ -282,13 +298,16 @@ export const POST = withActiveSession(async (req) => {
   } catch (error: unknown) {
     console.error(error);
 
+    const message = error instanceof Error ? error.message : "Request failed";
+    const isPasswordValidation = /password must be at least/i.test(message);
+
     return Response.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Request failed",
+        message,
       },
       {
-        status: 500,
+        status: isPasswordValidation ? 400 : 500,
       },
     );
   }
@@ -320,6 +339,19 @@ export const PUT = withActiveSession(async (req, user) => {
       values = [payload.values];
 
       const headers = await getSheetHeadersData();
+      const form = sheetRowToForm(headers, payload.values);
+      const validationErrors = validateEmployeeForm(form);
+      const validationMessage = firstEmployeeValidationMessage(validationErrors);
+      if (validationMessage) {
+        return NextResponse.json(
+          { success: false, message: validationMessage, errors: validationErrors },
+          { status: 400 },
+        );
+      }
+
+      // If HR typed a new skill, persist it into the Skills sheet as well.
+      await ensureSkillsInSkillsSheet(form.skills);
+
       let existingRow: string[] | undefined;
       if (sheetRow && sheetRow >= 2) {
         const sheetData = await readSheet(EMPLOYEE_SHEET_RANGE);
@@ -386,6 +418,19 @@ export const PUT = withActiveSession(async (req, user) => {
 
       if (sheetRow && values?.[0]) {
         const headers = await getSheetHeadersData();
+        const form = sheetRowToForm(headers, values[0] as string[]);
+        const validationErrors = validateEmployeeForm(form);
+        const validationMessage = firstEmployeeValidationMessage(validationErrors);
+        if (validationMessage) {
+          return NextResponse.json(
+            { success: false, message: validationMessage, errors: validationErrors },
+            { status: 400 },
+          );
+        }
+
+        // If HR typed a new skill, persist it into the Skills sheet as well.
+        await ensureSkillsInSkillsSheet(form.skills);
+
         const sheetData = await readSheet(EMPLOYEE_SHEET_RANGE);
         const existingRow = sheetData[sheetRow - 1];
         let rowValues = values[0] as string[];
@@ -439,12 +484,15 @@ export const PUT = withActiveSession(async (req, user) => {
   } catch (error: unknown) {
     console.error("PUT Sheet Error:", error);
 
+    const message = error instanceof Error ? error.message : "Failed to update sheet";
+    const isPasswordValidation = /password must be at least/i.test(message);
+
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to update sheet",
+        message,
       },
-      { status: 500 },
+      { status: isPasswordValidation ? 400 : 500 },
     );
   }
 });

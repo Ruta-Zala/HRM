@@ -23,7 +23,7 @@ export default function AddEmployeePage() {
     return (
       <div className="space-y-8">
         <PageHeader
-          title="Add employee"
+          title="Add Employee"
           description="Enter employee details to create a new record."
         />
         <AccessDenied
@@ -44,7 +44,7 @@ export default function AddEmployeePage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Add employee"
+        title="Add Employee"
         description="Enter employee details to create a new record."
         actions={
           <Link href="/employee">

@@ -1,4 +1,5 @@
 import { headerToFormKey } from "@/lib/employee";
+import { isStrongPassword, PASSWORD_MIN_LENGTH } from "@/lib/auth/password-rules";
 
 import { hashPassword } from "./password";
 import { applyPasswordToRowValues } from "./row-credentials";
@@ -10,39 +11,61 @@ export type PreparedCredentialsResult = {
   generatedPassword?: string;
 };
 
-function slugify(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ".")
-    .replace(/^\.+|\.+$/g, "")
-    .replace(/\.{2,}/g, ".");
-}
-
-/** Derive a default username from name or email local-part. */
+/**
+ * Default username = email local-part (before @).
+ * Example: swati.patel@gmail.com → swati.patel
+ */
 export function deriveDefaultUsername(name: string, email: string): string {
-  const fromEmail = email.includes("@") ? (email.split("@")[0] ?? "") : email;
-  const fromEmailSlug = slugify(fromEmail);
-  if (fromEmailSlug) return fromEmailSlug;
+  const trimmedEmail = email.trim().toLowerCase();
+  if (trimmedEmail.includes("@")) {
+    const localPart = (trimmedEmail.split("@")[0] ?? "").trim().replace(/\s+/g, "");
+    if (localPart) return localPart;
+  }
 
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const parts = name.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
-    return slugify(`${parts[0]}.${parts[parts.length - 1]}`);
+    return `${parts[0]}.${parts[parts.length - 1]}`.replace(/[^a-z0-9._-]/g, "");
   }
   if (parts.length === 1) {
-    return slugify(parts[0]!);
+    const single = parts[0]!.replace(/[^a-z0-9._-]/g, "");
+    if (single) return single;
   }
 
   return `user${Date.now().toString(36).slice(-6)}`;
 }
 
-export function generateSecurePassword(length = 12): string {
-  const chars = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
+function pickRandom(chars: string): string {
+  return chars[Math.floor(Math.random() * chars.length)]!;
+}
+
+function shuffle(chars: string[]): string[] {
+  const copy = [...chars];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j]!, copy[i]!];
   }
-  return result;
+  return copy;
+}
+
+/** Auto-generated password always meets strength rules. */
+export function generateSecurePassword(length = 12): string {
+  const size = Math.max(length, PASSWORD_MIN_LENGTH);
+  const lower = "abcdefghijkmnopqrstuvwxyz";
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const digits = "23456789";
+  const special = "!@#$%";
+  const all = lower + upper + digits + special;
+
+  const required = [pickRandom(upper), pickRandom(digits), pickRandom(special), pickRandom(lower)];
+  while (required.length < size) {
+    required.push(pickRandom(all));
+  }
+
+  const password = shuffle(required).join("");
+  if (!isStrongPassword(password)) {
+    return generateSecurePassword(size);
+  }
+  return password;
 }
 
 function getColumnIndex(
@@ -82,6 +105,16 @@ export async function prepareEmployeeCredentialsForSave(
     if (passwordIndex >= 0 && !String(copy[passwordIndex] ?? "").trim()) {
       generatedPassword = generateSecurePassword();
       copy[passwordIndex] = generatedPassword;
+    }
+  }
+
+  if (passwordIndex >= 0) {
+    const incoming = String(copy[passwordIndex] ?? "").trim();
+    // Validate only plain-text passwords being set/changed (not existing bcrypt hashes)
+    if (incoming && !incoming.startsWith("$2") && !isStrongPassword(incoming)) {
+      throw new Error(
+        "Password must be at least 8 characters and include one uppercase letter, one number, and one special character (@, !, #, etc.).",
+      );
     }
   }
 
