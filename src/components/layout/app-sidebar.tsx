@@ -12,8 +12,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand/brand-logo";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -187,16 +187,7 @@ function SidebarBrand({ compact }: { compact?: boolean }) {
         compact && "border-0 py-2",
       )}
     >
-      <div className="bg-ex-bg ring-ex-border relative size-10 shrink-0 overflow-hidden rounded-lg ring-1">
-        <Image
-          src="https://exhibytesolution.com/wp-content/uploads/2023/06/cropped-Exhibyte_Logo_Black_Logo-removebg-preview-1.png"
-          alt="Exhibyte Solutions"
-          fill
-          className="object-contain p-1 dark:invert dark:filter"
-          sizes="40px"
-          priority
-        />
-      </div>
+      <BrandLogo size="sm" priority />
       <div className="min-w-0">
         <p className="text-ex-primary truncate text-sm font-semibold">Exhibyte Solutions</p>
         <p className="text-ex-muted truncate text-xs">HRM Admin</p>

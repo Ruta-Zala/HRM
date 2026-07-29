@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
+import { BrandLogo } from "@/components/brand/brand-logo";
 import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,8 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiResponseErrorMessage, parseJsonResponse } from "@/lib/api/json-response";
+import { setAbsenceGateSessionHint } from "@/lib/attendance/absence-gate-session";
+import { fetchPublicIpv4FromBrowser } from "@/lib/network-access/ip";
 
 export default function LoginPage() {
   return (
@@ -40,23 +42,47 @@ function LoginPageContent() {
     setPending(true);
     setError(null);
     try {
+      // On localhost the server cannot see your public IP; send it from the browser.
+      // On Vercel the server ignores this and uses the real forwarded IP.
+      let publicIp = "";
+      try {
+        publicIp = await fetchPublicIpv4FromBrowser();
+      } catch {
+        // Gate still runs with whatever the server can detect.
+      }
+
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ login, password }),
+        body: JSON.stringify({ login, password, publicIp: publicIp || undefined }),
       });
 
-      const parsed = await parseJsonResponse<{ error?: string; ok?: boolean }>(res);
+      const parsed = await parseJsonResponse<{
+        error?: string;
+        ok?: boolean;
+        requiresAbsenceExplanation?: boolean;
+        networkAllowed?: boolean;
+      }>(res);
       if (parsed.invalid || parsed.empty) {
         setError(apiResponseErrorMessage(res, parsed, "Sign-in failed"));
         return;
       }
-      const data = parsed.data;
-      if (!res.ok) {
-        setError(data?.error ?? "Sign-in failed");
+      if (!res.ok || !parsed.data?.ok) {
+        setError(parsed.data?.error ?? "Sign-in failed");
         return;
       }
+      const data = parsed.data;
+      if (data.networkAllowed === false) {
+        window.location.assign("/network-blocked");
+        return;
+      }
+      if (data.requiresAbsenceExplanation) {
+        setAbsenceGateSessionHint(true);
+        window.location.assign("/employee/punch");
+        return;
+      }
+      setAbsenceGateSessionHint(false);
       window.location.assign(from);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "An unexpected error occurred";
@@ -74,20 +100,11 @@ function LoginPageContent() {
       />
       <Card className="border-ex-border relative z-10 w-full max-w-md shadow-lg dark:shadow-none">
         <CardHeader className="space-y-4 text-center">
-          <div className="ring-ex-border dark:bg-ex-surface relative mx-auto size-16 overflow-hidden rounded-2xl bg-white ring-1">
-            <Image
-              src="https://exhibytesolution.com/wp-content/uploads/2023/06/cropped-Exhibyte_Logo_Black_Logo-removebg-preview-1.png"
-              alt="Exhibyte Solutions"
-              fill
-              className="object-contain p-2 dark:invert"
-              sizes="64px"
-              priority
-            />
-          </div>
+          <BrandLogo size="lg" priority className="mx-auto" />
           <div>
             <CardTitle className="text-xl">Sign in to HRM Admin</CardTitle>
             <CardDescription className="text-ex-muted">
-              Exhibyte Solutions internal workspace
+              ExhiByte Solutions Internal Workspace
             </CardDescription>
           </div>
         </CardHeader>

@@ -3,20 +3,20 @@
 import Link from "next/link";
 import { CalendarDays, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+// import {
+//   Area,
+//   AreaChart,
+//   CartesianGrid,
+//   ResponsiveContainer,
+//   Tooltip,
+//   XAxis,
+//   YAxis,
+// } from "recharts";
 import { AttendanceWidget } from "@/components/attendance/attendance-widget";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
+// import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,28 +27,28 @@ import { formatIsoDate } from "@/lib/attendance/time";
 import { COMPANY_HOLIDAYS_2026, type CompanyHoliday } from "@/lib/company-holidays";
 import { cn } from "@/lib/utils";
 
-const headcountTrend = [
-  { month: "Jan", onboarded: 4, attrition: 1 },
-  { month: "Feb", onboarded: 2, attrition: 0 },
-  { month: "Mar", onboarded: 5, attrition: 2 },
-  { month: "Apr", onboarded: 3, attrition: 1 },
-  { month: "May", onboarded: 6, attrition: 1 },
-  { month: "Jun", onboarded: 4, attrition: 0 },
-];
+// const headcountTrend = [
+//   { month: "Jan", onboarded: 4, attrition: 1 },
+//   { month: "Feb", onboarded: 2, attrition: 0 },
+//   { month: "Mar", onboarded: 5, attrition: 2 },
+//   { month: "Apr", onboarded: 3, attrition: 1 },
+//   { month: "May", onboarded: 6, attrition: 1 },
+//   { month: "Jun", onboarded: 4, attrition: 0 },
+// ];
 
-const leaveMix = [
-  { type: "Paid", value: 42 },
-  { type: "Sick", value: 18 },
-  { type: "Casual", value: 28 },
-  { type: "Unpaid", value: 6 },
-];
-const leaveMax = Math.max(...leaveMix.map((r) => r.value), 1);
+// const leaveMix = [
+//   { type: "Paid", value: 42 },
+//   { type: "Sick", value: 18 },
+//   { type: "Casual", value: 28 },
+//   { type: "Unpaid", value: 6 },
+// ];
+// const leaveMax = Math.max(...leaveMix.map((r) => r.value), 1);
 
-const approvals = [
-  { id: "1", item: "Overtime — Neha Kapoor", owner: "HR queue", status: "Pending" },
-  { id: "2", item: "Leave — Rahul Mehta", owner: "Manager", status: "Pending" },
-  { id: "3", item: "Complaint — Floor 3 AC", owner: "Facilities", status: "In review" },
-];
+// const approvals = [
+//   { id: "1", item: "Overtime — Neha Kapoor", owner: "HR queue", status: "Pending" },
+//   { id: "2", item: "Leave — Rahul Mehta", owner: "Manager", status: "Pending" },
+//   { id: "3", item: "Complaint — Floor 3 AC", owner: "Facilities", status: "In review" },
+// ];
 
 type OnLeaveEmployee = {
   id: string;
@@ -283,7 +283,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Executive overview"
+        title="Executive Overview"
         description="Live signals across people, attendance, leave, and service requests. Data shown is sample scaffolding wired for charts and tables."
         actions={
           <>
@@ -298,18 +298,18 @@ export default function DashboardPage() {
       />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Present today" value="94%" hint="vs. 30-day baseline" />
+        {/* <StatCard label="Present today" value="94%" hint="vs. 30-day baseline" /> */}
         <StatCard
           label={canManageLeave && leaveDate !== formatIsoDate() ? "On leave" : "On leave today"}
           value={onLeaveLoading ? "…" : String(onLeave.length)}
           hint={displayDate(canManageLeave ? leaveDate : formatIsoDate())}
         />
-        <StatCard label="Pending approvals" value="7" hint="Leave + overtime" />
-        <StatCard label="Open complaints" value="3" hint="SLA tracked in module" />
+        {/* <StatCard label="Pending approvals" value="7" hint="Leave + overtime" /> */}
+        {/* <StatCard label="Open complaints" value="3" hint="SLA tracked in module" /> */}
       </section>
 
-      <section className="grid items-start gap-4 lg:grid-cols-3">
-        <Card className="w-full overflow-hidden">
+      <section className="grid gap-4 lg:grid-cols-3 lg:items-stretch">
+        <Card className="flex h-full w-full flex-col overflow-hidden">
           <CardHeader className="bg-ex-surface/40 flex flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="bg-ex-accent/15 text-ex-accent flex size-10 items-center justify-center rounded-xl">
@@ -328,16 +328,16 @@ export default function DashboardPage() {
               </Badge>
             ) : null}
           </CardHeader>
-          <CardContent className="p-4">
+          <CardContent className="flex flex-1 flex-col p-4">
             {upcomingHolidays.length === 0 ? (
-              <div className="border-ex-border rounded-xl border border-dashed px-5 py-8 text-center">
+              <div className="border-ex-border flex h-60 flex-col items-center justify-center rounded-xl border border-dashed px-5 text-center">
                 <p className="text-ex-primary text-sm font-medium">No upcoming holidays</p>
                 <p className="text-ex-muted mt-1 text-xs">
                   New company leave days and celebrations will appear here.
                 </p>
               </div>
             ) : (
-              <div className="max-h-60 space-y-3 overflow-y-auto pr-1">
+              <div className="h-60 space-y-3 overflow-y-auto pr-1">
                 {upcomingHolidays.map((holiday) => (
                   <UpcomingHolidayItem key={holiday.id} holiday={holiday} />
                 ))}
@@ -346,7 +346,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden lg:col-span-2">
+        <Card className="flex h-full flex-col overflow-hidden lg:col-span-2">
           <CardHeader className="bg-ex-surface/40 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-ex-secondary/15 text-ex-secondary flex size-11 items-center justify-center rounded-xl text-lg font-semibold">
@@ -386,22 +386,24 @@ export default function DashboardPage() {
               ) : null}
             </div>
           </CardHeader>
-          <CardContent className="p-5">
+          <CardContent className="flex flex-1 flex-col p-5">
             {onLeaveError ? (
-              <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-                {onLeaveError}
-              </p>
+              <div className="flex h-60 items-center">
+                <p className="w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                  {onLeaveError}
+                </p>
+              </div>
             ) : onLeaveLoading ? (
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid h-60 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {[0, 1, 2].map((item) => (
                   <div
                     key={item}
-                    className="border-ex-border bg-ex-surface h-32 animate-pulse rounded-xl border"
+                    className="border-ex-border bg-ex-surface h-full min-h-32 animate-pulse rounded-xl border"
                   />
                 ))}
               </div>
             ) : onLeave.length === 0 ? (
-              <div className="border-ex-border bg-ex-surface/40 rounded-xl border border-dashed px-6 py-10 text-center">
+              <div className="border-ex-border bg-ex-surface/40 flex h-60 flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center">
                 <div className="bg-ex-elevated text-ex-muted mx-auto flex size-12 items-center justify-center rounded-full text-xl">
                   ✓
                 </div>
@@ -412,7 +414,7 @@ export default function DashboardPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="h-60 space-y-6 overflow-y-auto pr-1">
                 {birthdayLeaveEmployees.length > 0 ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -471,7 +473,7 @@ export default function DashboardPage() {
 
       <section className="grid gap-4 lg:grid-cols-3">
         <AttendanceWidget />
-        <Card className="lg:col-span-2">
+        {/* <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Onboarding vs attrition</CardTitle>
           </CardHeader>
@@ -515,9 +517,9 @@ export default function DashboardPage() {
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
-        </Card>
+        </Card> */}
 
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle>Leave mix (MTD)</CardTitle>
           </CardHeader>
@@ -541,10 +543,10 @@ export default function DashboardPage() {
               approval chains.
             </p>
           </CardContent>
-        </Card>
+        </Card> */}
       </section>
 
-      <section>
+      {/* <section>
         <Card>
           <CardHeader>
             <CardTitle>Approval queue</CardTitle>
@@ -564,7 +566,7 @@ export default function DashboardPage() {
             />
           </CardContent>
         </Card>
-      </section>
+      </section> */}
     </div>
   );
 }

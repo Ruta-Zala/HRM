@@ -98,7 +98,7 @@ export default function OnboardingPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Onboarding & offboarding"
+        title="On Boarding & Off Boarding"
         description="Checklists, asset assignments, and exit interviews. Hook these steps to Google Drive document packs and Slack channels."
         actions={
           <Link href="/employee/new">
@@ -111,7 +111,7 @@ export default function OnboardingPage() {
       />
       <Card className="max-w-xl">
         <CardHeader>
-          <CardTitle>Offboarding</CardTitle>
+          <CardTitle>Off Boarding</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-2">
@@ -123,7 +123,7 @@ export default function OnboardingPage() {
               disabled={isBusy}
             >
               <option value="" disabled>
-                {loading ? "Loading employees…" : "Select employee"}
+                {loading ? "Loading employees…" : "Select"}
               </option>
               {activeEmployees.map((employee) => (
                 <option key={employee.sheetRow} value={employee.sheetRow}>

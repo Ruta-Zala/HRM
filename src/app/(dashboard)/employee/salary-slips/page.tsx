@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { parseEmployeeListApiResponse } from "@/lib/employee";
@@ -369,50 +370,44 @@ export default function SalarySlipsPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Salary slips"
+        title="Salary Slips"
         description="Pay slips with secure download, month-wise release, and percentage-based deductions."
       />
       {canManage ? (
-        <div className="flex items-center gap-4">
-          <select
-            className="border-ex-border bg-ex-surface rounded-md border px-3 py-2"
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-          >
-            <option value="">All years</option>
-            {Array.from({ length: currentYear - 2020 + 1 }).map((_, idx) => {
-              const y = currentYear - idx;
-              return (
-                <option key={y} value={String(y)}>
-                  {String(y)}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="w-auto min-w-28">
+            <Select value={year} onChange={(e) => setYear(e.target.value)}>
+              <option value="">All years</option>
+              {Array.from({ length: currentYear - 2020 + 1 }).map((_, idx) => {
+                const y = currentYear - idx;
+                return (
+                  <option key={y} value={String(y)}>
+                    {String(y)}
+                  </option>
+                );
+              })}
+            </Select>
+          </div>
+          <div className="w-auto min-w-32">
+            <Select value={month} onChange={(e) => setMonth(e.target.value)}>
+              <option value="">All months</option>
+              {monthOptions.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
                 </option>
-              );
-            })}
-          </select>
-          <select
-            className="border-ex-border bg-ex-surface rounded-md border px-3 py-2"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-          >
-            <option value="">All months</option>
-            {monthOptions.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-          <select
-            className="border-ex-border bg-ex-surface rounded-md border px-3 py-2"
-            value={targetEmployee}
-            onChange={(e) => setTargetEmployee(e.target.value)}
-          >
-            <option value="">All active employees</option>
-            {employees.map((e) => (
-              <option key={e.sheetRow} value={e.sheetRow}>
-                {e.name}
-              </option>
-            ))}
-          </select>
+              ))}
+            </Select>
+          </div>
+          <div className="w-auto min-w-48 flex-1 sm:flex-none">
+            <Select value={targetEmployee} onChange={(e) => setTargetEmployee(e.target.value)}>
+              <option value="">All active employees</option>
+              {employees.map((e) => (
+                <option key={e.sheetRow} value={e.sheetRow}>
+                  {e.name}
+                </option>
+              ))}
+            </Select>
+          </div>
           <Button
             variant="outline"
             onClick={generateSlips}
@@ -478,8 +473,7 @@ export default function SalarySlipsPage() {
                 <p className="text-ex-muted mt-1.5 max-w-sm text-sm leading-relaxed">
                   Select employee
                 </p>
-                <select
-                  className="border-ex-border bg-ex-surface w-full rounded-md border px-3 py-2"
+                <Select
                   value={historyEmployeeSheetRow}
                   onChange={(e) => setHistoryEmployeeSheetRow(e.target.value)}
                 >
@@ -489,7 +483,7 @@ export default function SalarySlipsPage() {
                       {e.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
                 <p className="text-ex-muted mt-1.5 max-w-sm text-sm leading-relaxed">
@@ -517,8 +511,7 @@ export default function SalarySlipsPage() {
                 <p className="text-ex-muted mt-1.5 max-w-sm text-sm leading-relaxed">
                   Loyalty bonus as a percentage of basic salary.
                 </p>
-                <select
-                  className="border-ex-border bg-ex-surface w-full rounded-md border px-3 py-2"
+                <Select
                   value={loyaltyBonus}
                   onChange={(e) => setLoyaltyBonus(e.target.value)}
                   disabled={!historyEmployeeSheetRow}
@@ -527,7 +520,7 @@ export default function SalarySlipsPage() {
                   <option value="10">Loyalty bonus 10%</option>
                   <option value="15">Loyalty bonus 15%</option>
                   <option value="20">Loyalty bonus 20%</option>
-                </select>
+                </Select>
               </div>
 
               <div>

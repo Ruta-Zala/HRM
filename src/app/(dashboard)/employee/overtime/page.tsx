@@ -82,7 +82,7 @@ export default function OvertimePage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Overtime approvals"
+        title="Overtime Approvals"
         description="Employees submit overtime for approval. HR can review requests, while super admin can approve or reject."
         actions={
           <Badge variant={pendingCount > 0 ? "warning" : "default"}>{pendingCount} pending</Badge>

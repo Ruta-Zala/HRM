@@ -1,5 +1,6 @@
 import type { UserRole } from "@/types/auth";
 import { ROLES } from "@/app/consts/common";
+import { isPunchRoute, roleCanPunchInOut } from "@/lib/attendance/absence-gate";
 
 const { SUPER_ADMIN, HR_MANAGER, EMPLOYEE } = ROLES;
 
@@ -94,27 +95,27 @@ export const navStructure: NavItem[] = [
         roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
       },
       {
-        label: "Onboarding / offboarding",
+        label: "Boarding",
         href: "/employee/onboarding",
         roles: [SUPER_ADMIN, HR_MANAGER],
       },
       {
-        label: "Employee profile",
+        label: "Employee Profile",
         href: "/employee/profile",
         roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
       },
       {
         label: "Punch in / out",
         href: "/employee/punch",
-        roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
+        roles: [HR_MANAGER, EMPLOYEE],
       },
       {
-        label: "Overtime & approvals",
+        label: "Overtime & Approvals",
         href: "/employee/overtime",
         roles: [SUPER_ADMIN, HR_MANAGER],
       },
       {
-        label: "Salary slips",
+        label: "Salary Slips",
         href: "/employee/salary-slips",
         roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
       },
@@ -124,13 +125,13 @@ export const navStructure: NavItem[] = [
         roles: [SUPER_ADMIN, HR_MANAGER],
       },
       {
-        label: "Salary advances",
+        label: "Salary Advances",
         href: "/employee/salary-advances",
         roles: [SUPER_ADMIN, HR_MANAGER],
       },
       { label: "Complaints", href: "/employee/complaints", roles: [] },
       {
-        label: "Attendance history",
+        label: "Attendance History",
         href: "/employee/attendance",
         roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
       },
@@ -144,13 +145,13 @@ export const navStructure: NavItem[] = [
     icon: "CalendarDays",
     roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
     children: [
-      { roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE], label: "Leave desk", href: "/leave" },
+      { roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE], label: "Leave Desk", href: "/leave" },
       {
         roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
-        label: "Company holidays",
+        label: "Company Holidays",
         href: "/leave/holidays",
       },
-      { roles: [SUPER_ADMIN, HR_MANAGER], label: "Approvals & chain", href: "/leave/approvals" },
+      { roles: [SUPER_ADMIN, HR_MANAGER], label: "Approvals & Chain", href: "/leave/approvals" },
       { roles: [], label: "Early leave", href: "/leave/early-leave" },
       { roles: [], label: "Working vs on leave", href: "/leave/dashboard" },
     ],
@@ -163,7 +164,7 @@ export const navStructure: NavItem[] = [
     children: [
       {
         roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
-        label: "Notifications center",
+        label: "Notifications Center",
         href: "/notifications",
       },
       {
@@ -197,11 +198,17 @@ export const navStructure: NavItem[] = [
     ],
   },
   {
-    label: "Access control",
+    label: "Access Control",
     href: "/settings/network",
     icon: "Shield",
-    roles: [],
-    children: [{ roles: [], label: "LAN / Wi-Fi restriction", href: "/settings/network" }],
+    roles: [SUPER_ADMIN, HR_MANAGER],
+    children: [
+      {
+        roles: [SUPER_ADMIN, HR_MANAGER],
+        label: "LAN / Wi-Fi Restriction",
+        href: "/settings/network",
+      },
+    ],
   },
 ];
 
@@ -227,6 +234,10 @@ export function filterNav(role: UserRole | null): NavItem[] {
 }
 
 export function canAccessPath(role: UserRole, pathname: string): boolean {
+  if (isPunchRoute(pathname) && !roleCanPunchInOut(role)) {
+    return false;
+  }
+
   if (role === ROLES.SUPER_ADMIN) return true;
 
   for (const item of navStructure) {
@@ -250,7 +261,6 @@ export function canAccessPath(role: UserRole, pathname: string): boolean {
     }
   }
 
-  if (pathname.startsWith("/settings/network")) return false;
   if (pathname.startsWith("/integrations") && role === "employee") return false;
   return true;
 }

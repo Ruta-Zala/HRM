@@ -167,7 +167,7 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Notification center"
+        title="Notification Center"
         description="Stay on top of leave activity, employee milestones, and company updates."
         actions={
           unreadCount > 0 ? (

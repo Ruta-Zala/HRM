@@ -28,6 +28,14 @@ import {
   parseMonthlySheetTitle,
 } from "@/lib/attendance/time";
 import { withActiveSession } from "@/lib/auth/api-guard";
+import {
+  roleCanPunchInOut,
+  roleRequiresAbsenceExplanationGate,
+} from "@/lib/attendance/absence-gate";
+import {
+  applyAbsenceGateCookie,
+  invalidateAbsenceExplanationCache,
+} from "@/lib/attendance/absence-gate-sync";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
 
@@ -184,6 +192,15 @@ export const POST = withActiveSession(async (req, user) => {
 
     const body = await req.json();
     const action = String(body.action ?? "");
+    const punchActions = new Set(["punch-in", "punch-out", "break-start", "break-end"]);
+
+    if (punchActions.has(action) && !roleCanPunchInOut(user.role)) {
+      return NextResponse.json(
+        { success: false, message: "Punch in/out is not available for your role" },
+        { status: 403 },
+      );
+    }
+
     const earlyLeaveReason =
       typeof body.earlyLeaveReason === "string" ? body.earlyLeaveReason.trim() : "";
     const dailyUpdate = typeof body.dailyUpdate === "string" ? body.dailyUpdate.trim() : "";
@@ -239,7 +256,7 @@ export const POST = withActiveSession(async (req, user) => {
 
     const workedMs = computeLiveWorkedMs(record);
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       success: true,
       record: {
         date: record.date,
@@ -264,6 +281,13 @@ export const POST = withActiveSession(async (req, user) => {
         idealShiftHours: isHalfDayUnpaidWorkMode(record.workMode) ? 4 : IDEAL_SHIFT_HOURS,
       },
     });
+
+    if (action === "punch-in" && roleRequiresAbsenceExplanationGate(user.role)) {
+      invalidateAbsenceExplanationCache(employee.employeeId);
+      await applyAbsenceGateCookie(res, user, { forceRefresh: true });
+    }
+
+    return res;
   } catch (error: unknown) {
     const message = formatGoogleApiClientMessage(error, {
       forHrAdmin: canManageEmployees(user.role),

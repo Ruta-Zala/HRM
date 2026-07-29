@@ -1,17 +1,23 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { CorrectionForm } from "@/components/attendance/correction-form";
+import { AbsenceExplanationPanel } from "@/components/attendance/absence-explanation-panel";
 import { EarlyLeaveDialog } from "@/components/attendance/early-leave-dialog";
 import { PunchDesk } from "@/components/attendance/punch-desk";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { useTodayAttendance } from "@/hooks/use-today-attendance";
 import { useAuth } from "@/contexts/auth-provider";
-import { canManageEmployees } from "@/lib/auth/roles";
+import { canManageEmployees, roleCanPunchInOut } from "@/lib/auth/roles";
+import { roleRequiresAbsenceExplanationGate } from "@/lib/attendance/absence-gate";
+import { readAbsenceGateSessionHint } from "@/lib/attendance/absence-gate-session";
 import {
   fetchCorrectionRequests,
   reviewCorrection,
@@ -26,8 +32,11 @@ import {
 } from "@/lib/attendance/constants";
 
 export default function PunchPage() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const canPunch = user ? roleCanPunchInOut(user.role) : false;
   const isHr = user ? canManageEmployees(user.role) : false;
+  const showAbsenceGate = user ? roleRequiresAbsenceExplanationGate(user.role) : false;
   const { today, loading, error, acting, liveWorkedMs, runAction, refresh } = useTodayAttendance();
   const [showCorrection, setShowCorrection] = useState(false);
   const [corrections, setCorrections] = useState<CorrectionRequestDto[]>([]);
@@ -41,6 +50,10 @@ export default function PunchPage() {
   const [dailyUpdateSaving, setDailyUpdateSaving] = useState(false);
   const [dailyUpdateError, setDailyUpdateError] = useState<string | null>(null);
   const [workMode, setWorkMode] = useState<string>(WORK_MODE.FULL_DAY_ONSITE);
+  const [explanationBlocked, setExplanationBlocked] = useState(() => {
+    if (!showAbsenceGate) return false;
+    return readAbsenceGateSessionHint() ?? true;
+  });
 
   const targetMs = (today?.idealHours ?? 8) * 60 * 60 * 1000;
   const shortfallMs = Math.max(0, targetMs - liveWorkedMs);
@@ -83,11 +96,17 @@ export default function PunchPage() {
   }
 
   useEffect(() => {
-    if (!isHr) return;
+    if (!authLoading && user && !canPunch) {
+      router.replace("/dashboard");
+    }
+  }, [authLoading, user, canPunch, router]);
+
+  useEffect(() => {
+    if (!isHr || !canPunch) return;
     void fetchCorrectionRequests()
       .then(setCorrections)
       .catch(() => {});
-  }, [isHr]);
+  }, [isHr, canPunch]);
 
   async function handleReview(id: string, status: "Approved" | "Rejected") {
     setReviewing({ id, status });
@@ -98,6 +117,33 @@ export default function PunchPage() {
     } finally {
       setReviewing(null);
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <Loader2 className="text-ex-muted size-8 animate-spin" aria-hidden />
+      </div>
+    );
+  }
+
+  if (!canPunch) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-6">
+        <AccessDenied
+          title="Punch desk unavailable"
+          description="Punch in/out is only available for Employee and HR Manager roles."
+          action={
+            <Link href="/dashboard">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="size-4" />
+                Back to dashboard
+              </Button>
+            </Link>
+          }
+        />
+      </div>
+    );
   }
 
   return (
@@ -115,165 +161,180 @@ export default function PunchPage() {
         </p>
       ) : null}
 
-      {!today?.hasPunchedIn ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Work mode</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Select
-              value={workMode}
-              onChange={(e) => setWorkMode(e.target.value)}
-              disabled={acting || loading}
-            >
-              {WORK_MODE_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {workModeOptionLabel(option)}
-                </option>
-              ))}
-            </Select>
-            <p className="text-ex-muted text-xs">
-              This mode will be saved in today&apos;s attendance row.
-            </p>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <PunchDesk
-        userName={user?.name}
-        today={today}
-        loading={loading}
-        acting={acting}
-        liveWorkedMs={liveWorkedMs}
-        onPunchIn={() => void runAction("punch-in", { workMode })}
-        onPunchOut={() => void handlePunchOut()}
-        onBreakStart={() => void runAction("break-start")}
-        onBreakEnd={() => void runAction("break-end")}
-        onRequestCorrection={today?.hasPunchedIn ? () => setShowCorrection((v) => !v) : undefined}
-      />
-
-      <EarlyLeaveDialog
-        key={`${today?.date ?? "today"}-${earlyLeaveOpen ? "open" : "closed"}`}
-        open={earlyLeaveOpen}
-        shortfallMs={shortfallMs}
-        requireEarlyLeaveReason={isLeavingEarly}
-        initialDailyUpdate={today?.dailyUpdate ?? ""}
-        submitting={acting}
-        error={earlyLeaveError}
-        onConfirm={(payload) => void confirmEarlyLeave(payload)}
-        onCancel={() => {
-          if (!acting) {
-            setEarlyLeaveOpen(false);
-            setEarlyLeaveError(null);
-          }
-        }}
-      />
-
-      {today?.hasPunchedIn ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Daily update</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <textarea
-              value={dailyUpdateDraft ?? today?.dailyUpdate ?? ""}
-              onChange={(e) => setDailyUpdateDraft(e.target.value)}
-              placeholder="Add completed work for this day"
-              rows={4}
-              className="border-ex-border bg-ex-elevated w-full rounded-md border px-3 py-2 text-sm"
-              disabled={dailyUpdateSaving}
-            />
-            {dailyUpdateError ? (
-              <p className="text-sm text-red-600 dark:text-red-400">{dailyUpdateError}</p>
-            ) : null}
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                onClick={() => void handleSaveDailyUpdate()}
-                disabled={
-                  dailyUpdateSaving || !(dailyUpdateDraft ?? today?.dailyUpdate ?? "").trim()
-                }
-              >
-                {dailyUpdateSaving ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" aria-hidden />
-                    Saving...
-                  </>
-                ) : (
-                  "Save update"
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {showCorrection && today?.hasPunchedIn ? (
-        <CorrectionForm
-          date={today.date}
-          onSuccess={() => setShowCorrection(false)}
-          onCancel={() => setShowCorrection(false)}
+      {showAbsenceGate ? (
+        <AbsenceExplanationPanel
+          onPendingChange={(count) => setExplanationBlocked(count > 0)}
+          onSubmitted={() => {
+            window.location.reload();
+          }}
         />
       ) : null}
 
-      {isHr && corrections.some((c) => c.status === CORRECTION_STATUS.PENDING) ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Pending correction requests</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {corrections
-              .filter((c) => c.status === CORRECTION_STATUS.PENDING)
-              .map((c) => (
-                <div
-                  key={c.id}
-                  className="border-ex-border bg-ex-surface/50 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between"
+      {showAbsenceGate && explanationBlocked ? null : (
+        <>
+          {!today?.hasPunchedIn ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Work mode</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Select
+                  value={workMode}
+                  onChange={(e) => setWorkMode(e.target.value)}
+                  disabled={acting || loading}
                 >
-                  <div className="text-sm">
-                    <p className="text-ex-primary font-medium">
-                      {c.employeeName} · {c.date} · {c.field}
-                    </p>
-                    <p className="text-ex-muted">
-                      {c.originalValue || "—"} → {c.requestedValue}
-                    </p>
-                    <p className="text-ex-muted mt-1">{c.reason}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      disabled={reviewing !== null}
-                      onClick={() => void handleReview(c.id, "Approved")}
-                    >
-                      {reviewing?.id === c.id && reviewing.status === "Approved" ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" aria-hidden />
-                          Approving…
-                        </>
-                      ) : (
-                        "Approve"
-                      )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={reviewing !== null}
-                      onClick={() => void handleReview(c.id, "Rejected")}
-                    >
-                      {reviewing?.id === c.id && reviewing.status === "Rejected" ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" aria-hidden />
-                          Rejecting…
-                        </>
-                      ) : (
-                        "Reject"
-                      )}
-                    </Button>
-                  </div>
+                  {WORK_MODE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {workModeOptionLabel(option)}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-ex-muted text-xs">
+                  This mode will be saved in today&apos;s attendance row.
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <PunchDesk
+            userName={user?.name}
+            today={today}
+            loading={loading}
+            acting={acting}
+            liveWorkedMs={liveWorkedMs}
+            onPunchIn={() => void runAction("punch-in", { workMode })}
+            onPunchOut={() => void handlePunchOut()}
+            onBreakStart={() => void runAction("break-start")}
+            onBreakEnd={() => void runAction("break-end")}
+            onRequestCorrection={
+              today?.hasPunchedIn ? () => setShowCorrection((v) => !v) : undefined
+            }
+          />
+
+          <EarlyLeaveDialog
+            key={`${today?.date ?? "today"}-${earlyLeaveOpen ? "open" : "closed"}`}
+            open={earlyLeaveOpen}
+            shortfallMs={shortfallMs}
+            requireEarlyLeaveReason={isLeavingEarly}
+            initialDailyUpdate={today?.dailyUpdate ?? ""}
+            submitting={acting}
+            error={earlyLeaveError}
+            onConfirm={(payload) => void confirmEarlyLeave(payload)}
+            onCancel={() => {
+              if (!acting) {
+                setEarlyLeaveOpen(false);
+                setEarlyLeaveError(null);
+              }
+            }}
+          />
+
+          {today?.hasPunchedIn ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Daily update</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <textarea
+                  value={dailyUpdateDraft ?? today?.dailyUpdate ?? ""}
+                  onChange={(e) => setDailyUpdateDraft(e.target.value)}
+                  placeholder="Add completed work for this day"
+                  rows={4}
+                  className="border-ex-border bg-ex-elevated w-full rounded-md border px-3 py-2 text-sm"
+                  disabled={dailyUpdateSaving}
+                />
+                {dailyUpdateError ? (
+                  <p className="text-sm text-red-600 dark:text-red-400">{dailyUpdateError}</p>
+                ) : null}
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    onClick={() => void handleSaveDailyUpdate()}
+                    disabled={
+                      dailyUpdateSaving || !(dailyUpdateDraft ?? today?.dailyUpdate ?? "").trim()
+                    }
+                  >
+                    {dailyUpdateSaving ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save update"
+                    )}
+                  </Button>
                 </div>
-              ))}
-          </CardContent>
-        </Card>
-      ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {showCorrection && today?.hasPunchedIn ? (
+            <CorrectionForm
+              date={today.date}
+              onSuccess={() => setShowCorrection(false)}
+              onCancel={() => setShowCorrection(false)}
+            />
+          ) : null}
+
+          {isHr && corrections.some((c) => c.status === CORRECTION_STATUS.PENDING) ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Pending correction requests</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {corrections
+                  .filter((c) => c.status === CORRECTION_STATUS.PENDING)
+                  .map((c) => (
+                    <div
+                      key={c.id}
+                      className="border-ex-border bg-ex-surface/50 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="text-sm">
+                        <p className="text-ex-primary font-medium">
+                          {c.employeeName} · {c.date} · {c.field}
+                        </p>
+                        <p className="text-ex-muted">
+                          {c.originalValue || "—"} → {c.requestedValue}
+                        </p>
+                        <p className="text-ex-muted mt-1">{c.reason}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          disabled={reviewing !== null}
+                          onClick={() => void handleReview(c.id, "Approved")}
+                        >
+                          {reviewing?.id === c.id && reviewing.status === "Approved" ? (
+                            <>
+                              <Loader2 className="size-4 animate-spin" aria-hidden />
+                              Approving…
+                            </>
+                          ) : (
+                            "Approve"
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={reviewing !== null}
+                          onClick={() => void handleReview(c.id, "Rejected")}
+                        >
+                          {reviewing?.id === c.id && reviewing.status === "Rejected" ? (
+                            <>
+                              <Loader2 className="size-4 animate-spin" aria-hidden />
+                              Rejecting…
+                            </>
+                          ) : (
+                            "Reject"
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </CardContent>
+            </Card>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
