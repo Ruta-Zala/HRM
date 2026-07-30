@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AlertTriangle, CalendarDays, Sparkles, Users } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 // import {
 //   Area,
 //   AreaChart,
@@ -204,7 +204,59 @@ function holidayDateParts(holiday: CompanyHoliday): {
   };
 }
 
-function UpcomingHolidayItem({ holiday }: { holiday: CompanyHoliday }) {
+function holidayTypeIcon(name: string, isLeave: boolean): ReactNode {
+  const normalized = name.trim().toLowerCase();
+
+  if (normalized.includes("makar sankranti")) {
+    return <span aria-hidden="true">🪁</span>;
+  }
+  if (normalized.includes("republic day")) {
+    return <span aria-hidden="true">🇮🇳</span>;
+  }
+  if (normalized.includes("holi")) {
+    return <span aria-hidden="true">🎨</span>;
+  }
+  if (normalized.includes("dhuleti")) {
+    return <span aria-hidden="true">🌈</span>;
+  }
+  if (normalized.includes("independence day")) {
+    return <span aria-hidden="true">🇮🇳</span>;
+  }
+  if (normalized.includes("raksha bandhan")) {
+    return <span aria-hidden="true">🪢</span>;
+  }
+  if (normalized.includes("janmashtami")) {
+    return <span aria-hidden="true">🏺</span>;
+  }
+  if (normalized.includes("ganesh chaturthi")) {
+    return <span aria-hidden="true">🐘</span>;
+  }
+  if (normalized.includes("dussehra") || normalized.includes("vijaya dashami")) {
+    return <span aria-hidden="true">🏹</span>;
+  }
+  if (normalized.includes("diwali")) {
+    return <span aria-hidden="true">🪔</span>;
+  }
+  if (normalized.includes("new year")) {
+    return <span aria-hidden="true">🎉</span>;
+  }
+  if (normalized.includes("bhai dooj")) {
+    return <span aria-hidden="true">🧿</span>;
+  }
+  if (normalized.includes("christmas")) {
+    return <span aria-hidden="true">🎄</span>;
+  }
+
+  return isLeave ? <CalendarDays className="size-3" /> : <Sparkles className="size-3" />;
+}
+
+function UpcomingHolidayItem({
+  holiday,
+  // className,
+}: {
+  holiday: CompanyHoliday;
+  className?: string;
+}) {
   const date = holidayDateParts(holiday);
   const isLeave = holiday.type === "leave";
 
@@ -232,8 +284,8 @@ function UpcomingHolidayItem({ holiday }: { holiday: CompanyHoliday }) {
               isLeave ? "text-ex-chip-info-fg" : "text-ex-chip-accent-fg",
             )}
           >
-            {isLeave ? <CalendarDays className="size-3" /> : <Sparkles className="size-3" />}
-            {isLeave ? "Company leave" : "Celebration"}
+            {holidayTypeIcon(holiday.name, isLeave)}
+            {isLeave ? "Leave" : "Celebration"}
           </span>
         </div>
       </div>
@@ -453,7 +505,7 @@ export default function DashboardPage() {
                 </p>
               </div>
             ) : (
-              <div className="h-60 space-y-3 overflow-y-auto pr-1">
+              <div className="h-80 space-y-3 overflow-y-auto pr-1">
                 {upcomingHolidays.map((holiday) => (
                   <UpcomingHolidayItem key={holiday.id} holiday={holiday} />
                 ))}
@@ -520,7 +572,7 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : onLeave.length === 0 ? (
-              <div className="border-ex-border bg-ex-surface/40 flex h-60 flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center">
+              <div className="border-ex-border bg-ex-surface/40 flex h-80 flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center">
                 <div className="bg-ex-elevated text-ex-muted mx-auto flex size-12 items-center justify-center rounded-full text-xl">
                   ✓
                 </div>
