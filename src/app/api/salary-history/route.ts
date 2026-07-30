@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 
+import { ROLES } from "@/app/consts/common";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { sheetRowToForm } from "@/lib/employee";
+import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import {
   cleanupCorruptSalaryHistoryRecords,
   createSalaryHistoryRecord,
   listSalaryHistoryRecords,
 } from "@/lib/salary-slips/sheets";
+
+function isSuperAdminRole(role: string): boolean {
+  return role.trim().toLowerCase() === ROLES.SUPER_ADMIN;
+}
 
 export const GET = withActiveSession(async (req, user) => {
   if (!canManageEmployees(user.role)) {
@@ -53,6 +60,20 @@ export const POST = withActiveSession(async (req, user) => {
         { status: 400 },
       );
     }
+
+    const employeeSheet = await readSheet(EMPLOYEE_SHEET_RANGE);
+    if (employeeSheetRow > employeeSheet.length) {
+      return NextResponse.json({ success: false, message: "Employee not found" }, { status: 404 });
+    }
+    const headers = employeeSheet[0] as string[];
+    const form = sheetRowToForm(headers, employeeSheet[employeeSheetRow - 1] ?? []);
+    if (isSuperAdminRole(form.role)) {
+      return NextResponse.json(
+        { success: false, message: "Salary history is not available for Super Admin" },
+        { status: 400 },
+      );
+    }
+
     if (!effectiveFrom) {
       return NextResponse.json(
         { success: false, message: "effectiveFrom is required" },

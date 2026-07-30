@@ -38,6 +38,8 @@ import {
 } from "@/lib/attendance/absence-gate-sync";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
+import { invalidateUnapprovedAbsenceCache } from "@/lib/attendance/unapproved-absence";
+import { notificationDateIso } from "@/lib/notifications/automation-date";
 
 function parseTargetSheetRow(searchParams: URLSearchParams, userSheetRow?: number) {
   const param = searchParams.get("employeeSheetRow");
@@ -282,9 +284,12 @@ export const POST = withActiveSession(async (req, user) => {
       },
     });
 
-    if (action === "punch-in" && roleRequiresAbsenceExplanationGate(user.role)) {
-      invalidateAbsenceExplanationCache(employee.employeeId);
-      await applyAbsenceGateCookie(res, user, { forceRefresh: true });
+    if (action === "punch-in") {
+      invalidateUnapprovedAbsenceCache(notificationDateIso());
+      if (roleRequiresAbsenceExplanationGate(user.role)) {
+        invalidateAbsenceExplanationCache(employee.employeeId);
+        await applyAbsenceGateCookie(res, user, { forceRefresh: true });
+      }
     }
 
     return res;

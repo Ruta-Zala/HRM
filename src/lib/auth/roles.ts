@@ -12,6 +12,9 @@ export function canReviewOvertime(role: UserRole): boolean {
 export {
   roleRequiresAbsenceExplanationGate,
   roleCanPunchInOut,
+  roleCanApplyLeave,
   isPunchRoute,
+  isLeaveDeskRoute,
   PUNCH_GATE_ROUTE,
+  LEAVE_DESK_ROUTE,
 } from "@/lib/attendance/absence-gate";

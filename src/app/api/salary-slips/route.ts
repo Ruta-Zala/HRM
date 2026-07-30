@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { ROLES } from "@/app/consts/common";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
@@ -21,6 +22,10 @@ import {
   saveSalarySlipRecord,
   updateSalarySlipRecord,
 } from "@/lib/salary-slips/sheets";
+
+function isSuperAdminRole(role: string): boolean {
+  return role.trim().toLowerCase() === ROLES.SUPER_ADMIN;
+}
 
 function monthLabel(month: number): string {
   return new Date(Date.UTC(2026, month - 1, 1)).toLocaleString("en-IN", { month: "short" });
@@ -215,6 +220,16 @@ export const POST = withActiveSession(async (req, user) => {
       const row = employeeSheet[i] ?? [];
       const form = sheetRowToForm(headers, row);
       if (form.status.toLowerCase() !== "active") continue;
+      // Super Admin is not paid via salary slips.
+      if (isSuperAdminRole(form.role)) {
+        if (targetSheetRow === sheetRow) {
+          return NextResponse.json(
+            { success: false, message: "Salary slips are not available for Super Admin" },
+            { status: 400 },
+          );
+        }
+        continue;
+      }
 
       const existing = allSlips.find(
         (s) =>

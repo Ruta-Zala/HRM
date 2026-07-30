@@ -22,6 +22,7 @@ const roleLabel: Record<string, string> = {
 
 function HeaderProfileAvatar({ userName, onLogout }: { userName?: string; onLogout: () => void }) {
   const [src, setSrc] = useState<string | null>(null);
+  const [imageFailed, setImageFailed] = useState(false);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -36,12 +37,24 @@ function HeaderProfileAvatar({ userName, onLogout }: { userName?: string; onLogo
           headers?: string[];
           row?: string[];
         };
-        if (cancelled || !data.success || !data.headers || !data.row) return;
+        if (cancelled || !data.success || !data.headers || !data.row) {
+          if (!cancelled) {
+            setSrc(null);
+            setImageFailed(false);
+          }
+          return;
+        }
 
         const form = sheetRowToForm(data.headers, data.row);
-        if (!cancelled) setSrc(resolveProfileImageSrc(form.profileImage));
+        if (!cancelled) {
+          setSrc(resolveProfileImageSrc(form.profileImage));
+          setImageFailed(false);
+        }
       } catch {
-        if (!cancelled) setSrc(null);
+        if (!cancelled) {
+          setSrc(null);
+          setImageFailed(false);
+        }
       }
     })();
 
@@ -65,28 +78,30 @@ function HeaderProfileAvatar({ userName, onLogout }: { userName?: string; onLogo
 
   const menuItemClass =
     "text-ex-primary hover:bg-ex-surface flex w-full items-center gap-2 px-3 py-2 text-sm transition";
+  const showPhoto = Boolean(src) && !imageFailed;
 
   return (
     <div ref={rootRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="border-ex-border bg-ex-elevated hover:bg-ex-surface relative inline-flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-full border shadow-sm transition"
+        className="border-ex-border bg-ex-surface hover:bg-ex-elevated relative inline-flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-full border shadow-sm transition"
         aria-label={userName ? `${userName} account menu` : "Your account menu"}
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        {src ? (
+        {showPhoto ? (
           <Image
-            src={src}
+            src={src!}
             alt={userName ? `${userName} profile` : "Profile"}
             width={40}
             height={40}
             unoptimized
             className="size-full object-cover"
+            onError={() => setImageFailed(true)}
           />
         ) : (
-          <User className="text-ex-muted size-5" />
+          <User className="text-ex-muted size-5" aria-hidden />
         )}
       </button>
 

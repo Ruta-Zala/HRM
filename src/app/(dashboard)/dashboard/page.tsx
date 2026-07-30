@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { AlertTriangle, CalendarDays, Sparkles, Users } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -25,6 +26,7 @@ import { canManageEmployees } from "@/lib/auth/roles";
 import { parseLeaveDisplayDate } from "@/lib/attendance/leave-range-display";
 import { formatIsoDate } from "@/lib/attendance/time";
 import { COMPANY_HOLIDAYS_2026, type CompanyHoliday } from "@/lib/company-holidays";
+import { resolveProfileImageSrc } from "@/lib/employee";
 import { cn } from "@/lib/utils";
 
 // const headcountTrend = [
@@ -66,20 +68,13 @@ type UnapprovedAbsenceEmployee = {
   employeeSheetRow: number;
   employeeId: string;
   employeeName: string;
-  reason: "no_punch" | "pending_leave" | "rejected_leave";
+  profileImage?: string;
+  reason: "no_punch";
   reasonLabel: string;
   leaveType: string;
   duration: string;
   date: string;
 };
-
-function reasonBadgeVariant(
-  reason: UnapprovedAbsenceEmployee["reason"],
-): "warning" | "danger" | "default" {
-  if (reason === "pending_leave") return "warning";
-  if (reason === "no_punch" || reason === "rejected_leave") return "danger";
-  return "default";
-}
 
 function displayDate(value: string): string {
   const [year, month, day] = value.split("-").map(Number);
@@ -118,27 +113,34 @@ function leaveDateLabel(value: string): string {
 }
 
 function UnapprovedAbsenceEmployeeCard({ employee }: { employee: UnapprovedAbsenceEmployee }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const profileSrc = resolveProfileImageSrc(employee.profileImage ?? "");
+  const showPhoto = Boolean(profileSrc) && !imageFailed;
+
   return (
-    <Link
-      href="/leave/approvals"
-      className="group hover:bg-ex-surface flex items-center gap-3 px-4 py-3.5 transition"
-    >
-      <div className="bg-ex-chip-danger-bg text-ex-chip-danger-fg flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold">
-        {employeeInitials(employee.employeeName)}
-      </div>
+    <div className="flex items-center gap-3 px-4 py-3.5">
+      {showPhoto ? (
+        <Image
+          src={profileSrc!}
+          alt={`${employee.employeeName} profile`}
+          width={40}
+          height={40}
+          unoptimized
+          className="border-ex-border size-10 shrink-0 rounded-full border object-cover"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <div className="bg-ex-chip-danger-bg text-ex-chip-danger-fg flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold">
+          {employeeInitials(employee.employeeName)}
+        </div>
+      )}
       <div className="min-w-0 flex-1">
-        <p className="text-ex-primary group-hover:text-ex-secondary truncate text-sm font-semibold transition">
-          {employee.employeeName}
-        </p>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <Badge variant={reasonBadgeVariant(employee.reason)}>{employee.reasonLabel}</Badge>
-          {employee.leaveType ? (
-            <span className="text-ex-muted text-xs capitalize">{employee.leaveType}</span>
-          ) : null}
+        <p className="text-ex-primary truncate text-sm font-semibold">{employee.employeeName}</p>
+        <div className="mt-1">
+          <Badge variant="danger">No punch-in</Badge>
         </div>
       </div>
-      <span className="text-ex-muted group-hover:text-ex-secondary text-base transition">→</span>
-    </Link>
+    </div>
   );
 }
 
@@ -260,13 +262,7 @@ export default function DashboardPage() {
   const otherLeaveEmployees = onLeave.filter(
     (employee) => employee.leaveType.toLowerCase() !== "birthday",
   );
-  const unapprovedNoPunch = unapprovedAbsence.filter((employee) => employee.reason === "no_punch");
-  const unapprovedPendingLeave = unapprovedAbsence.filter(
-    (employee) => employee.reason === "pending_leave",
-  );
-  const unapprovedRejectedLeave = unapprovedAbsence.filter(
-    (employee) => employee.reason === "rejected_leave",
-  );
+  const unapprovedNoPunch = unapprovedAbsence;
   const canFetchUnapprovedAbsence = canManageLeave && Boolean(user?.sheetRow);
   const unapprovedAbsenceLoading =
     canFetchUnapprovedAbsence && unapprovedAbsenceFetchedDate !== leaveDate;
@@ -326,37 +322,47 @@ export default function DashboardPage() {
     if (!canFetchUnapprovedAbsence) return;
 
     let cancelled = false;
-    void fetch(`/api/dashboard/unapproved-absence?date=${encodeURIComponent(leaveDate)}`, {
-      cache: "no-store",
-    })
-      .then(async (response) => {
-        const data = (await response.json()) as {
-          success?: boolean;
-          message?: string;
-          employees?: UnapprovedAbsenceEmployee[];
-        };
-        if (!response.ok || !data.success) {
-          throw new Error(data.message ?? "Failed to load unapproved absences");
-        }
-        return data.employees ?? [];
+
+    const load = () => {
+      void fetch(`/api/dashboard/unapproved-absence?date=${encodeURIComponent(leaveDate)}`, {
+        cache: "no-store",
       })
-      .then((employees) => {
-        if (cancelled) return;
-        setUnapprovedAbsence(employees);
-        setUnapprovedAbsenceError(null);
-        setUnapprovedAbsenceFetchedDate(leaveDate);
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        setUnapprovedAbsence([]);
-        setUnapprovedAbsenceError(
-          error instanceof Error ? error.message : "Failed to load unapproved absences",
-        );
-        setUnapprovedAbsenceFetchedDate(leaveDate);
-      });
+        .then(async (response) => {
+          const data = (await response.json()) as {
+            success?: boolean;
+            message?: string;
+            employees?: UnapprovedAbsenceEmployee[];
+          };
+          if (!response.ok || !data.success) {
+            throw new Error(data.message ?? "Failed to load unapproved absences");
+          }
+          return data.employees ?? [];
+        })
+        .then((employees) => {
+          if (cancelled) return;
+          setUnapprovedAbsence(employees);
+          setUnapprovedAbsenceError(null);
+          setUnapprovedAbsenceFetchedDate(leaveDate);
+        })
+        .catch((error: unknown) => {
+          if (cancelled) return;
+          setUnapprovedAbsence([]);
+          setUnapprovedAbsenceError(
+            error instanceof Error ? error.message : "Failed to load unapproved absences",
+          );
+          setUnapprovedAbsenceFetchedDate(leaveDate);
+        });
+    };
+
+    load();
+
+    // Keep today's no-punch list fresh as people punch in during the day.
+    const shouldPoll = leaveDate === formatIsoDate();
+    const intervalId = shouldPoll ? window.setInterval(load, 20_000) : undefined;
 
     return () => {
       cancelled = true;
+      if (intervalId != null) window.clearInterval(intervalId);
     };
   }, [canFetchUnapprovedAbsence, leaveDate]);
 
@@ -411,9 +417,7 @@ export default function DashboardPage() {
         />
         {canManageLeave ? (
           <StatCard
-            label={
-              leaveDate !== formatIsoDate() ? "Unapproved absence" : "Unapproved absence today"
-            }
+            label={leaveDate !== formatIsoDate() ? "No punch-in" : "No punch-in today"}
             value={unapprovedAbsenceLoading ? "…" : String(unapprovedAbsence.length)}
             hint={displayDate(leaveDate)}
           />
@@ -591,9 +595,9 @@ export default function DashboardPage() {
                   <AlertTriangle className="size-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <CardTitle>Unapproved Absence</CardTitle>
+                  <CardTitle>Absence</CardTitle>
                   <p className="text-ex-muted mt-1 text-sm">
-                    No punch-in or leave not approved yet for {displayDate(leaveDate)}
+                    Employees who have not punched in for {displayDate(leaveDate)}
                   </p>
                 </div>
               </div>
@@ -601,12 +605,6 @@ export default function DashboardPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={unapprovedNoPunch.length > 0 ? "danger" : "default"}>
                     {unapprovedNoPunch.length} no punch
-                  </Badge>
-                  <Badge variant={unapprovedPendingLeave.length > 0 ? "warning" : "default"}>
-                    {unapprovedPendingLeave.length} pending
-                  </Badge>
-                  <Badge variant={unapprovedRejectedLeave.length > 0 ? "danger" : "default"}>
-                    {unapprovedRejectedLeave.length} rejected
                   </Badge>
                 </div>
               ) : null}
@@ -632,9 +630,9 @@ export default function DashboardPage() {
                   <div className="bg-ex-elevated text-ex-muted mx-auto flex size-12 items-center justify-center rounded-full text-xl">
                     ✓
                   </div>
-                  <p className="text-ex-primary mt-3 font-medium">No unapproved absences</p>
+                  <p className="text-ex-primary mt-3 font-medium">Everyone has punched in</p>
                   <p className="text-ex-muted mt-1 text-sm">
-                    Everyone has punched in or has approved leave for {displayDate(leaveDate)}.
+                    No missing punch-ins for {displayDate(leaveDate)}.
                   </p>
                 </div>
               ) : (

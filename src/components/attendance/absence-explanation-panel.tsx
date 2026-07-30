@@ -6,10 +6,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ABSENCE_EXPLANATION_MIN_LENGTH } from "@/lib/attendance/constants";
 import { setAbsenceGateSessionHint } from "@/lib/attendance/absence-gate-session";
 import { apiResponseErrorMessage, parseJsonResponse } from "@/lib/api/json-response";
+
+type LeaveTypeOption = "sick" | "casual";
 
 type PendingAbsenceGroup = {
   id: string;
@@ -17,6 +20,7 @@ type PendingAbsenceGroup = {
   dateFromIso: string;
   dateToIso: string;
   dateLabel: string;
+  leaveTypeOptions?: LeaveTypeOption[];
   entries: Array<{
     dateIso: string;
     leaveType: string;
@@ -56,12 +60,20 @@ function reasonTitle(group: PendingAbsenceGroup): string {
 
 function reasonDescription(group: PendingAbsenceGroup): string {
   if (group.reasonType === "today_no_punch") {
+    if ((group.leaveTypeOptions?.length ?? 0) > 0) {
+      return "You have not punched in yet. Select sick or casual leave if you are absent today, or explain why you have not punched in.";
+    }
     return "Please explain why you have not punched in yet before accessing the rest of the site.";
   }
   if (group.reasonType === "rejected_leave") {
     return group.dateFromIso === group.dateToIso
       ? "Your leave request was rejected for this day and attendance was not recorded."
       : `Your leave request was rejected and you were absent from ${group.dateLabel}.`;
+  }
+  if ((group.leaveTypeOptions?.length ?? 0) > 0) {
+    return group.dateFromIso === group.dateToIso
+      ? "You were absent without a leave request. Select sick or casual leave (if available) and submit a reason for HR approval."
+      : `You were absent from ${group.dateLabel} without a leave request. Select sick or casual leave (if available this quarter) and submit a reason for HR approval.`;
   }
   if (group.dateFromIso === group.dateToIso) {
     return "You were absent on this working day without submitting a leave request.";
@@ -99,6 +111,7 @@ export function AbsenceExplanationPanel({
 }) {
   const [groups, setGroups] = useState<PendingAbsenceGroup[]>([]);
   const [explanations, setExplanations] = useState<Record<string, string>>({});
+  const [leaveTypes, setLeaveTypes] = useState<Record<string, LeaveTypeOption | "">>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +137,22 @@ export function AbsenceExplanationPanel({
       }
       return next;
     });
+    setLeaveTypes((current) => {
+      const next = { ...current };
+      for (const item of items) {
+        const options = item.leaveTypeOptions ?? [];
+        if (options.length === 0) {
+          next[item.id] = "";
+          continue;
+        }
+        const selected = next[item.id];
+        if (selected && options.includes(selected)) continue;
+        // Default past unauthorized absences to the first available type.
+        // Leave today's no-punch empty so "forgot to punch" stays optional.
+        next[item.id] = item.reasonType === "unauthorized_absence" ? (options[0] ?? "") : "";
+      }
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -146,7 +175,13 @@ export function AbsenceExplanationPanel({
     groups.length > 0 &&
     groups.every((group) => {
       const text = (explanations[group.id] ?? "").trim();
-      return text.length >= ABSENCE_EXPLANATION_MIN_LENGTH;
+      if (text.length < ABSENCE_EXPLANATION_MIN_LENGTH) return false;
+      const options = group.leaveTypeOptions ?? [];
+      // Past unauthorized absences require a leave type when balance exists.
+      // Today's no-punch can be explanation-only (forgot to punch) or leave.
+      if (group.reasonType !== "unauthorized_absence" || options.length === 0) return true;
+      const selected = leaveTypes[group.id];
+      return Boolean(selected && options.includes(selected));
     });
 
   async function onSubmit(e: React.FormEvent) {
@@ -162,10 +197,19 @@ export function AbsenceExplanationPanel({
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          submissions: groups.map((group) => ({
-            groupId: group.id,
-            explanation: (explanations[group.id] ?? "").trim(),
-          })),
+          submissions: groups.map((group) => {
+            const selected = leaveTypes[group.id];
+            const options = group.leaveTypeOptions ?? [];
+            return {
+              groupId: group.id,
+              explanation: (explanations[group.id] ?? "").trim(),
+              reasonType: group.reasonType,
+              dateFromIso: group.dateFromIso,
+              dateToIso: group.dateToIso,
+              entryDates: group.entries.map((entry) => entry.dateIso),
+              ...(selected && options.includes(selected) ? { leaveType: selected } : {}),
+            };
+          }),
         }),
       });
 
@@ -230,6 +274,7 @@ export function AbsenceExplanationPanel({
             const trimmed = value.trim();
             const tooShort = trimmed.length > 0 && trimmed.length < ABSENCE_EXPLANATION_MIN_LENGTH;
             const rejectedEntry = group.entries[0];
+            const leaveOptions = group.leaveTypeOptions ?? [];
 
             return (
               <div
@@ -268,6 +313,44 @@ export function AbsenceExplanationPanel({
                     </p>
                   ) : null}
                 </div>
+
+                {leaveOptions.length > 0 ? (
+                  <div className="space-y-2">
+                    <Label htmlFor={`leave-type-${group.id}`}>
+                      Leave type
+                      {group.reasonType === "today_no_punch" ? " (optional)" : ""}
+                    </Label>
+                    <Select
+                      id={`leave-type-${group.id}`}
+                      value={leaveTypes[group.id] ?? ""}
+                      onChange={(event) =>
+                        setLeaveTypes((current) => ({
+                          ...current,
+                          [group.id]: event.target.value as LeaveTypeOption | "",
+                        }))
+                      }
+                      disabled={submitting}
+                      required={group.reasonType === "unauthorized_absence"}
+                    >
+                      <option value="">
+                        {group.reasonType === "today_no_punch"
+                          ? "No leave — I will punch in"
+                          : "Select"}
+                      </option>
+                      {leaveOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {formatLeaveTypeLabel(option)} leave
+                        </option>
+                      ))}
+                    </Select>
+                    <p className="text-ex-muted text-xs">
+                      {group.reasonType === "today_no_punch"
+                        ? "Choose sick/casual only if you are absent today. Otherwise leave this as “No leave” and punch in after submitting."
+                        : "This creates a leave request for HR / Super Admin approval. Sick and casual are limited to 1 each in the current quarter (Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec); extra days cascade to unpaid."}
+                    </p>
+                  </div>
+                ) : null}
+
                 <div className="space-y-2">
                   <Label htmlFor={`explanation-${group.id}`}>Your explanation</Label>
                   <Textarea

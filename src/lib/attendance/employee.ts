@@ -19,6 +19,7 @@ import {
   readSheet,
   updateSheetRow,
 } from "@/lib/google/sheets";
+import { ROLES } from "@/app/consts/common";
 import { canManageEmployees } from "@/lib/auth/roles";
 import type { SessionUser } from "@/types/auth";
 
@@ -131,6 +132,9 @@ export async function resolveAttendanceEmployeeForTarget(
   const headers = getSheetHeaders(raw);
   const row = raw[targetSheetRow - 1] ?? [];
   const form = sheetRowToForm(headers, row);
+  if (form.role.trim().toLowerCase() === ROLES.SUPER_ADMIN) {
+    return null;
+  }
   const employeeId = form.employeeId.trim();
   const employeeName = form.name.trim() || "Employee";
 

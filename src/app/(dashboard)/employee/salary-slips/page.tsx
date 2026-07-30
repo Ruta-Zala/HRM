@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { ROLES } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { parseEmployeeListApiResponse } from "@/lib/employee";
@@ -145,6 +146,7 @@ export default function SalarySlipsPage() {
     const list = parseEmployeeListApiResponse(data);
     setEmployees(
       list
+        .filter((e) => e.role.trim().toLowerCase() !== ROLES.SUPER_ADMIN)
         .map((e) => ({ sheetRow: e.sheetRow, name: `${e.name} (${e.employeeId})` }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     );

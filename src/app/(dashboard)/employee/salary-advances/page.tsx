@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { Select } from "@/components/ui/select";
+import { ROLES } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { parseEmployeeListApiResponse } from "@/lib/employee";
@@ -179,6 +180,7 @@ export default function SalaryAdvancesPage() {
     const list = parseEmployeeListApiResponse(json);
     setEmployees(
       list
+        .filter((row) => row.role.trim().toLowerCase() !== ROLES.SUPER_ADMIN)
         .map((row) => ({
           sheetRow: Number(row.sheetRow),
           employeeId: row.employeeId,

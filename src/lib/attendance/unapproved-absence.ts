@@ -18,14 +18,16 @@ import { getMonthAttendance, type AttendanceRow } from "@/lib/google/attendance-
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import { leaveDateToIso } from "@/lib/payroll/leave-attendance";
 import { isWeekend } from "@/lib/payroll/working-days";
+import { notificationDateIso } from "@/lib/notifications/automation-date";
 
-export type UnapprovedAbsenceReason = "no_punch" | "pending_leave" | "rejected_leave";
+export type UnapprovedAbsenceReason = "no_punch";
 
 export type UnapprovedAbsenceEmployee = {
   id: string;
   employeeSheetRow: number;
   employeeId: string;
   employeeName: string;
+  profileImage: string;
   reason: UnapprovedAbsenceReason;
   reasonLabel: string;
   leaveType: string;
@@ -38,36 +40,41 @@ type CachedUnapprovedAbsence = {
   value: UnapprovedAbsenceEmployee[];
 };
 
-const CACHE_TTL_MS = 60_000;
+/** Short TTL so dashboard updates soon after someone punches in. */
+const CACHE_TTL_MS = 15_000;
 const unapprovedAbsenceCache = new Map<string, CachedUnapprovedAbsence>();
 const unapprovedAbsenceRequests = new Map<string, Promise<UnapprovedAbsenceEmployee[]>>();
 
 let holidayDatesCache: { expiresAt: number; dates: Set<string> } | null = null;
 const HOLIDAY_CACHE_TTL_MS = 5 * 60_000;
 
-const REASON_LABELS: Record<UnapprovedAbsenceReason, string> = {
-  no_punch: "No punch-in",
-  pending_leave: "Leave pending approval",
-  rejected_leave: "Leave rejected",
-};
+/** Office start used to decide when “no punch yet today” counts as absence. */
+export const OFFICE_START_HOUR = 10;
+export const OFFICE_START_MINUTE = 0;
 
-function wasAbsentOnDate(attendance: AttendanceRow | null): boolean {
-  if (!attendance) return true;
-
-  if (attendance.punchIn?.trim() || attendance.punchOut?.trim()) {
-    return false;
+export function invalidateUnapprovedAbsenceCache(dateIso?: string): void {
+  if (dateIso) {
+    unapprovedAbsenceCache.delete(dateIso);
+    unapprovedAbsenceRequests.delete(dateIso);
+    return;
   }
+  unapprovedAbsenceCache.clear();
+  unapprovedAbsenceRequests.clear();
+}
+
+function hasPunchIn(attendance: AttendanceRow | null): boolean {
+  return Boolean(attendance?.punchIn?.trim());
+}
+
+function isCoveredWithoutPunch(attendance: AttendanceRow | null): boolean {
+  if (!attendance) return false;
 
   const workMode = canonicalizeWorkMode(attendance.workMode);
-  if (isPunchOptionalWorkMode(workMode)) {
-    return false;
-  }
+  if (isPunchOptionalWorkMode(workMode)) return true;
 
-  if (attendance.status.trim() === WORKING_STATUS.ON_LEAVE) {
-    return false;
-  }
+  if (attendance.status.trim() === WORKING_STATUS.ON_LEAVE) return true;
 
-  return true;
+  return false;
 }
 
 async function getLeaveHolidayDates(): Promise<Set<string>> {
@@ -88,6 +95,26 @@ function isScheduledWorkingDay(dateIso: string, leaveHolidayDates: Set<string>):
   if (!year || !month || !day) return false;
   if (isWeekend(year, month, day)) return false;
   return !leaveHolidayDates.has(dateIso);
+}
+
+/**
+ * For past dates: always evaluate.
+ * For today: only after office start (10:00), so early morning is not all “absent”.
+ */
+function shouldEvaluateNoPunch(dateIso: string): boolean {
+  const todayIso = notificationDateIso();
+  if (dateIso < todayIso) return true;
+  if (dateIso > todayIso) return false;
+
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: process.env.APP_TIME_ZONE?.trim() || "Asia/Kolkata",
+    hour: "numeric",
+    minute: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+  return hour > OFFICE_START_HOUR || (hour === OFFICE_START_HOUR && minute >= OFFICE_START_MINUTE);
 }
 
 async function getAttendanceForDate(
@@ -111,43 +138,12 @@ function hasAcceptedLeave(leaves: LeaveApplication[]): boolean {
   );
 }
 
-function resolveAbsenceReason(leaves: LeaveApplication[]): UnapprovedAbsenceReason {
-  const hasPending = leaves.some(
-    (leave) => leave.status.trim().toLowerCase() === LEAVE_STATUS.APPLIED.toLowerCase(),
-  );
-  if (hasPending) return "pending_leave";
-
-  const hasRejected = leaves.some(
-    (leave) => leave.status.trim().toLowerCase() === LEAVE_STATUS.REJECTED.toLowerCase(),
-  );
-  if (hasRejected) return "rejected_leave";
-
-  return "no_punch";
-}
-
-function pickLeaveDetails(leaves: LeaveApplication[], reason: UnapprovedAbsenceReason) {
-  const statusPriority =
-    reason === "pending_leave"
-      ? LEAVE_STATUS.APPLIED
-      : reason === "rejected_leave"
-        ? LEAVE_STATUS.REJECTED
-        : null;
-
-  const match = statusPriority
-    ? leaves.find((leave) => leave.status.trim().toLowerCase() === statusPriority.toLowerCase())
-    : undefined;
-
-  return {
-    leaveType: match?.leaveType ?? "",
-    duration: match?.duration ?? "",
-  };
-}
-
 async function loadUnapprovedAbsenceEmployees(
   dateIso: string,
 ): Promise<UnapprovedAbsenceEmployee[]> {
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = notificationDateIso();
   if (dateIso > todayIso) return [];
+  if (!shouldEvaluateNoPunch(dateIso)) return [];
 
   const leaveHolidayDates = await getLeaveHolidayDates();
   if (!isScheduledWorkingDay(dateIso, leaveHolidayDates)) return [];
@@ -171,6 +167,7 @@ async function loadUnapprovedAbsenceEmployees(
         employeeSheetRow,
         employeeId: getEmployeeIdFromRow(headers, row, employeeSheetRow),
         employeeName: form.name.trim() || "Employee",
+        profileImage: form.profileImage.trim(),
         attendanceSpreadsheetId,
       },
     ];
@@ -188,21 +185,22 @@ async function loadUnapprovedAbsenceEmployees(
       ]);
 
       const dayLeaves = leavesForDate(applications, dateIso);
+      // Approved leave / punch-optional modes are not “no punch” absences.
       if (hasAcceptedLeave(dayLeaves)) return null;
-      if (!wasAbsentOnDate(attendance)) return null;
-
-      const reason = resolveAbsenceReason(dayLeaves);
-      const details = pickLeaveDetails(dayLeaves, reason);
+      if (isCoveredWithoutPunch(attendance)) return null;
+      // Any punch-in (even late) removes them from the list.
+      if (hasPunchIn(attendance)) return null;
 
       return {
         id: `${employee.employeeSheetRow}:${dateIso}`,
         employeeSheetRow: employee.employeeSheetRow,
         employeeId: employee.employeeId,
         employeeName: employee.employeeName,
-        reason,
-        reasonLabel: REASON_LABELS[reason],
-        leaveType: details.leaveType,
-        duration: details.duration,
+        profileImage: employee.profileImage,
+        reason: "no_punch" as const,
+        reasonLabel: "No punch-in",
+        leaveType: "",
+        duration: "",
         date: dateIso,
       } satisfies UnapprovedAbsenceEmployee;
     }),

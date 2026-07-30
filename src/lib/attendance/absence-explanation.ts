@@ -12,10 +12,23 @@ import {
 } from "@/lib/attendance/constants";
 import type { AttendanceEmployeeContext } from "@/lib/attendance/employee";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
+import {
+  allocateLeaveDates,
+  countLeaveBucketUsage,
+  getLeavePolicyBalances,
+  groupAssignmentsByBucket,
+} from "@/lib/attendance/leave-policy";
+import {
+  addGroupedLeaveDatesToBucket,
+  getMonthAttendance,
+  readLeaveBucketRows,
+  type AttendanceRow,
+} from "@/lib/google/attendance-sheets";
+import { formatIsoDateRange } from "@/lib/notifications/format";
+import { notifyLeaveSubmitted } from "@/lib/notifications/leave-events";
 import { localDateIso, leaveDateToIso } from "@/lib/payroll/leave-attendance";
 import { isWeekend, toIsoDate } from "@/lib/payroll/working-days";
 import { listCompanyHolidays } from "@/lib/company-holiday-sheets";
-import { getMonthAttendance, type AttendanceRow } from "@/lib/google/attendance-sheets";
 import { getSheetsClient } from "@/lib/google/drive-auth";
 import { applySheetHeaderFormatByTitle } from "@/lib/google/sheet-format";
 
@@ -38,6 +51,13 @@ export type PendingAbsenceGroup = {
   dateToIso: string;
   dateLabel: string;
   entries: PendingAbsenceEntry[];
+  /** Sick/casual options when this unauthorized absence can be filed as leave. */
+  leaveTypeOptions?: Array<"sick" | "casual">;
+};
+
+export type AbsenceLeaveBalances = {
+  sickAvailable: number;
+  casualAvailable: number;
 };
 
 export type AbsenceExplanationRecord = PendingAbsenceEntry & {
@@ -203,6 +223,41 @@ export async function listAbsenceExplanations(
   return records;
 }
 
+function isDateInCurrentQuarter(dateIso: string, asOfDate: Date = new Date()): boolean {
+  const date = new Date(`${dateIso}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return false;
+  return (
+    date.getFullYear() === asOfDate.getFullYear() &&
+    Math.floor(date.getMonth() / 3) === Math.floor(asOfDate.getMonth() / 3)
+  );
+}
+
+function resolveLeaveTypeOptions(
+  group: PendingAbsenceGroup,
+  balances: AbsenceLeaveBalances,
+): Array<"sick" | "casual"> {
+  if (group.reasonType !== "unauthorized_absence" && group.reasonType !== "today_no_punch") {
+    return [];
+  }
+
+  // Show sick/casual whenever this quarter still has balance.
+  const options: Array<"sick" | "casual"> = [];
+  if (balances.sickAvailable > 0) options.push("sick");
+  if (balances.casualAvailable > 0) options.push("casual");
+  return options;
+}
+
+export async function getAbsenceLeaveBalances(
+  attendanceSpreadsheetId: string,
+): Promise<AbsenceLeaveBalances> {
+  const rows = await readLeaveBucketRows(attendanceSpreadsheetId);
+  const balances = getLeavePolicyBalances(rows);
+  return {
+    sickAvailable: balances.sick.available,
+    casualAvailable: balances.casual.available,
+  };
+}
+
 async function getLeaveHolidayDates(): Promise<Set<string>> {
   if (holidayDatesCache && Date.now() < holidayDatesCache.expiresAt) {
     return holidayDatesCache.dates;
@@ -223,12 +278,26 @@ function isScheduledWorkingDay(dateIso: string, leaveHolidayDates: Set<string>):
   return !leaveHolidayDates.has(dateIso);
 }
 
+function currentQuarterStartIso(asOfDate: Date = new Date()): string {
+  const year = asOfDate.getFullYear();
+  const quarter = Math.floor(asOfDate.getMonth() / 3);
+  return toIsoDate(year, quarter * 3 + 1, 1);
+}
+
 function listPastWorkingDates(
   untilDateExclusive: string,
   leaveHolidayDates: Set<string>,
+  options?: { fromDateInclusive?: string },
 ): string[] {
   const end = new Date(`${untilDateExclusive}T12:00:00`);
-  const start = new Date(end.getFullYear(), end.getMonth() - (ATTENDANCE_MONTHS_TO_SCAN - 1), 1);
+  const defaultStart = new Date(
+    end.getFullYear(),
+    end.getMonth() - (ATTENDANCE_MONTHS_TO_SCAN - 1),
+    1,
+  );
+  const start = options?.fromDateInclusive
+    ? new Date(`${options.fromDateInclusive}T12:00:00`)
+    : defaultStart;
 
   const dates: string[] = [];
   for (let cursor = new Date(start); ; cursor.setDate(cursor.getDate() + 1)) {
@@ -362,9 +431,11 @@ export async function getPendingAbsenceExplanationGroups(
   employee: AttendanceEmployeeContext,
 ): Promise<PendingAbsenceGroup[]> {
   const todayIso = localDateIso();
+  const asOfDate = new Date(`${todayIso}T12:00:00`);
+  const quarterStartIso = currentQuarterStartIso(asOfDate);
   const leaveHolidayDates = await getLeaveHolidayDates();
 
-  const [allLeaves, explanations, attendanceByDate] = await Promise.all([
+  const [allLeaves, explanations, attendanceByDate, leaveBalances] = await Promise.all([
     listLeaveApplications({
       employeeId: employee.employeeId,
       employeeName: employee.employeeName,
@@ -372,6 +443,7 @@ export async function getPendingAbsenceExplanationGroups(
     }),
     listAbsenceExplanations(employee.attendanceSpreadsheetId),
     buildAttendanceByDate(employee.attendanceSpreadsheetId, todayIso),
+    getAbsenceLeaveBalances(employee.attendanceSpreadsheetId),
   ]);
 
   const leavesByDate = buildLeavesByDate(allLeaves);
@@ -404,13 +476,15 @@ export async function getPendingAbsenceExplanationGroups(
     }
   }
 
+  // Past unauthorized / rejected gaps are limited to the current leave quarter
+  // (Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec), matching sick/casual allocation.
   for (const leave of allLeaves) {
     if (leave.status.trim().toLowerCase() !== LEAVE_STATUS.REJECTED.toLowerCase()) {
       continue;
     }
 
     const dateIso = leaveDateToIso(leave.date);
-    if (!dateIso || dateIso >= todayIso) continue;
+    if (!dateIso || dateIso >= todayIso || dateIso < quarterStartIso) continue;
     if (!isScheduledWorkingDay(dateIso, leaveHolidayDates)) continue;
 
     const attendance = attendanceByDate.get(dateIso) ?? null;
@@ -426,11 +500,15 @@ export async function getPendingAbsenceExplanationGroups(
     });
   }
 
-  for (const dateIso of listPastWorkingDates(todayIso, leaveHolidayDates)) {
+  for (const dateIso of listPastWorkingDates(todayIso, leaveHolidayDates, {
+    fromDateInclusive: quarterStartIso,
+  })) {
     if (allPastAbsenceByDate.has(dateIso)) continue;
 
     const dayLeaves = leavesByDate.get(dateIso) ?? [];
-    if (dayLeaves.length > 0) continue;
+    // Only Applied/Accepted leave covers an unauthorized absence. Rejected leave
+    // is handled above; blank/other rows must not hide a real gap.
+    if (hasActiveLeaveForDate(dayLeaves)) continue;
 
     const attendance = attendanceByDate.get(dateIso) ?? null;
     if (!wasAbsentOnDate(attendance)) continue;
@@ -446,7 +524,7 @@ export async function getPendingAbsenceExplanationGroups(
   }
 
   const latestEpisode = collectLatestAbsenceEpisode(allPastAbsenceByDate, leaveHolidayDates).filter(
-    (entry) => entry.dateIso < todayIso,
+    (entry) => entry.dateIso < todayIso && entry.dateIso >= quarterStartIso,
   );
   const latestEpisodeNeedsExplanation =
     latestEpisode.length > 0 && latestEpisode.some((entry) => !explainedDates.has(entry.dateIso));
@@ -455,7 +533,12 @@ export async function getPendingAbsenceExplanationGroups(
     groups.push(buildPastEpisodeGroup(latestEpisode));
   }
 
-  return groups.sort((a, b) => a.dateFromIso.localeCompare(b.dateFromIso));
+  return groups
+    .map((group) => ({
+      ...group,
+      leaveTypeOptions: resolveLeaveTypeOptions(group, leaveBalances),
+    }))
+    .sort((a, b) => a.dateFromIso.localeCompare(b.dateFromIso));
 }
 
 export async function userRequiresAbsenceExplanation(
@@ -470,10 +553,19 @@ export async function submitAbsenceExplanations(params: {
   submissions: Array<{
     groupId: string;
     explanation: string;
+    leaveType?: "sick" | "casual";
+    reasonType?: AbsenceReasonType;
+    dateFromIso?: string;
+    dateToIso?: string;
+    entryDates?: string[];
   }>;
 }): Promise<void> {
   const pendingGroups = await getPendingAbsenceExplanationGroups(params.employee);
   const pendingById = new Map(pendingGroups.map((group) => [group.id, group]));
+  const existingExplanations = await listAbsenceExplanations(
+    params.employee.attendanceSpreadsheetId,
+  );
+  const explainedDates = new Set(existingExplanations.map((record) => record.dateIso));
 
   const rowsToAppend: string[][] = [];
   const submittedAt = new Date().toISOString();
@@ -484,16 +576,47 @@ export async function submitAbsenceExplanations(params: {
       throw new Error(`Explanation must be at least ${ABSENCE_EXPLANATION_MIN_LENGTH} characters`);
     }
 
-    const group = pendingById.get(submission.groupId);
+    const group = resolveSubmissionGroup(submission, pendingById);
     if (!group) {
       throw new Error("No pending absence explanation for the selected period");
     }
 
+    const balances = await getAbsenceLeaveBalances(params.employee.attendanceSpreadsheetId);
+    const leaveTypeOptions = group.leaveTypeOptions ?? resolveLeaveTypeOptions(group, balances);
+    const requestedLeaveType = submission.leaveType;
+
+    if (
+      (group.reasonType === "unauthorized_absence" || group.reasonType === "today_no_punch") &&
+      requestedLeaveType
+    ) {
+      if (
+        leaveTypeOptions.length > 0 &&
+        !leaveTypeOptions.includes(requestedLeaveType) &&
+        balances.sickAvailable <= 0 &&
+        balances.casualAvailable <= 0
+      ) {
+        // Balance already consumed by a prior attempt — continue with explanation only.
+      } else {
+        await createLeaveRequestFromAbsenceGroup({
+          employee: params.employee,
+          group,
+          leaveType: requestedLeaveType,
+          reason: explanation,
+        });
+      }
+    } else if (group.reasonType === "unauthorized_absence" && leaveTypeOptions.length > 0) {
+      throw new Error("Select sick or casual leave for this absence");
+    }
+
+    const recordedLeaveType = requestedLeaveType ?? group.entries[0]?.leaveType ?? "unauthorized";
+
     for (const entry of group.entries) {
+      if (explainedDates.has(entry.dateIso)) continue;
+      explainedDates.add(entry.dateIso);
       rowsToAppend.push([
         randomUUID(),
         entry.dateIso,
-        entry.leaveType,
+        recordedLeaveType,
         String(entry.leaveRowIndex),
         entry.rejectReason,
         explanation,
@@ -503,7 +626,8 @@ export async function submitAbsenceExplanations(params: {
   }
 
   if (rowsToAppend.length === 0) {
-    throw new Error("No absence explanations to submit");
+    // All dates were already explained (e.g. retry after a partial success).
+    return;
   }
 
   await ensureAbsenceExplanationSheet(params.employee.attendanceSpreadsheetId);
@@ -514,4 +638,196 @@ export async function submitAbsenceExplanations(params: {
     valueInputOption: "USER_ENTERED",
     requestBody: { values: rowsToAppend },
   });
+}
+
+function parseAbsenceGroupId(groupId: string): {
+  reasonType: AbsenceReasonType;
+  dateFromIso: string;
+  dateToIso: string;
+} | null {
+  const todayMatch = groupId.match(/^(today_no_punch):(\d{4}-\d{2}-\d{2}):today$/);
+  if (todayMatch) {
+    return {
+      reasonType: "today_no_punch",
+      dateFromIso: todayMatch[2],
+      dateToIso: todayMatch[2],
+    };
+  }
+
+  const rangeMatch = groupId.match(
+    /^(unauthorized_absence|rejected_leave):(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$/,
+  );
+  if (rangeMatch) {
+    return {
+      reasonType: rangeMatch[1] as AbsenceReasonType,
+      dateFromIso: rangeMatch[2],
+      dateToIso: rangeMatch[3],
+    };
+  }
+
+  return null;
+}
+
+function resolveSubmissionGroup(
+  submission: {
+    groupId: string;
+    reasonType?: AbsenceReasonType;
+    dateFromIso?: string;
+    dateToIso?: string;
+    entryDates?: string[];
+  },
+  pendingById: Map<string, PendingAbsenceGroup>,
+): PendingAbsenceGroup | null {
+  const direct = pendingById.get(submission.groupId);
+  if (direct) return direct;
+
+  const parsed = parseAbsenceGroupId(submission.groupId);
+  const reasonType = submission.reasonType ?? parsed?.reasonType;
+  const dateFromIso = submission.dateFromIso ?? parsed?.dateFromIso;
+  const dateToIso = submission.dateToIso ?? parsed?.dateToIso;
+  if (!reasonType || !dateFromIso || !dateToIso) return null;
+
+  for (const group of pendingById.values()) {
+    if (
+      group.reasonType === reasonType &&
+      group.dateFromIso === dateFromIso &&
+      group.dateToIso === dateToIso
+    ) {
+      return group;
+    }
+  }
+
+  const entryDates =
+    submission.entryDates && submission.entryDates.length > 0
+      ? submission.entryDates
+      : dateFromIso === dateToIso
+        ? [dateFromIso]
+        : null;
+
+  if (!entryDates?.length) return null;
+
+  return {
+    id: submission.groupId,
+    reasonType,
+    dateFromIso,
+    dateToIso,
+    dateLabel: formatDateRangeLabel(dateFromIso, dateToIso),
+    leaveTypeOptions: reasonType === "unauthorized_absence" ? undefined : [],
+    entries: entryDates.map((dateIso) => ({
+      dateIso,
+      leaveType:
+        reasonType === "today_no_punch"
+          ? "today"
+          : reasonType === "unauthorized_absence"
+            ? "unauthorized"
+            : "unauthorized",
+      leaveRowIndex: 0,
+      rejectReason: "",
+      duration: "",
+    })),
+  };
+}
+
+async function createLeaveRequestFromAbsenceGroup(params: {
+  employee: AttendanceEmployeeContext;
+  group: PendingAbsenceGroup;
+  leaveType: "sick" | "casual";
+  reason: string;
+}): Promise<void> {
+  const { employee, group, leaveType, reason } = params;
+  const [rows, existingLeaves] = await Promise.all([
+    readLeaveBucketRows(employee.attendanceSpreadsheetId),
+    listLeaveApplications({
+      employeeId: employee.employeeId,
+      employeeName: employee.employeeName,
+      attendanceSpreadsheetId: employee.attendanceSpreadsheetId,
+    }),
+  ]);
+  const usage = countLeaveBucketUsage(rows);
+  const asOfDate = new Date();
+  const leavesByDate = buildLeavesByDate(existingLeaves);
+
+  const currentQuarterDates: Date[] = [];
+  const outsideQuarterDates: Date[] = [];
+
+  for (const entry of group.entries) {
+    // Skip days that already have Applied/Accepted leave from a prior attempt.
+    if (hasActiveLeaveForDate(leavesByDate.get(entry.dateIso) ?? [])) {
+      continue;
+    }
+
+    const date = new Date(`${entry.dateIso}T12:00:00`);
+    if (Number.isNaN(date.getTime())) {
+      throw new Error("Invalid absence date for leave request");
+    }
+    if (isDateInCurrentQuarter(entry.dateIso, asOfDate)) {
+      currentQuarterDates.push(date);
+    } else {
+      outsideQuarterDates.push(date);
+    }
+  }
+
+  const leaveGroups: Array<{ leaveType: LeaveBucketType; dates: Date[] }> = [];
+
+  if (currentQuarterDates.length > 0) {
+    const { assignments, error } = allocateLeaveDates({
+      leaveType,
+      dates: currentQuarterDates,
+      duration: "full",
+      usage,
+      rows,
+      asOfDate,
+    });
+
+    if (error) {
+      throw new Error(error);
+    }
+
+    for (const [bucket, dates] of groupAssignmentsByBucket(assignments)) {
+      leaveGroups.push({ leaveType: bucket, dates });
+    }
+  }
+
+  if (outsideQuarterDates.length > 0) {
+    leaveGroups.push({ leaveType: "unpaid", dates: outsideQuarterDates });
+  }
+
+  // Nothing left to file — prior attempt already covered these dates.
+  if (leaveGroups.length === 0) {
+    return;
+  }
+
+  await addGroupedLeaveDatesToBucket(employee.attendanceSpreadsheetId, leaveGroups, "full", reason);
+
+  const dateRange = formatIsoDateRange(group.dateFromIso, group.dateToIso);
+  const requestId = `AE-${Date.now()}`;
+  const unpaidDays = leaveGroups
+    .filter((entry) => entry.leaveType === "unpaid")
+    .reduce((sum, entry) => sum + entry.dates.length, 0);
+  const primaryDays = leaveGroups
+    .filter((entry) => entry.leaveType === leaveType)
+    .reduce((sum, entry) => sum + entry.dates.length, 0);
+
+  try {
+    const notified = await notifyLeaveSubmitted({
+      employeeSheetRow: employee.sheetRow,
+      employeeId: employee.employeeId,
+      employeeName: employee.employeeName,
+      leaveType,
+      dateRange,
+      reason:
+        unpaidDays > 0
+          ? `${reason} (${primaryDays} ${leaveType} day(s); ${unpaidDays} unpaid day(s) due to balance/quarter rules)`
+          : reason,
+      applicationId: `${employee.attendanceSpreadsheetId}:${group.dateFromIso}:${group.dateToIso}:${leaveType}:${requestId}`,
+      source: "absence_explanation",
+    });
+    if (notified === 0) {
+      console.warn(
+        `Absence leave submit produced no new notifications for ${employee.employeeId} (${dateRange}).`,
+      );
+    }
+  } catch (notifyError) {
+    console.error("Absence leave submit notification error:", notifyError);
+  }
 }
