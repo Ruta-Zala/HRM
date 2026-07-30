@@ -18,6 +18,7 @@ import {
   defaultAttendancePeriodSelection,
 } from "@/lib/attendance/period-options";
 import type { HrAttendanceFormValues } from "@/components/attendance/hr-attendance-form";
+import { ROLES } from "@/app/consts/common";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { parseEmployeeListApiResponse } from "@/lib/employee/list";
 import type { Employee } from "@/types/employee";
@@ -116,7 +117,17 @@ export default function AttendanceHistoryPage() {
     if (!isHr) return;
     void fetch("/api/employee?pageSize=200", { credentials: "include" })
       .then((res) => res.json())
-      .then((data) => setEmployees(parseEmployeeListApiResponse(data)))
+      .then((data) => {
+        const list = parseEmployeeListApiResponse(data).filter(
+          (row) => row.role.trim().toLowerCase() !== ROLES.SUPER_ADMIN,
+        );
+        setEmployees(list);
+        setSelectedSheetRow((prev) => {
+          if (prev != null && list.some((row) => Number(row.sheetRow) === prev)) return prev;
+          const first = list[0];
+          return first ? Number(first.sheetRow) : null;
+        });
+      })
       .catch(() => {});
   }, [isHr]);
 

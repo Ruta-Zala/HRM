@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { withActiveSession } from "@/lib/auth/api-guard";
+import { roleCanApplyLeave } from "@/lib/attendance/absence-gate";
 import { resolveAttendanceEmployee } from "@/lib/attendance/employee";
 import {
   formatBirthdayLeaveDate,
@@ -102,6 +103,13 @@ function normalizeLeaveDuration(value: unknown): "full" | "half_am" | "half_pm" 
 }
 
 export const POST = withActiveSession(async (req, user) => {
+  if (!roleCanApplyLeave(user.role)) {
+    return NextResponse.json(
+      { success: false, message: "Leave application is not available for your role" },
+      { status: 403 },
+    );
+  }
+
   try {
     const body = await req.json();
 
@@ -373,6 +381,13 @@ export const POST = withActiveSession(async (req, user) => {
 });
 
 export const GET = withActiveSession(async (_req, user) => {
+  if (!roleCanApplyLeave(user.role)) {
+    return NextResponse.json(
+      { success: false, message: "Leave desk is not available for your role" },
+      { status: 403 },
+    );
+  }
+
   try {
     const employee = await resolveAttendanceEmployee(user);
 

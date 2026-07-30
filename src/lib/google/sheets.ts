@@ -1,4 +1,4 @@
-import { getSheetHeaders } from "@/lib/employee";
+import { getSheetHeaders, headerToFormKey } from "@/lib/employee";
 import { sheets } from "./auth";
 
 const spreadsheetId = process.env.GOOGLE_SHEET_ID as string;
@@ -226,4 +226,19 @@ export const getEmployeeCount = async () => {
 
   // remove header row
   return Math.max(rows.length - 1, 0);
+};
+
+/** All employeeId values currently on the Employees sheet (header excluded). */
+export const getExistingEmployeeIds = async (): Promise<string[]> => {
+  const rows = await readSheet("Employees");
+  if (rows.length < 2) return [];
+
+  const headers = getSheetHeaders(rows);
+  const idIndex = headers.findIndex((header) => headerToFormKey(header) === "employeeId");
+  if (idIndex < 0) return [];
+
+  return rows
+    .slice(1)
+    .map((row) => String(row[idIndex] ?? "").trim())
+    .filter(Boolean);
 };

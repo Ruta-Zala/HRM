@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { ROLES } from "@/app/consts/common";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { canonicalizeWorkMode } from "@/lib/attendance/constants";
@@ -98,6 +99,9 @@ export const GET = withActiveSession(async (req, user) => {
       const row = employeeSheet[i] ?? [];
       const form = sheetRowToForm(headers, row);
       if (!form.name.trim()) continue;
+
+      // Super Admin is not part of payroll (no punch / salary processing).
+      if (form.role.trim().toLowerCase() === ROLES.SUPER_ADMIN) continue;
 
       // Only include people employed during this payroll month (by joining / last working day).
       if (

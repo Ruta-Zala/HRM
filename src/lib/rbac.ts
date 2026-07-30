@@ -1,6 +1,11 @@
 import type { UserRole } from "@/types/auth";
 import { ROLES } from "@/app/consts/common";
-import { isPunchRoute, roleCanPunchInOut } from "@/lib/attendance/absence-gate";
+import {
+  isLeaveDeskRoute,
+  isPunchRoute,
+  roleCanApplyLeave,
+  roleCanPunchInOut,
+} from "@/lib/attendance/absence-gate";
 
 const { SUPER_ADMIN, HR_MANAGER, EMPLOYEE } = ROLES;
 
@@ -145,7 +150,7 @@ export const navStructure: NavItem[] = [
     icon: "CalendarDays",
     roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
     children: [
-      { roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE], label: "Leave Desk", href: "/leave" },
+      { roles: [HR_MANAGER, EMPLOYEE], label: "Leave Desk", href: "/leave" },
       {
         roles: [SUPER_ADMIN, HR_MANAGER, EMPLOYEE],
         label: "Company Holidays",
@@ -235,6 +240,10 @@ export function filterNav(role: UserRole | null): NavItem[] {
 
 export function canAccessPath(role: UserRole, pathname: string): boolean {
   if (isPunchRoute(pathname) && !roleCanPunchInOut(role)) {
+    return false;
+  }
+
+  if (isLeaveDeskRoute(pathname) && !roleCanApplyLeave(role)) {
     return false;
   }
 

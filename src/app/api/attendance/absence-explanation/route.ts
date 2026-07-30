@@ -18,6 +18,11 @@ const submitSchema = z.object({
       z.object({
         groupId: z.string().min(1),
         explanation: z.string().min(1),
+        leaveType: z.enum(["sick", "casual"]).optional(),
+        reasonType: z.enum(["today_no_punch", "rejected_leave", "unauthorized_absence"]).optional(),
+        dateFromIso: z.string().optional(),
+        dateToIso: z.string().optional(),
+        entryDates: z.array(z.string().min(1)).optional(),
       }),
     )
     .min(1),

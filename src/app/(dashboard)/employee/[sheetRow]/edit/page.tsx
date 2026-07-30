@@ -34,13 +34,13 @@ export default function EditEmployeePage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Edit employee"
+        title="Edit Employee"
         description="Update employee details in the directory."
         actions={
           <Link href="/employee">
             <Button variant="outline" size="sm">
               <ArrowLeft className="size-4" />
-              Back to directory
+              Back
             </Button>
           </Link>
         }

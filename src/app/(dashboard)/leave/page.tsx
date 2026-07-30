@@ -1,6 +1,10 @@
 "use client";
 
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -12,7 +16,9 @@ import { Input } from "@/components/ui/input";
 import { formatIsoDate } from "@/lib/attendance/time";
 import { formatLeaveDayCount } from "@/lib/attendance/leave-display";
 import { Switch } from "@/components/ui/switch";
+import { useAuth } from "@/contexts/auth-provider";
 import { useNotifications } from "@/contexts/notifications-provider";
+import { roleCanApplyLeave } from "@/lib/auth/roles";
 
 type UnpaidLeaveEntry = {
   slot: string;
@@ -113,6 +119,9 @@ function getAvailableLeaveTypes(
 }
 
 export default function LeaveDeskPage() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const canApplyLeave = user ? roleCanApplyLeave(user.role) : false;
   const { refresh: refreshNotifications, pushToast } = useNotifications();
   const [isSingleDay, setIsSingleDay] = useState(true);
 
@@ -141,6 +150,7 @@ export default function LeaveDeskPage() {
     birthdayLeaveDate || (isBirthdayLeave ? (balances?.birthdayDateIso ?? "") : "");
 
   const loadBalances = useCallback(async () => {
+    if (!canApplyLeave) return;
     setBalancesLoading(true);
     try {
       const res = await fetch("/api/employee/leaves");
@@ -157,12 +167,37 @@ export default function LeaveDeskPage() {
     } finally {
       setBalancesLoading(false);
     }
-  }, []);
+  }, [canApplyLeave]);
+
+  useEffect(() => {
+    if (!authLoading && user && !canApplyLeave) {
+      router.replace("/dashboard");
+    }
+  }, [authLoading, user, canApplyLeave, router]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadBalances();
   }, [loadBalances]);
+
+  if (!canApplyLeave) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-6">
+        <AccessDenied
+          title="Leave desk unavailable"
+          description="Leave applications are only available for Employee and HR Manager roles."
+          action={
+            <Link href="/dashboard">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="size-4" />
+                Back to dashboard
+              </Button>
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
 
   const minLeaveDate = formatIsoDate();
 

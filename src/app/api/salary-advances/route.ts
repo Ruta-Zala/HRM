@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { ROLES } from "@/app/consts/common";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { sheetRowToForm } from "@/lib/employee";
@@ -17,6 +18,10 @@ import {
   type SalaryAdvanceScheduleSegment,
   type SalaryAdvanceStatus,
 } from "@/lib/salary-advances";
+
+function isSuperAdminRole(role: string): boolean {
+  return role.trim().toLowerCase() === ROLES.SUPER_ADMIN;
+}
 
 export const GET = withActiveSession(async (req, user) => {
   if (!canManageEmployees(user.role)) {
@@ -46,6 +51,12 @@ export const GET = withActiveSession(async (req, user) => {
       }
       const headers = employeeSheet[0] as string[];
       const form = sheetRowToForm(headers, employeeSheet[previewRow - 1] ?? []);
+      if (isSuperAdminRole(form.role)) {
+        return NextResponse.json(
+          { success: false, message: "Salary advances are not available for Super Admin" },
+          { status: 400 },
+        );
+      }
       const startYearParam = Number(searchParams.get("startYear") ?? "");
       const startMonthParam = Number(searchParams.get("startMonth") ?? "");
       const hasCustomStart =
@@ -168,6 +179,12 @@ export const POST = withActiveSession(async (req, user) => {
     if (!form.name.trim()) {
       return NextResponse.json({ success: false, message: "Employee not found" }, { status: 404 });
     }
+    if (isSuperAdminRole(form.role)) {
+      return NextResponse.json(
+        { success: false, message: "Salary advances are not available for Super Admin" },
+        { status: 400 },
+      );
+    }
 
     const defaultStart = nextMonthFromDate();
     const advance = await createSalaryAdvance({
@@ -264,6 +281,12 @@ export const PATCH = withActiveSession(async (req, user) => {
     }
     const headers = employeeSheet[0] as string[];
     const form = sheetRowToForm(headers, employeeSheet[existing.employeeSheetRow - 1] ?? []);
+    if (isSuperAdminRole(form.role)) {
+      return NextResponse.json(
+        { success: false, message: "Salary advances are not available for Super Admin" },
+        { status: 400 },
+      );
+    }
 
     const advance = await updateSalaryAdvance({
       id,

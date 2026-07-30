@@ -1,6 +1,6 @@
 /** Employee domain — form, sheet, search, and API helpers */
 
-export { generateEmployeeId } from "./id";
+export { generateEmployeeId, parseEmployeeIdNumber } from "./id";
 
 export {
   initialEmployeeForm,
@@ -11,6 +11,22 @@ export {
   normalizeStatus,
   isEmployeeStatusActive,
 } from "./form";
+
+export { collectSkillsFromEmployeeSheet } from "./skills";
+
+export {
+  BANK_ACCOUNT_MIN_LENGTH,
+  BANK_ACCOUNT_MAX_LENGTH,
+  EMPLOYEE_MIN_AGE,
+  EMPLOYEE_MAX_EXPERIENCE_YEARS,
+  type EmployeeFieldErrors,
+  isCeoPosition,
+  sanitizePersonNameInput,
+  validateEmployeeForm,
+  firstEmployeeValidationMessage,
+  maxBirthDateForMinAge,
+  todayIsoDate,
+} from "./validation";
 
 export {
   getSheetHeaders,
