@@ -476,8 +476,8 @@ export default function NetworkAccessSettingsPage() {
                 disabled={saving || loading || !remoteSheetRow}
                 onClick={() => void addRemoteEmployee()}
               >
-                <Plus className="mr-1.5 size-4" />
-                Allow Remote
+                <Plus className="mr-1 size-4" />
+                Add
               </Button>
             </div>
 

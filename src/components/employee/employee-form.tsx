@@ -34,7 +34,6 @@ import { POSITIONS, ROLES } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { joinSkillsValue, parseSkillsValue } from "@/app/consts/tech-skills";
-import { fetchProjects, getProjectsForEmployee, type ProjectInfo } from "../../lib/projects-client";
 import { Select } from "../ui/select";
 import { resolveProfileImageSrc } from "@/lib/employee/documents";
 import { type DocumentField, FileUploaderField } from "../ui/file-uploader";
@@ -99,11 +98,8 @@ export function EmployeeForm({
   const [form, setForm] = useState<EmployeeFormState>(initialEmployeeForm);
   const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
   const [skillSuggestions, setSkillSuggestions] = useState<string[]>([]);
-  const [allProjects, setAllProjects] = useState<ProjectInfo[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState<string | null>(null);
-  const [projectsError, setProjectsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(isEdit);
   const [headersLoading, setHeadersLoading] = useState(!isEdit);
   const [submitting, setSubmitting] = useState(false);
@@ -238,40 +234,6 @@ export function EmployeeForm({
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        setProjectsError(null);
-        setProjectsLoading(true);
-
-        const projects = await fetchProjects();
-        if (cancelled) return;
-
-        setAllProjects(projects);
-      } catch {
-        if (!cancelled) {
-          setProjectsError("Failed to load project list");
-          setAllProjects([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setProjectsLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const employeeProjects = useMemo(
-    () => getProjectsForEmployee(form.name, allProjects),
-    [form.name, allProjects],
-  );
-
   const update =
     (field: keyof EmployeeFormState) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -316,10 +278,25 @@ export function EmployeeForm({
   const updateField = (field: keyof EmployeeFormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setFieldErrors((prev) => {
-      if (!prev[field]) return prev;
       const next = { ...prev };
-      delete next[field];
-      return next;
+      let changed = false;
+
+      if (next[field]) {
+        delete next[field];
+        changed = true;
+      }
+
+      // Clear the paired "must differ" error when either phone number changes.
+      if (field === "contactNumber" && next.parentContact?.toLowerCase().includes("different")) {
+        delete next.parentContact;
+        changed = true;
+      }
+      if (field === "parentContact" && next.contactNumber?.toLowerCase().includes("different")) {
+        delete next.contactNumber;
+        changed = true;
+      }
+
+      return changed ? next : prev;
     });
   };
 
@@ -604,7 +581,7 @@ export function EmployeeForm({
                     id="parentName"
                     value={form.parentName}
                     onChange={update("parentName")}
-                    placeholder="Parent / Guardian Name"
+                    placeholder="Full Name"
                     required
                     aria-invalid={Boolean(fieldErrors.parentName)}
                   />
@@ -618,7 +595,7 @@ export function EmployeeForm({
                     id="parentContact"
                     value={form.parentContact}
                     onChange={(value) => updateField("parentContact", value)}
-                    placeholder="Parent / Guardian Contact"
+                    placeholder="Enter Number"
                     required
                     aria-invalid={Boolean(fieldErrors.parentContact)}
                   />
@@ -641,38 +618,7 @@ export function EmployeeForm({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Projects</CardTitle>
-            </CardHeader>
-            <CardContent className="py-2">
-              {projectsLoading ? (
-                <p>Loading project assignments…</p>
-              ) : !form.name.trim() ? (
-                <p>Enter employee name to see assigned projects.</p>
-              ) : employeeProjects.length > 0 ? (
-                <>
-                  {employeeProjects.map((project, index) => (
-                    <p
-                      key={`${project.name}-${index}`}
-                      className={`${project.status === "inactive" ? "opacity-50" : ""}`}
-                    >
-                      {project.name}
-                      <span className={`${project.status === "inactive" ? "text-sm" : ""}`}>
-                        {project.status === "inactive" && " [Inactive]"}
-                      </span>
-                    </p>
-                  ))}
-                </>
-              ) : (
-                <p>No projects found for this employee.</p>
-              )}
-            </CardContent>
-          </Card>
           {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
-          {projectsError ? (
-            <p className="text-sm text-red-600 dark:text-red-400">{projectsError}</p>
-          ) : null}
         </div>
         <div className="w-full max-w-3xl space-y-6 xl:w-1/2">
           <Card>
@@ -770,8 +716,7 @@ export function EmployeeForm({
                       autoComplete="off"
                     />
                     <p className="text-ex-muted text-xs">
-                      Leave blank to use the part of the email before @ (e.g. swati from
-                      swati@gmail.com).
+                      Leave blank to use the part of the email before @.
                     </p>
                   </FormField>
                 </div>

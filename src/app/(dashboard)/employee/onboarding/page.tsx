@@ -104,7 +104,7 @@ export default function OnboardingPage() {
           <Link href="/employee/new">
             <Button size="sm">
               <UserPlus className="size-4" />
-              Add employee
+              Add
             </Button>
           </Link>
         }

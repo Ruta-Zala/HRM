@@ -50,9 +50,10 @@ function HolidayItem({
 }) {
   const date = holidayDateParts(holiday);
   const isLeave = holiday.type === "leave";
+  const canAct = Boolean(onEdit || onDelete);
 
   return (
-    <div className="border-ex-border bg-ex-elevated flex items-center gap-3 rounded-xl border p-3">
+    <div className="border-ex-border bg-ex-elevated flex min-w-0 items-start gap-3 overflow-hidden rounded-xl border p-3">
       <div
         className={
           isLeave
@@ -64,40 +65,48 @@ function HolidayItem({
         <span className="mt-1 text-[10px] leading-none uppercase">{date.weekday}</span>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-ex-primary truncate text-sm font-medium">{holiday.name}</p>
-        <p className="text-ex-muted mt-0.5 text-xs">
-          {new Intl.DateTimeFormat("en-IN", {
-            day: "numeric",
-            month: "long",
-          }).format(new Date(`${holiday.date}T00:00:00`))}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-0.5">
-        {onEdit ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="size-8 p-0"
-            disabled={deleting}
-            aria-label={`Edit ${holiday.name}`}
-            onClick={() => onEdit(holiday)}
-          >
-            <Pencil className="size-4" />
-          </Button>
-        ) : null}
-        {onDelete ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="size-8 p-0"
-            disabled={deleting}
-            aria-label={`Delete ${holiday.name}`}
-            onClick={() => onDelete(holiday)}
-          >
-            <Trash2 className="size-4 text-red-600 dark:text-red-400" />
-          </Button>
-        ) : null}
-        <Badge variant={isLeave ? "warning" : "accent"}>{isLeave ? "Leave" : "Celebration"}</Badge>
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-ex-primary truncate text-sm font-medium">{holiday.name}</p>
+            <p className="text-ex-muted mt-0.5 text-xs">
+              {new Intl.DateTimeFormat("en-IN", {
+                day: "numeric",
+                month: "long",
+              }).format(new Date(`${holiday.date}T00:00:00`))}
+            </p>
+          </div>
+          {canAct ? (
+            <div className="flex shrink-0 items-center gap-0.5">
+              {onEdit ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="size-8 p-0"
+                  disabled={deleting}
+                  aria-label={`Edit ${holiday.name}`}
+                  onClick={() => onEdit(holiday)}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+              ) : null}
+              {onDelete ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="size-8 p-0"
+                  disabled={deleting}
+                  aria-label={`Delete ${holiday.name}`}
+                  onClick={() => onDelete(holiday)}
+                >
+                  <Trash2 className="size-4 text-red-600 dark:text-red-400" />
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        <Badge variant={isLeave ? "warning" : "accent"} className="mt-2">
+          {isLeave ? "Leave" : "Celebration"}
+        </Badge>
       </div>
     </div>
   );
@@ -369,19 +378,19 @@ export default function CompanyHolidaysPage() {
               <p className="text-ex-muted mt-1 text-sm">Select another month to view holidays.</p>
             </div>
           ) : (
-            <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid min-w-0 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
               {groups.map((group) => (
                 <div
                   key={group.month}
-                  className="border-ex-border bg-ex-surface/40 rounded-xl border p-4"
+                  className="border-ex-border bg-ex-surface/40 min-w-0 overflow-hidden rounded-xl border p-4"
                 >
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="text-ex-primary font-semibold">{group.month}</p>
-                    <span className="text-ex-muted text-xs">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <p className="text-ex-primary min-w-0 truncate font-semibold">{group.month}</p>
+                    <span className="text-ex-muted shrink-0 text-xs">
                       {group.holidays.length} day{group.holidays.length === 1 ? "" : "s"}
                     </span>
                   </div>
-                  <div className="space-y-2">
+                  <div className="min-w-0 space-y-2">
                     {group.holidays.map((holiday) => (
                       <HolidayItem
                         key={holiday.id}

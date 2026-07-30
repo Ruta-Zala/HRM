@@ -100,6 +100,7 @@ export default function OvertimePage() {
         <CardContent className="p-0">
           <DataTable
             loading={loading}
+            className="rounded-none border-0 shadow-none"
             rows={rows}
             columns={[
               {

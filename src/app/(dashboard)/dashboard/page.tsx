@@ -518,15 +518,17 @@ export default function DashboardPage() {
           className={cn("flex h-full flex-col overflow-hidden", !canManageLeave && "lg:col-span-2")}
         >
           <CardHeader className="bg-ex-surface/40 flex flex-col gap-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-ex-chip-warning-bg text-ex-chip-warning-fg flex size-11 items-center justify-center rounded-xl">
-                <Users className="size-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <CardTitle>Employees On Leave</CardTitle>
-                <p className="text-ex-muted mt-1 text-sm">
-                  Approved leave for {displayDate(canManageLeave ? leaveDate : formatIsoDate())}
-                </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="bg-ex-chip-warning-bg text-ex-chip-warning-fg flex size-11 shrink-0 items-center justify-center rounded-xl">
+                  <Users className="size-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="text-balance">Employees On Leave</CardTitle>
+                  <p className="text-ex-muted mt-1 text-sm">
+                    Approved leave for {displayDate(canManageLeave ? leaveDate : formatIsoDate())}
+                  </p>
+                </div>
               </div>
               {canManageLeave ? (
                 <Input
@@ -537,7 +539,7 @@ export default function DashboardPage() {
                     setUnapprovedAbsenceFetchedDate(null);
                     setLeaveDate(event.target.value);
                   }}
-                  className="w-full shrink-0 sm:w-44"
+                  className="w-full sm:w-44 sm:shrink-0"
                   aria-label="Select leave date"
                 />
               ) : null}

@@ -641,6 +641,14 @@ export function validateEmployeeForm(
     errors.parentContact = "Parent / guardian contact is required.";
   } else if (!isValidIndianMobile(form.parentContact)) {
     errors.parentContact = "Enter a valid 10-digit Indian mobile number.";
+  } else if (
+    isValidIndianMobile(form.contactNumber) &&
+    parseIndianMobileDigits(form.contactNumber) === parseIndianMobileDigits(form.parentContact)
+  ) {
+    errors.parentContact =
+      "Parent / guardian contact must be different from the employee contact number.";
+    errors.contactNumber =
+      "Employee contact number must be different from the parent / guardian contact.";
   }
 
   const parentDetailsErr = parentDetailsError(form.parentDetails);
