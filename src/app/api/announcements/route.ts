@@ -11,6 +11,7 @@ import { canManageEmployees } from "@/lib/auth/roles";
 import { listActiveEmployees } from "@/lib/notifications/recipients";
 import { createNotifications } from "@/lib/notifications/sheets";
 import { NOTIFICATION_TYPES } from "@/lib/notifications/types";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 function parseCategory(value: unknown): AnnouncementCategory | null {
   const category = String(value ?? "")
@@ -35,7 +36,7 @@ export const GET = withActiveSession(async (_req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to load announcements",
+        message: toApiErrorMessage(error, "Failed to load announcements"),
       },
       { status: 500 },
     );
@@ -108,7 +109,7 @@ export const POST = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to publish announcement",
+        message: toApiErrorMessage(error, "Failed to publish announcement"),
       },
       { status: 500 },
     );

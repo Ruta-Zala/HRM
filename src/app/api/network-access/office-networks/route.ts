@@ -10,6 +10,7 @@ import {
   updateOfficeNetwork,
 } from "@/lib/network-access/office-networks-sheets";
 import { clearNetworkAccessCaches } from "@/lib/network-access/settings-sheets";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export const GET = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to load office networks",
+        message: toApiErrorMessage(error, "Failed to load office networks"),
       },
       { status: 500 },
     );
@@ -65,7 +66,7 @@ export const POST = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to add office network",
+        message: toApiErrorMessage(error, "Failed to add office network"),
       },
       { status: 500 },
     );
@@ -102,7 +103,7 @@ export const PATCH = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to update office network",
+        message: toApiErrorMessage(error, "Failed to update office network"),
       },
       { status: 500 },
     );
@@ -133,7 +134,7 @@ export const DELETE = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to delete office network",
+        message: toApiErrorMessage(error, "Failed to delete office network"),
       },
       { status: 500 },
     );

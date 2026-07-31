@@ -678,7 +678,7 @@ export default function DashboardPage() {
                   ))}
                 </div>
               ) : unapprovedAbsence.length === 0 ? (
-                <div className="border-ex-border bg-ex-surface/40 flex h-60 flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center">
+                <div className="border-ex-border bg-ex-surface/40 flex h-80 flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center">
                   <div className="bg-ex-elevated text-ex-muted mx-auto flex size-12 items-center justify-center rounded-full text-xl">
                     ✓
                   </div>

@@ -15,6 +15,7 @@ import {
   notifyComplaintReviewed,
   notifyComplaintSubmitted,
 } from "@/lib/notifications/complaint-events";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 function parseSubmission(body: Record<string, unknown>): {
   subject: string;
@@ -49,7 +50,7 @@ export const GET = withActiveSession(async (_req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to load complaints",
+        message: toApiErrorMessage(error, "Failed to load complaints"),
       },
       { status: 500 },
     );
@@ -95,7 +96,7 @@ export const POST = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to submit complaint",
+        message: toApiErrorMessage(error, "Failed to submit complaint"),
       },
       { status: 500 },
     );
@@ -162,7 +163,7 @@ export const PATCH = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to review complaint",
+        message: toApiErrorMessage(error, "Failed to review complaint"),
       },
       { status: 500 },
     );

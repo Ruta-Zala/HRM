@@ -4,6 +4,7 @@ import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { downloadDriveFileBufferById } from "@/lib/google/drive";
 import { listSalarySlips } from "@/lib/salary-slips/sheets";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 const SLIP_ID_PATTERN = /^[\w-]+$/;
 
@@ -44,7 +45,7 @@ export const GET = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to download salary slip",
+        message: toApiErrorMessage(error, "Failed to download salary slip"),
       },
       { status: 500 },
     );

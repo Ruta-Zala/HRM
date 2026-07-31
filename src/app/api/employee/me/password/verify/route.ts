@@ -4,6 +4,7 @@ import { withActiveSession } from "@/lib/auth/api-guard";
 import { resolveEmployeeRecordForSession } from "@/lib/auth/employee-record";
 import { verifyPassword } from "@/lib/auth/password";
 import { sheetRowToForm } from "@/lib/employee";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 export const POST = withActiveSession(async (req, user) => {
   try {
@@ -49,7 +50,7 @@ export const POST = withActiveSession(async (req, user) => {
     });
   } catch (error: unknown) {
     console.error("POST employee/me/password/verify error:", error);
-    const message = error instanceof Error ? error.message : "Failed to verify password.";
+    const message = toApiErrorMessage(error, "Failed to verify password.");
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });

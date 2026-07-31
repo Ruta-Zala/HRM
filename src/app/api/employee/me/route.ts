@@ -6,6 +6,7 @@ import { redactPasswordFromRow } from "@/lib/auth/row-credentials";
 import { canManageEmployees } from "@/lib/auth/server";
 import { redactHrOnlyFieldsFromRow } from "@/lib/employee/list-access";
 import { sheetRowToForm } from "@/lib/employee";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 export const GET = withActiveSession(async (_request, user) => {
   try {
@@ -37,7 +38,7 @@ export const GET = withActiveSession(async (_request, user) => {
     });
   } catch (error: unknown) {
     console.error("GET employee/me error:", error);
-    const message = error instanceof Error ? error.message : "Failed to load your profile.";
+    const message = toApiErrorMessage(error, "Failed to load your profile.");
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });

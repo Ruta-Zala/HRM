@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { withActiveSession } from "@/lib/auth/api-guard";
-import { formatDriveError, getDrive } from "@/lib/google/drive-auth";
+import { formatGoogleApiClientMessage, getDrive } from "@/lib/google/drive-auth";
 
 const SHARED_DRIVE_OPTIONS = {
   supportsAllDrives: true,
@@ -49,7 +49,9 @@ export const GET = withActiveSession(async (req) => {
       },
     });
   } catch (error) {
-    const err = formatDriveError(error);
-    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, message: formatGoogleApiClientMessage(error) },
+      { status: 500 },
+    );
   }
 });

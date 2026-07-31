@@ -11,6 +11,7 @@ import {
 import { setAbsenceGateCookie } from "@/lib/attendance/absence-gate-cookie";
 import { resolveAttendanceEmployee } from "@/lib/attendance/employee";
 import { withActiveSession } from "@/lib/auth/api-guard";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 const submitSchema = z.object({
   submissions: z
@@ -52,7 +53,7 @@ export const GET = withActiveSession(async (_req, user) => {
     return res;
   } catch (error) {
     console.error("[absence-explanation GET]", error);
-    const message = error instanceof Error ? error.message : "Failed to load absence explanations";
+    const message = toApiErrorMessage(error, "Failed to load absence explanations");
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });
@@ -101,7 +102,7 @@ export const POST = withActiveSession(async (req, user) => {
     return res;
   } catch (error) {
     console.error("[absence-explanation POST]", error);
-    const message = error instanceof Error ? error.message : "Failed to submit absence explanation";
+    const message = toApiErrorMessage(error, "Failed to submit absence explanation");
     return NextResponse.json({ success: false, message }, { status: 400 });
   }
 });

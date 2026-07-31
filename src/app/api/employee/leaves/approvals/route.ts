@@ -10,6 +10,7 @@ import { listLeaveApplications, type LeaveApplication } from "@/lib/attendance/l
 import { LEAVE_STATUS, type LeaveStatus } from "@/lib/attendance/leave-status";
 import { getSheetHeaders, sheetRowToForm } from "@/lib/employee";
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 function parseStatusFilter(value: string | null): LeaveStatus | undefined {
   const normalized = String(value ?? LEAVE_STATUS.APPLIED)
@@ -121,7 +122,7 @@ export const GET = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to fetch leave approvals",
+        message: toApiErrorMessage(error, "Failed to fetch leave approvals"),
       },
       { status: 500 },
     );

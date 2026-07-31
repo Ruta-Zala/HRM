@@ -116,7 +116,7 @@ export default function SalarySlipsPage() {
         message?: string;
         [key: string]: unknown;
       }>(res, "fetch");
-      if (!data.success) throw new Error(data.message ?? "Failed to load salary slips");
+      if (!data.success) throw new Error(toUserFacingFetchError(data.message));
       const rows = (data.slips ?? []) as Array<{
         slipId: string;
         title: string;
@@ -183,7 +183,7 @@ export default function SalarySlipsPage() {
         message?: string;
         records?: SalaryHistoryRecord[];
       }>(res, "fetch");
-      if (!data.success) throw new Error(data.message ?? "Failed to load salary history");
+      if (!data.success) throw new Error(toUserFacingFetchError(data.message));
       setHistoryRecords(data.records ?? []);
     } catch (error) {
       console.error(error);
@@ -292,7 +292,9 @@ export default function SalarySlipsPage() {
         message?: string;
         [key: string]: unknown;
       }>(res, "action");
-      if (!data.success) throw new Error(data.message ?? "Failed to generate salary slips");
+      if (!data.success) {
+        throw new Error(toUserFacingActionError(data.message ?? "Failed to generate salary slips"));
+      }
       await loadSlips();
     } catch (error) {
       window.alert(toUserFacingActionError(error));

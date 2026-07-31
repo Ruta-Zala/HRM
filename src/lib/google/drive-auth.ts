@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { google } from "googleapis";
 
+import { DATA_FETCH_ERROR_MESSAGE, isTechnicalApiErrorMessage } from "@/lib/api/user-facing-error";
+
 import {
   getServiceAccountDriveAuth,
   isDriveImpersonationEnabled,
@@ -381,6 +383,11 @@ export function formatGoogleApiClientMessage(
     return forHrAdmin
       ? "Google Drive connection expired. Reconnect under Integrations → Google Drive, or unset GOOGLE_PREFER_OAUTH to use the service account."
       : "Please contact HR — company Google setup needs to be refreshed.";
+  }
+
+  // Sheets/Drive quota, rate limits, and other raw Google API text — never expose to clients.
+  if (isTechnicalApiErrorMessage(message)) {
+    return DATA_FETCH_ERROR_MESSAGE;
   }
 
   return message;

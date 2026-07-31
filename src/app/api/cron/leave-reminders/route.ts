@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { processEmployeeBirthdayNotifications } from "@/lib/notifications/birthday-reminders";
 import { processIncrementReminders } from "@/lib/notifications/increment-reminders";
 import { processLeaveUpcomingReminders } from "@/lib/notifications/leave-reminders";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -40,8 +41,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        message:
-          error instanceof Error ? error.message : "Failed to process notification automations",
+        message: toApiErrorMessage(error, "Failed to process notification automations"),
       },
       { status: 500 },
     );
