@@ -1,3 +1,4 @@
+import { readResponseJson } from "@/lib/api/read-response-json";
 export type ProjectInfo = {
   name: string;
   organization: string;
@@ -18,7 +19,11 @@ export async function fetchProjects(): Promise<ProjectInfo[]> {
   }
 
   const response = await fetch("/api/employee/projects");
-  const result = await response.json();
+  const result = await readResponseJson<{
+    success?: boolean;
+    message?: string;
+    [key: string]: unknown;
+  }>(response, "fetch");
 
   if (!response.ok || !result.success) {
     throw new Error(result.message || "Failed to load projects");

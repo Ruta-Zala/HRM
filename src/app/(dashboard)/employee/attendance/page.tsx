@@ -1,5 +1,6 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AttendanceHistoryView } from "@/components/attendance/attendance-history-view";
@@ -17,6 +18,7 @@ import {
   clampMonthForYear,
   defaultAttendancePeriodSelection,
 } from "@/lib/attendance/period-options";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import type { HrAttendanceFormValues } from "@/components/attendance/hr-attendance-form";
 import { ROLES } from "@/app/consts/common";
 import { canManageEmployees } from "@/lib/auth/roles";
@@ -116,7 +118,14 @@ export default function AttendanceHistoryPage() {
   useEffect(() => {
     if (!isHr) return;
     void fetch("/api/employee?pageSize=200", { credentials: "include" })
-      .then((res) => res.json())
+      .then(async (res) =>
+        readResponseJson<{
+          success?: boolean;
+          message?: string;
+          data?: string[][];
+          sheetRows?: number[];
+        }>(res, "fetch"),
+      )
       .then((data) => {
         const list = parseEmployeeListApiResponse(data).filter(
           (row) => row.role.trim().toLowerCase() !== ROLES.SUPER_ADMIN,
@@ -139,7 +148,7 @@ export default function AttendanceHistoryPage() {
       const data = await fetchAttendanceHistory(year, month, targetSheetRow);
       setRows(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load attendance");
+      setError(toUserFacingFetchError(err));
     } finally {
       setLoading(false);
     }
@@ -159,7 +168,7 @@ export default function AttendanceHistoryPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load attendance");
+          setError(toUserFacingFetchError(err));
           setRows([]);
         }
       } finally {
@@ -198,7 +207,7 @@ export default function AttendanceHistoryPage() {
         await loadHistory();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Import failed");
+      setError(toUserFacingActionError(err));
     } finally {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -224,7 +233,7 @@ export default function AttendanceHistoryPage() {
       setImportMessage(`Overtime request submitted for ${row.date}.`);
       await loadHistory();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit overtime request");
+      setError(toUserFacingActionError(err));
     } finally {
       setRequestingOvertimeId(null);
     }

@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { submitCorrectionRequest } from "@/lib/attendance/client";
 import { formatClockTime } from "@/lib/attendance/time";
+import { toUserFacingActionError } from "@/lib/api/user-facing-error";
 
 export function CorrectionForm({
   date,
@@ -41,7 +42,7 @@ export function CorrectionForm({
       });
       onSuccess?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Submission failed");
+      setError(toUserFacingActionError(err));
     } finally {
       setSubmitting(false);
     }

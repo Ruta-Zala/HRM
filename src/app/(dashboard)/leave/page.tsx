@@ -1,5 +1,6 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -17,6 +18,7 @@ import { formatIsoDate } from "@/lib/attendance/time";
 import { formatLeaveDayCount } from "@/lib/attendance/leave-display";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/auth-provider";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { useNotifications } from "@/contexts/notifications-provider";
 import { roleCanApplyLeave } from "@/lib/auth/roles";
 
@@ -154,16 +156,16 @@ export default function LeaveDeskPage() {
     setBalancesLoading(true);
     try {
       const res = await fetch("/api/employee/leaves");
-      const data = await res.json();
+      const data = await readResponseJson<LeaveBalanceResponse>(res, "fetch");
 
       if (data.success) {
         setBalances(data);
         if (data.birthdayDateIso) {
-          setBirthdayLeaveDate((current) => current || data.birthdayDateIso);
+          setBirthdayLeaveDate((current) => current || data.birthdayDateIso || "");
         }
       }
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Failed to load balances");
+      window.alert(toUserFacingFetchError(error));
     } finally {
       setBalancesLoading(false);
     }
@@ -284,7 +286,11 @@ export default function LeaveDeskPage() {
         body: JSON.stringify(body),
       });
 
-      const data = await res.json();
+      const data = await readResponseJson<{
+        success?: boolean;
+        message?: string;
+        [key: string]: unknown;
+      }>(res, "action");
 
       if (!data.success) {
         throw new Error(data.message);
@@ -302,7 +308,7 @@ export default function LeaveDeskPage() {
     } catch (error) {
       pushToast({
         title: "Leave request failed",
-        body: error instanceof Error ? error.message : "Failed to submit leave request",
+        body: toUserFacingActionError(error),
       });
     } finally {
       setSubmitting(false);

@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { DateInput } from "@/components/ui/date-input";
 import { useAuth } from "@/contexts/auth-provider";
+import { toUserFacingActionError } from "@/lib/api/user-facing-error";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   fetchEmployeeList,
@@ -89,7 +90,7 @@ export default function OnboardingPage() {
       setReason("");
       void dispatch(fetchEmployeeList());
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to offboard employee.");
+      setFormError(toUserFacingActionError(err));
     }
   };
 

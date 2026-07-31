@@ -14,6 +14,7 @@ import {
 } from "@/lib/attendance/constants";
 import type { AttendanceHistoryRow } from "@/lib/attendance/client";
 import { clockToTimeInput, localTodayIso } from "@/lib/attendance/manual-entry";
+import { toUserFacingActionError } from "@/lib/api/user-facing-error";
 
 export type HrAttendanceFormValues = {
   date: string;
@@ -90,7 +91,7 @@ export function HrAttendanceForm({
     try {
       await onSubmit(form);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save attendance");
+      setError(toUserFacingActionError(err));
     }
   }
 

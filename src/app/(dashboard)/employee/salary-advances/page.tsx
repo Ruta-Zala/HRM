@@ -1,8 +1,9 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 
 import { AccessDenied } from "@/components/ui/access-denied";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import { Select } from "@/components/ui/select";
 import { ROLES } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { parseEmployeeListApiResponse } from "@/lib/employee";
 import type { Column } from "@/types/table";
 
@@ -162,11 +164,11 @@ export default function SalaryAdvancesPage() {
 
   const loadAdvances = useCallback(async () => {
     const res = await fetch("/api/salary-advances", { credentials: "include", cache: "no-store" });
-    const json = (await res.json()) as {
+    const json = await readResponseJson<{
       success: boolean;
       message?: string;
       advances?: AdvanceRow[];
-    };
+    }>(res, "fetch");
     if (!json.success) throw new Error(json.message ?? "Failed to load advances");
     setAdvances(json.advances ?? []);
   }, []);
@@ -176,7 +178,12 @@ export default function SalaryAdvancesPage() {
       credentials: "include",
       cache: "no-store",
     });
-    const json = await res.json();
+    const json = await readResponseJson<{
+      success?: boolean;
+      message?: string;
+      data?: string[][];
+      sheetRows?: number[];
+    }>(res, "fetch");
     const list = parseEmployeeListApiResponse(json);
     setEmployees(
       list
@@ -210,7 +217,7 @@ export default function SalaryAdvancesPage() {
     try {
       await Promise.all([loadAdvances(), loadEmployees()]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load salary advances");
+      setError(toUserFacingFetchError(err));
     } finally {
       setLoading(false);
     }
@@ -238,11 +245,11 @@ export default function SalaryAdvancesPage() {
           credentials: "include",
           cache: "no-store",
         });
-        const json = (await res.json()) as {
+        const json = await readResponseJson<{
           success: boolean;
           message?: string;
           preview?: PreviewWindow;
-        };
+        }>(res, "fetch");
         if (!cancelled) {
           if (!json.success) throw new Error(json.message ?? "Failed to load employee window");
           const nextPreview = json.preview ?? null;
@@ -255,7 +262,7 @@ export default function SalaryAdvancesPage() {
       } catch (err) {
         if (!cancelled) {
           setPreview(null);
-          setError(err instanceof Error ? err.message : "Failed to load repayment window");
+          setError(toUserFacingFetchError(err));
         }
       }
     })();
@@ -334,7 +341,7 @@ export default function SalaryAdvancesPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id, action: "cancel" }),
         });
-        const json = (await res.json()) as { success: boolean; message?: string };
+        const json = await readResponseJson<{ success: boolean; message?: string }>(res, "action");
         if (!json.success) throw new Error(json.message ?? "Failed to cancel advance");
         if (editingId === id) {
           setShowForm(false);
@@ -342,7 +349,7 @@ export default function SalaryAdvancesPage() {
         }
         await loadAdvances();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to cancel advance");
+        setError(toUserFacingActionError(err));
       } finally {
         setSaving(false);
       }
@@ -379,7 +386,7 @@ export default function SalaryAdvancesPage() {
               },
         ),
       });
-      const json = (await res.json()) as { success: boolean; message?: string };
+      const json = await readResponseJson<{ success: boolean; message?: string }>(res, "action");
       if (!json.success) {
         throw new Error(
           json.message ?? (isEditing ? "Failed to update advance" : "Failed to create advance"),
@@ -391,11 +398,13 @@ export default function SalaryAdvancesPage() {
       await loadAdvances();
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : isEditing
-            ? "Failed to update advance"
-            : "Failed to create advance",
+        toUserFacingActionError(
+          err instanceof Error
+            ? err
+            : isEditing
+              ? "Failed to update advance"
+              : "Failed to create advance",
+        ),
       );
     } finally {
       setSaving(false);
@@ -506,8 +515,8 @@ export default function SalaryAdvancesPage() {
               }}
               disabled={saving}
             >
-              <Plus className="size-4" />
-              {showForm ? "Close form" : "New advance"}
+              {showForm ? <X className="size-4" /> : <Plus className="size-4" />}
+              {showForm ? "Close Form" : "New Advance"}
             </Button>
           </div>
         }
@@ -543,7 +552,7 @@ export default function SalaryAdvancesPage() {
                     }}
                     disabled={saving || isEditing}
                   >
-                    <option value="">Select employee</option>
+                    <option value="">Select</option>
                     {employees.map((employee) => (
                       <option key={employee.sheetRow} value={String(employee.sheetRow)}>
                         {employee.name}

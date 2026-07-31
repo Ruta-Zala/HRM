@@ -1,13 +1,21 @@
-import { POSITIONS } from "@/app/consts/common";
+import { POSITIONS, ROLES } from "@/app/consts/common";
 import { passwordStrengthError } from "@/lib/auth/password-rules";
 import type { EmployeeFormState } from "./form";
 
 export const EMPLOYEE_MIN_AGE = 18;
 export const EMPLOYEE_MAX_EXPERIENCE_YEARS = 35;
 
-/** CEO profile does not use experience / joining / increment / salary fields. */
+/** CEO profile does not use experience / joining / increment / salary / skills fields. */
 export function isCeoPosition(position: string): boolean {
   return position.trim().toLowerCase() === POSITIONS.CEO.toLowerCase();
+}
+
+/** Super Admin / CEO do not use experience, joining, increment, salary, or skills fields. */
+export function hidesEmploymentFields(input: { position?: string; role?: string }): boolean {
+  const role = String(input.role ?? "")
+    .trim()
+    .toLowerCase();
+  return isCeoPosition(String(input.position ?? "")) || role === ROLES.SUPER_ADMIN.toLowerCase();
 }
 
 /** Indian PAN: 5 letters + 4 digits + 1 letter */
@@ -575,9 +583,12 @@ export function validateEmployeeForm(
     }
   }
 
-  const isCeo = isCeoPosition(form.position);
+  const skipEmploymentFields = hidesEmploymentFields({
+    position: form.position,
+    role: form.role,
+  });
 
-  if (!isCeo) {
+  if (!skipEmploymentFields) {
     if (!form.joiningDate.trim()) {
       errors.joiningDate = "Joining date is required.";
     } else {

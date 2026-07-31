@@ -1,16 +1,19 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { ROLES } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { parseEmployeeListApiResponse } from "@/lib/employee";
 import type { Column } from "@/types/table";
@@ -108,7 +111,11 @@ export default function SalarySlipsPage() {
       }
 
       const res = await fetch(`/api/salary-slips?${params.toString()}`, { credentials: "include" });
-      const data = await res.json();
+      const data = await readResponseJson<{
+        success?: boolean;
+        message?: string;
+        [key: string]: unknown;
+      }>(res, "fetch");
       if (!data.success) throw new Error(data.message ?? "Failed to load salary slips");
       const rows = (data.slips ?? []) as Array<{
         slipId: string;
@@ -132,6 +139,7 @@ export default function SalarySlipsPage() {
     } catch (error) {
       console.error(error);
       setSlips([]);
+      window.alert(toUserFacingFetchError(error));
     } finally {
       setLoading(false);
     }
@@ -139,17 +147,27 @@ export default function SalarySlipsPage() {
 
   const loadEmployees = useCallback(async () => {
     if (!canManage) return;
-    const res = await fetch("/api/employee?pageSize=200&status=Active", {
-      credentials: "include",
-    });
-    const data = await res.json();
-    const list = parseEmployeeListApiResponse(data);
-    setEmployees(
-      list
-        .filter((e) => e.role.trim().toLowerCase() !== ROLES.SUPER_ADMIN)
-        .map((e) => ({ sheetRow: e.sheetRow, name: `${e.name} (${e.employeeId})` }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    );
+    try {
+      const res = await fetch("/api/employee?pageSize=200&status=Active", {
+        credentials: "include",
+      });
+      const data = await readResponseJson<{
+        success?: boolean;
+        message?: string;
+        data?: string[][];
+        sheetRows?: number[];
+      }>(res, "fetch");
+      const list = parseEmployeeListApiResponse(data);
+      setEmployees(
+        list
+          .filter((e) => e.role.trim().toLowerCase() !== ROLES.SUPER_ADMIN)
+          .map((e) => ({ sheetRow: e.sheetRow, name: `${e.name} (${e.employeeId})` }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      );
+    } catch (error) {
+      console.error(error);
+      window.alert(toUserFacingFetchError(error));
+    }
   }, [canManage]);
 
   const loadHistory = useCallback(async () => {
@@ -160,16 +178,17 @@ export default function SalarySlipsPage() {
         credentials: "include",
         cache: "no-store",
       });
-      const data = (await res.json()) as {
+      const data = await readResponseJson<{
         success: boolean;
         message?: string;
         records?: SalaryHistoryRecord[];
-      };
+      }>(res, "fetch");
       if (!data.success) throw new Error(data.message ?? "Failed to load salary history");
       setHistoryRecords(data.records ?? []);
     } catch (error) {
       console.error(error);
       setHistoryRecords([]);
+      window.alert(toUserFacingFetchError(error));
     } finally {
       setHistoryLoading(false);
     }
@@ -268,11 +287,15 @@ export default function SalarySlipsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
+      const data = await readResponseJson<{
+        success?: boolean;
+        message?: string;
+        [key: string]: unknown;
+      }>(res, "action");
       if (!data.success) throw new Error(data.message ?? "Failed to generate salary slips");
       await loadSlips();
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Failed to generate salary slips");
+      window.alert(toUserFacingActionError(error));
     } finally {
       setBusy(false);
     }
@@ -335,14 +358,18 @@ export default function SalarySlipsPage() {
           professionalTax: Number(professionalTax || 0),
         }),
       });
-      const data = await res.json();
+      const data = await readResponseJson<{
+        success?: boolean;
+        message?: string;
+        [key: string]: unknown;
+      }>(res, "action");
       if (!data.success) throw new Error(data.message ?? "Failed to save salary history");
       window.alert("Salary history saved");
       setBasic("");
       setEffectiveFrom("");
       await loadHistory();
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Failed to save salary history");
+      window.alert(toUserFacingActionError(error));
     } finally {
       setBusy(false);
     }
@@ -355,11 +382,15 @@ export default function SalarySlipsPage() {
         method: "DELETE",
         credentials: "include",
       });
-      const data = await res.json();
+      const data = await readResponseJson<{
+        success?: boolean;
+        message?: string;
+        [key: string]: unknown;
+      }>(res, "action");
       if (!data.success) throw new Error(data.message ?? "Failed to delete slip");
       await loadSlips();
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Failed to delete slip");
+      window.alert(toUserFacingActionError(error));
     } finally {
       setBusy(false);
     }
@@ -379,7 +410,7 @@ export default function SalarySlipsPage() {
         <div className="flex flex-wrap items-center gap-4">
           <div className="w-auto min-w-28">
             <Select value={year} onChange={(e) => setYear(e.target.value)}>
-              <option value="">All years</option>
+              <option value="">All Years</option>
               {Array.from({ length: currentYear - 2020 + 1 }).map((_, idx) => {
                 const y = currentYear - idx;
                 return (
@@ -462,7 +493,7 @@ export default function SalarySlipsPage() {
         <Card>
           <CardContent className="space-y-4 p-4">
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold">Salary History (Effective-dated)</h3>
+              <h3 className="text-sm font-semibold">Salary History (Effective Dated)</h3>
               <p className="text-ex-muted text-xs">
                 All employees&apos; effective salary periods are listed below. Select an employee to
                 filter that list and to add a new revision (replaces their current effective
@@ -559,7 +590,8 @@ export default function SalarySlipsPage() {
                   disabled={historyLoading || busy}
                   onClick={() => void loadHistory()}
                 >
-                  Refresh list
+                  <RefreshCw className={`size-4 ${historyLoading ? "animate-spin" : ""}`} />
+                  Refresh
                 </Button>
               </div>
               <DataTable

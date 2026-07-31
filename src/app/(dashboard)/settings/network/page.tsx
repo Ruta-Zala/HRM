@@ -1,5 +1,6 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { Pencil, Plus, Trash2, Wifi } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -12,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { parseEmployeeListApiResponse } from "@/lib/employee";
 import { fetchPublicIpv4FromBrowser } from "@/lib/network-access/ip";
 import type { OfficeNetwork, RemoteAccessEmployee } from "@/lib/network-access/types";
@@ -69,19 +71,24 @@ export default function NetworkAccessSettingsPage() {
         fetchPublicIpv4FromBrowser().catch(() => ""),
       ]);
 
-      const networksJson = (await networksRes.json()) as {
+      const networksJson = await readResponseJson<{
         success: boolean;
         message?: string;
         networks?: OfficeNetwork[];
         clientIp?: string;
-      };
-      const settingsJson = (await settingsRes.json()) as {
+      }>(networksRes, "fetch");
+      const settingsJson = await readResponseJson<{
         success: boolean;
         message?: string;
         settings?: { restrictionEnabled?: boolean };
         remoteEmployees?: RemoteAccessEmployee[];
-      };
-      const employeesJson = await employeesRes.json();
+      }>(settingsRes, "fetch");
+      const employeesJson = await readResponseJson<{
+        success?: boolean;
+        message?: string;
+        data?: string[][];
+        sheetRows?: number[];
+      }>(employeesRes, "fetch");
 
       if (!networksJson.success) {
         throw new Error(networksJson.message ?? "Failed to load office networks");
@@ -106,7 +113,7 @@ export default function NetworkAccessSettingsPage() {
           .sort((a, b) => a.name.localeCompare(b.name)),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load network access settings");
+      setError(toUserFacingFetchError(err));
     } finally {
       setLoading(false);
     }
@@ -158,14 +165,14 @@ export default function NetworkAccessSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json = (await res.json()) as { success: boolean; message?: string };
+      const json = await readResponseJson<{ success: boolean; message?: string }>(res, "fetch");
       if (!json.success) throw new Error(json.message ?? "Failed to save network");
 
       resetIpForm();
       setMessage(editingId ? "Office IP updated." : "Office IP added.");
       await loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save network");
+      setError(toUserFacingActionError(err));
     } finally {
       setSaving(false);
     }
@@ -183,13 +190,13 @@ export default function NetworkAccessSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: network.id }),
       });
-      const json = (await res.json()) as { success: boolean; message?: string };
+      const json = await readResponseJson<{ success: boolean; message?: string }>(res, "action");
       if (!json.success) throw new Error(json.message ?? "Failed to delete network");
       if (editingId === network.id) resetIpForm();
       setMessage("Office IP removed.");
       await loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete network");
+      setError(toUserFacingActionError(err));
     } finally {
       setSaving(false);
     }
@@ -206,12 +213,12 @@ export default function NetworkAccessSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ restrictionEnabled: enabled }),
       });
-      const json = (await res.json()) as { success: boolean; message?: string };
+      const json = await readResponseJson<{ success: boolean; message?: string }>(res, "action");
       if (!json.success) throw new Error(json.message ?? "Failed to update setting");
       setRestrictionEnabled(enabled);
       setMessage(enabled ? "Office Wi‑Fi restriction enabled." : "Restriction disabled.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update setting");
+      setError(toUserFacingActionError(err));
     } finally {
       setSaving(false);
     }
@@ -239,13 +246,13 @@ export default function NetworkAccessSettingsPage() {
           employeeName: employee.name,
         }),
       });
-      const json = (await res.json()) as { success: boolean; message?: string };
+      const json = await readResponseJson<{ success: boolean; message?: string }>(res, "action");
       if (!json.success) throw new Error(json.message ?? "Failed to add remote employee");
       setRemoteSheetRow("");
       setMessage(`${employee.name} can now access from any network.`);
       await loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add remote employee");
+      setError(toUserFacingActionError(err));
     } finally {
       setSaving(false);
     }
@@ -263,12 +270,12 @@ export default function NetworkAccessSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: row.id }),
       });
-      const json = (await res.json()) as { success: boolean; message?: string };
+      const json = await readResponseJson<{ success: boolean; message?: string }>(res, "action");
       if (!json.success) throw new Error(json.message ?? "Failed to remove remote employee");
       setMessage("Remote access removed.");
       await loadAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove remote employee");
+      setError(toUserFacingActionError(err));
     } finally {
       setSaving(false);
     }

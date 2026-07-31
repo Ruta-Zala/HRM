@@ -19,7 +19,7 @@ import {
   firstEmployeeValidationMessage,
   formToSheetRow,
   initialEmployeeForm,
-  isCeoPosition,
+  hidesEmploymentFields,
   maskAadhar,
   maskPan,
   maxBirthDateForMinAge,
@@ -30,6 +30,8 @@ import {
   type EmployeeFieldErrors,
   type EmployeeFormState,
 } from "@/lib/employee";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { POSITIONS, ROLES } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
@@ -111,7 +113,10 @@ export function EmployeeForm({
   const profileImageSrc = resolveProfileImageSrc(form.profileImage, profileImagePreview);
   const maxBirthDate = useMemo(() => maxBirthDateForMinAge(), []);
   const todayDate = useMemo(() => todayIsoDate(), []);
-  const hideCeoEmploymentFields = isCeoPosition(form.position);
+  const hideEmploymentFields = hidesEmploymentFields({
+    position: form.position,
+    role: form.role,
+  });
 
   useEffect(() => {
     return () => {
@@ -137,11 +142,15 @@ export function EmployeeForm({
 
         if (isEdit && useOwnProfileEndpoint) {
           const response = await fetch("/api/employee/me");
-          const result = await response.json();
+          const result = await readResponseJson<{
+            success?: boolean;
+            message?: string;
+            [key: string]: unknown;
+          }>(response, "fetch");
           if (cancelled) return;
 
           if (!result.success) {
-            setError(result.message || "Employee not found");
+            setError(toUserFacingFetchError(result.message || "Employee not found"));
             return;
           }
 
@@ -153,11 +162,15 @@ export function EmployeeForm({
 
         if (isEdit && sheetRow) {
           const response = await fetch(`/api/employee?row=${sheetRow}`);
-          const result = await response.json();
+          const result = await readResponseJson<{
+            success?: boolean;
+            message?: string;
+            [key: string]: unknown;
+          }>(response, "fetch");
           if (cancelled) return;
 
           if (!result.success) {
-            setError(result.message || "Employee not found");
+            setError(toUserFacingFetchError(result.message || "Employee not found"));
             return;
           }
 
@@ -168,7 +181,11 @@ export function EmployeeForm({
         }
 
         const response = await fetch("/api/employee?headersOnly=true");
-        const result = await response.json();
+        const result = await readResponseJson<{
+          success?: boolean;
+          message?: string;
+          [key: string]: unknown;
+        }>(response, "fetch");
         if (cancelled) return;
 
         if (result.success) {
@@ -179,11 +196,15 @@ export function EmployeeForm({
             setSheetHeaders(headers);
           }
         } else {
-          setError(result.message || "Failed to load sheet columns");
+          setError(toUserFacingFetchError(result.message || "Failed to load sheet columns"));
         }
       } catch {
         if (!cancelled) {
-          setError(isEdit ? "Failed to load employee" : "Failed to load sheet columns");
+          setError(
+            toUserFacingFetchError(
+              isEdit ? "Failed to load employee" : "Failed to load sheet columns",
+            ),
+          );
         }
       } finally {
         if (!cancelled) {
@@ -207,7 +228,11 @@ export function EmployeeForm({
         setSkillsLoading(true);
 
         const response = await fetch("/api/employee/skills");
-        const result = await response.json();
+        const result = await readResponseJson<{
+          success?: boolean;
+          message?: string;
+          [key: string]: unknown;
+        }>(response, "fetch");
 
         if (cancelled) return;
 
@@ -253,11 +278,18 @@ export function EmployeeForm({
 
       setForm((prev) => {
         const next = { ...prev, [field]: value };
-        if (field === "position" && isCeoPosition(value)) {
+        if (
+          (field === "position" || field === "role") &&
+          hidesEmploymentFields({
+            position: field === "position" ? value : next.position,
+            role: field === "role" ? value : next.role,
+          })
+        ) {
           next.experience = "";
           next.joiningDate = "";
           next.lastIncrementDate = "";
           next.salary = "";
+          next.skills = "";
         }
         return next;
       });
@@ -265,7 +297,13 @@ export function EmployeeForm({
       setFieldErrors((prev) => {
         const next = { ...prev };
         delete next[field];
-        if (field === "position" && isCeoPosition(value)) {
+        if (
+          (field === "position" || field === "role") &&
+          hidesEmploymentFields({
+            position: field === "position" ? value : form.position,
+            role: field === "role" ? value : form.role,
+          })
+        ) {
           delete next.experience;
           delete next.joiningDate;
           delete next.lastIncrementDate;
@@ -341,7 +379,11 @@ export function EmployeeForm({
         method: isEdit ? "PUT" : "POST",
         body,
       });
-      const result = await response.json();
+      const result = await readResponseJson<{
+        success?: boolean;
+        message?: string;
+        [key: string]: unknown;
+      }>(response, "action");
 
       if (result.success) {
         if (result.documentWarning) {
@@ -371,13 +413,13 @@ export function EmployeeForm({
       if (result.errors && typeof result.errors === "object") {
         setFieldErrors(result.errors as EmployeeFieldErrors);
       }
-      setError(result.message || (isEdit ? "Failed to update employee" : "Failed to add employee"));
-    } catch {
       setError(
-        isEdit
-          ? "Failed to update employee. Please try again."
-          : "Failed to add employee. Please try again.",
+        toUserFacingActionError(
+          result.message || (isEdit ? "Failed to update employee" : "Failed to add employee"),
+        ),
       );
+    } catch (error) {
+      setError(toUserFacingActionError(error));
     } finally {
       setSubmitting(false);
     }
@@ -760,7 +802,7 @@ export function EmployeeForm({
                   </FormField>
                 </div>
 
-                {!hideCeoEmploymentFields ? (
+                {!hideEmploymentFields ? (
                   <>
                     <div className="space-y-2">
                       <FormField label="Experience" id="experience" error={fieldErrors.experience}>
@@ -843,35 +885,37 @@ export function EmployeeForm({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Skills</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FormField label="Tech skills" id="skills">
-                <SkillsChipsInput
-                  id="skills"
-                  value={parseSkillsValue(form.skills)}
-                  suggestions={skillSuggestions}
-                  onChange={(skills) =>
-                    setForm((prev) => ({ ...prev, skills: joinSkillsValue(skills) }))
-                  }
-                  disabled={skillsLoading}
-                />
-                <p className="text-ex-muted text-xs">
-                  {skillsError
-                    ? skillsError
-                    : skillsLoading
-                      ? "Loading skill suggestions…"
-                      : "Type a skill and click Add. Click chips to select."}
-                </p>
-              </FormField>
-            </CardContent>
-          </Card>
+          {!hideEmploymentFields ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Skills</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <FormField label="Tech skills" id="skills">
+                  <SkillsChipsInput
+                    id="skills"
+                    value={parseSkillsValue(form.skills)}
+                    suggestions={skillSuggestions}
+                    onChange={(skills) =>
+                      setForm((prev) => ({ ...prev, skills: joinSkillsValue(skills) }))
+                    }
+                    disabled={skillsLoading}
+                  />
+                  <p className="text-ex-muted text-xs">
+                    {skillsError
+                      ? skillsError
+                      : skillsLoading
+                        ? "Loading skill suggestions…"
+                        : "Type a skill and click Add. Click chips to select."}
+                  </p>
+                </FormField>
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
         <Button type="submit" disabled={submitting || headersLoading || !sheetHeaders.length}>
           {submitting ? "Saving…" : isEdit ? "Save changes" : "Add employee"}
         </Button>

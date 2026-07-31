@@ -1,5 +1,6 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import Image from "next/image";
 import Link from "next/link";
 import { AlertTriangle, CalendarDays, Sparkles, Users } from "lucide-react";
@@ -27,6 +28,7 @@ import { parseLeaveDisplayDate } from "@/lib/attendance/leave-range-display";
 import { formatIsoDate } from "@/lib/attendance/time";
 import { COMPANY_HOLIDAYS_2026, type CompanyHoliday } from "@/lib/company-holidays";
 import { resolveProfileImageSrc } from "@/lib/employee";
+import { toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { cn } from "@/lib/utils";
 
 // const headcountTrend = [
@@ -333,12 +335,12 @@ export default function DashboardPage() {
       cache: "no-store",
     })
       .then(async (response) => {
-        const data = (await response.json()) as {
+        const data = await readResponseJson<{
           success?: boolean;
           message?: string;
           employees?: OnLeaveEmployee[];
           totalEmployees?: number;
-        };
+        }>(response, "fetch");
         if (!response.ok || !data.success) {
           throw new Error(data.message ?? "Failed to load employees on leave");
         }
@@ -357,9 +359,7 @@ export default function DashboardPage() {
         if (cancelled) return;
         setOnLeave([]);
         setTotalEmployees(0);
-        setOnLeaveError(
-          error instanceof Error ? error.message : "Failed to load employees on leave",
-        );
+        setOnLeaveError(toUserFacingFetchError(error));
       })
       .finally(() => {
         if (!cancelled) setOnLeaveLoading(false);
@@ -380,11 +380,11 @@ export default function DashboardPage() {
         cache: "no-store",
       })
         .then(async (response) => {
-          const data = (await response.json()) as {
+          const data = await readResponseJson<{
             success?: boolean;
             message?: string;
             employees?: UnapprovedAbsenceEmployee[];
-          };
+          }>(response, "fetch");
           if (!response.ok || !data.success) {
             throw new Error(data.message ?? "Failed to load unapproved absences");
           }
@@ -399,9 +399,7 @@ export default function DashboardPage() {
         .catch((error: unknown) => {
           if (cancelled) return;
           setUnapprovedAbsence([]);
-          setUnapprovedAbsenceError(
-            error instanceof Error ? error.message : "Failed to load unapproved absences",
-          );
+          setUnapprovedAbsenceError(toUserFacingFetchError(error));
           setUnapprovedAbsenceFetchedDate(leaveDate);
         });
     };
@@ -422,10 +420,10 @@ export default function DashboardPage() {
     let cancelled = false;
     void fetch(`/api/company-holidays?year=${holidayYear}`, { cache: "no-store" })
       .then(async (response) => {
-        const data = (await response.json()) as {
+        const data = await readResponseJson<{
           success?: boolean;
           holidays?: CompanyHoliday[];
-        };
+        }>(response, "fetch");
         if (!response.ok || !data.success) {
           throw new Error("Failed to load company holidays");
         }

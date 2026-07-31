@@ -11,8 +11,9 @@ const PICKER_FIELD_KEYS = [
   "email",
 ] as const satisfies readonly (keyof EmployeeFormState)[];
 
-type EmployeeListApiResponse = {
-  success: boolean;
+export type EmployeeListApiResponse = {
+  success?: boolean;
+  message?: string;
   data?: string[][];
   sheetRows?: number[];
   pagination?: SheetPagination;

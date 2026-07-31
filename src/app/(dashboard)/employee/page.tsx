@@ -1,9 +1,10 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, Pencil, Search, User } from "lucide-react";
+import { Eye, Pencil, RefreshCw, Search, User } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { DataTable } from "@/components/ui/data-table";
@@ -16,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { ROLES, STATUS } from "@/app/consts/common";
 import { EMPLOYEE_LIST_COLUMNS } from "@/app/consts/employee-list";
 import { Select } from "@/components/ui/select";
+import { toUserFacingFetchError } from "@/lib/api/user-facing-error";
 
 import type { EmployeeRow } from "@/types/employee";
 import type { SheetPagination } from "@/types/sheet";
@@ -123,6 +125,7 @@ export default function EmployeeDirectoryPage() {
 
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [columns, setColumns] = useState<Column<EmployeeRow>[]>([]);
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
@@ -131,6 +134,7 @@ export default function EmployeeDirectoryPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [pagination, setPagination] = useState<SheetPagination>(emptyPagination);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const canManage = user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
   const effectiveStatusFilter = !canManage && statusFilter === STATUS.INACTIVE ? "" : statusFilter;
@@ -147,6 +151,8 @@ export default function EmployeeDirectoryPage() {
     let cancelled = false;
     void (async () => {
       try {
+        setLoading(true);
+        setError(null);
         const params = new URLSearchParams({
           sortBy,
           order: sortOrder,
@@ -155,8 +161,14 @@ export default function EmployeeDirectoryPage() {
         });
         if (debouncedSearch) params.set("search", debouncedSearch);
         if (effectiveStatusFilter) params.set("status", effectiveStatusFilter);
-        const response = await fetch(`/api/employee?${params}`);
-        const result = await response.json();
+        const response = await fetch(`/api/employee?${params}`, { cache: "no-store" });
+        const result = await readResponseJson<{
+          success?: boolean;
+          message?: string;
+          data?: string[][];
+          sheetRows?: number[];
+          pagination?: SheetPagination;
+        }>(response, "fetch");
 
         if (cancelled) return;
 
@@ -175,9 +187,18 @@ export default function EmployeeDirectoryPage() {
           setColumns(buildListColumns(canManage));
           setRows(formattedData);
           setPagination(pageInfo);
+        } else {
+          setRows([]);
+          setPagination(emptyPagination);
+          setError(toUserFacingFetchError(result.message || "Failed to load employees"));
         }
-      } catch (error) {
-        if (!cancelled) console.error("Fetch Employee Error:", error);
+      } catch (fetchError) {
+        if (!cancelled) {
+          console.error("Fetch Employee Error:", fetchError);
+          setRows([]);
+          setPagination(emptyPagination);
+          setError(toUserFacingFetchError(fetchError));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -185,7 +206,7 @@ export default function EmployeeDirectoryPage() {
     return () => {
       cancelled = true;
     };
-  }, [sortBy, sortOrder, page, debouncedSearch, effectiveStatusFilter, canManage]);
+  }, [sortBy, sortOrder, page, debouncedSearch, effectiveStatusFilter, canManage, reloadKey]);
 
   const handleSort = (key: string) => {
     setPage(1);
@@ -207,9 +228,26 @@ export default function EmployeeDirectoryPage() {
       <PageHeader
         title="All Employees"
         description="View and manage all employees in the organization."
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setReloadKey((key) => key + 1)}
+            disabled={loading}
+          >
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        }
       />
 
       <div className="space-y-4">
+        {error ? (
+          <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            {error}
+          </p>
+        ) : null}
+
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="relative max-w-md flex-1">
             <Search className="text-ex-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />

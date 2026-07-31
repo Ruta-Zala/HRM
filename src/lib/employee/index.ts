@@ -21,6 +21,7 @@ export {
   EMPLOYEE_MAX_EXPERIENCE_YEARS,
   type EmployeeFieldErrors,
   isCeoPosition,
+  hidesEmploymentFields,
   sanitizePersonNameInput,
   validateEmployeeForm,
   firstEmployeeValidationMessage,

@@ -1,5 +1,6 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
@@ -11,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { formatIsoDate } from "@/lib/attendance/time";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { COMPANY_HOLIDAYS_2026, type CompanyHoliday } from "@/lib/company-holidays";
 
 const MONTH_NAMES = [
@@ -144,11 +146,11 @@ export default function CompanyHolidaysPage() {
     let cancelled = false;
     void fetch(`/api/company-holidays?year=${holidayYear}`, { cache: "no-store" })
       .then(async (response) => {
-        const data = (await response.json()) as {
+        const data = await readResponseJson<{
           success?: boolean;
           holidays?: CompanyHoliday[];
           message?: string;
-        };
+        }>(response, "fetch");
         if (!response.ok || !data.success) {
           throw new Error(data.message ?? "Failed to load company holidays");
         }
@@ -159,9 +161,7 @@ export default function CompanyHolidaysPage() {
       })
       .catch((loadError: unknown) => {
         if (!cancelled) {
-          setError(
-            loadError instanceof Error ? loadError.message : "Failed to load company holidays",
-          );
+          setError(toUserFacingFetchError(loadError));
         }
       });
 
@@ -190,11 +190,11 @@ export default function CompanyHolidaysPage() {
           type: editor.type,
         }),
       });
-      const data = (await response.json()) as {
+      const data = await readResponseJson<{
         success?: boolean;
         message?: string;
         holiday?: CompanyHoliday;
-      };
+      }>(response, "action");
       if (!response.ok || !data.success || !data.holiday) {
         throw new Error(data.message ?? "Failed to save company holiday");
       }
@@ -207,7 +207,7 @@ export default function CompanyHolidaysPage() {
       setHolidayMonth("all");
       setEditor(null);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Failed to save company holiday");
+      setError(toUserFacingActionError(saveError));
     } finally {
       setSaving(false);
     }
@@ -225,16 +225,17 @@ export default function CompanyHolidaysPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: holiday.id }),
       });
-      const data = (await response.json()) as { success?: boolean; message?: string };
+      const data = await readResponseJson<{ success?: boolean; message?: string }>(
+        response,
+        "action",
+      );
       if (!response.ok || !data.success) {
         throw new Error(data.message ?? "Failed to delete company holiday");
       }
       setHolidays((current) => current.filter((item) => item.id !== holiday.id));
       setEditor((current) => (current?.id === holiday.id ? null : current));
     } catch (deleteError) {
-      setError(
-        deleteError instanceof Error ? deleteError.message : "Failed to delete company holiday",
-      );
+      setError(toUserFacingActionError(deleteError));
     } finally {
       setDeletingId(null);
     }

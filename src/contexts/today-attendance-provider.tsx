@@ -11,6 +11,7 @@ import {
   type AttendanceActionPayload,
   type TodayAttendance,
 } from "@/lib/attendance/client";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { computeLiveWorkedMsFromFields } from "@/lib/attendance/time";
 
 type TodayAttendanceContextValue = {
@@ -43,7 +44,7 @@ function useTodayAttendanceState(enabled: boolean): TodayAttendanceContextValue 
       const data = await fetchTodayAttendance();
       setToday(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load attendance");
+      setError(toUserFacingFetchError(err));
     } finally {
       setLoading(false);
     }
@@ -61,7 +62,7 @@ function useTodayAttendanceState(enabled: boolean): TodayAttendanceContextValue 
         setError(null);
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load attendance");
+        setError(toUserFacingFetchError(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -88,7 +89,7 @@ function useTodayAttendanceState(enabled: boolean): TodayAttendanceContextValue 
         const updated = await postAttendanceAction(action, payload);
         setToday(updated);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Action failed");
+        setError(toUserFacingActionError(err));
         throw err;
       } finally {
         setActing(false);

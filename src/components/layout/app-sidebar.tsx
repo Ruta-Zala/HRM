@@ -152,14 +152,38 @@ export function AppSidebar() {
 export function MobileDrawer() {
   const [open, setOpen] = useState(false);
 
+  // Clear a stuck body scroll lock left behind after mobile → desktop transitions.
+  useEffect(() => {
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      document.body.style.removeProperty("overflow");
+    }
+  }, []);
+
   useEffect(() => {
     if (!open) return;
+
+    const media = window.matchMedia("(min-width: 1024px)");
     const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+
+    const syncLock = () => {
+      // Desktop layout hides this drawer; never keep body scroll locked there.
+      if (media.matches) {
+        document.body.style.overflow = previousOverflow || "";
+        setOpen(false);
+        return;
+      }
+      document.body.style.overflow = "hidden";
+    };
+
+    syncLock();
+    media.addEventListener("change", syncLock);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      media.removeEventListener("change", syncLock);
+      document.body.style.removeProperty("overflow");
     };
   }, [open]);
+
+  const close = () => setOpen(false);
 
   return (
     <>
@@ -173,16 +197,16 @@ export function MobileDrawer() {
                 type="button"
                 className="absolute inset-0 bg-black/40 backdrop-blur-sm"
                 aria-label="Close menu backdrop"
-                onClick={() => setOpen(false)}
+                onClick={close}
               />
               <div className="border-ex-border bg-ex-elevated absolute inset-0 flex w-full flex-col">
                 <div className="border-ex-border flex items-center justify-between border-b px-3 py-3">
-                  <SidebarBrand compact />
-                  <ButtonIcon onClick={() => setOpen(false)} label="Close menu">
+                  <SidebarBrand compact onNavigate={close} />
+                  <ButtonIcon onClick={close} label="Close menu">
                     <X className="size-5" />
                   </ButtonIcon>
                 </div>
-                <NavLinks onNavigate={() => setOpen(false)} />
+                <NavLinks onNavigate={close} />
               </div>
             </div>,
             document.body,
@@ -192,10 +216,11 @@ export function MobileDrawer() {
   );
 }
 
-function SidebarBrand({ compact }: { compact?: boolean }) {
+function SidebarBrand({ compact, onNavigate }: { compact?: boolean; onNavigate?: () => void }) {
   return (
     <Link
       href="/dashboard"
+      onClick={onNavigate}
       className={cn(
         "border-ex-border flex items-center gap-3 border-b px-4 py-3",
         compact && "border-0 py-2",
