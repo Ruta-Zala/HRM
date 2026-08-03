@@ -29,6 +29,10 @@ export const BANK_ACCOUNT_MIN_LENGTH = 5;
 export const BANK_ACCOUNT_MAX_LENGTH = 18;
 export const BANK_ACCOUNT_PATTERN = /^\d{5,18}$/;
 
+/** Optional IFSC: exactly 11 alphanumeric characters when provided */
+export const IFSC_CODE_LENGTH = 11;
+export const IFSC_CODE_PATTERN = /^[A-Z0-9]{11}$/;
+
 /** Indian mobile: 10 digits starting 6–9 */
 export const INDIAN_MOBILE_PATTERN = /^[6-9]\d{9}$/;
 
@@ -488,6 +492,10 @@ export function isValidBankAccountNumber(value: string): boolean {
   return BANK_ACCOUNT_PATTERN.test(value.replace(/\D/g, ""));
 }
 
+export function isValidIfscCode(value: string): boolean {
+  return IFSC_CODE_PATTERN.test(value.replace(/\s/g, "").toUpperCase());
+}
+
 export function isValidIndianMobile(value: string): boolean {
   return INDIAN_MOBILE_PATTERN.test(parseIndianMobileDigits(value));
 }
@@ -641,6 +649,11 @@ export function validateEmployeeForm(
   const bankAccount = form.bankAccountNumber.replace(/\D/g, "");
   if (bankAccount && !isValidBankAccountNumber(bankAccount)) {
     errors.bankAccountNumber = `Enter a valid bank account number (${BANK_ACCOUNT_MIN_LENGTH}–${BANK_ACCOUNT_MAX_LENGTH} digits), or leave blank.`;
+  }
+
+  const ifsc = form.ifscCode.replace(/\s/g, "").toUpperCase();
+  if (ifsc && !isValidIfscCode(ifsc)) {
+    errors.ifscCode = `Enter a valid ${IFSC_CODE_LENGTH}-character IFSC code, or leave blank.`;
   }
 
   const parentNameErr = personNameError(form.parentName, "Parent / guardian name");

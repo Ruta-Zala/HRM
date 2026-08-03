@@ -17,6 +17,7 @@ export { collectSkillsFromEmployeeSheet } from "./skills";
 export {
   BANK_ACCOUNT_MIN_LENGTH,
   BANK_ACCOUNT_MAX_LENGTH,
+  IFSC_CODE_LENGTH,
   EMPLOYEE_MIN_AGE,
   EMPLOYEE_MAX_EXPERIENCE_YEARS,
   type EmployeeFieldErrors,

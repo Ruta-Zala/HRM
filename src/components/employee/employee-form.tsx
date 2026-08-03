@@ -16,10 +16,10 @@ import {
   BANK_ACCOUNT_MIN_LENGTH,
   EMPLOYEE_DOCUMENT_FIELDS,
   EMPLOYEE_MAX_EXPERIENCE_YEARS,
-  firstEmployeeValidationMessage,
   formToSheetRow,
   initialEmployeeForm,
   hidesEmploymentFields,
+  IFSC_CODE_LENGTH,
   maskAadhar,
   maskPan,
   maxBirthDateForMinAge,
@@ -272,6 +272,11 @@ export function EmployeeForm({
         value = value.replace(/\D/g, "").slice(0, 12);
       } else if (field === "bankAccountNumber") {
         value = value.replace(/\D/g, "").slice(0, BANK_ACCOUNT_MAX_LENGTH);
+      } else if (field === "ifscCode") {
+        value = value
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "")
+          .slice(0, IFSC_CODE_LENGTH);
       } else if (field === "name" || field === "parentName") {
         value = sanitizePersonNameInput(value);
       }
@@ -412,6 +417,10 @@ export function EmployeeForm({
 
       if (result.errors && typeof result.errors === "object") {
         setFieldErrors(result.errors as EmployeeFieldErrors);
+        if (Object.keys(result.errors).length > 0) {
+          setError(null);
+          return;
+        }
       }
       setError(
         toUserFacingActionError(
@@ -431,9 +440,8 @@ export function EmployeeForm({
     const errors = validateEmployeeForm(form);
     setFieldErrors(errors);
 
-    const message = firstEmployeeValidationMessage(errors);
-    if (message) {
-      setError(message);
+    if (Object.keys(errors).length > 0) {
+      setError(null);
       return;
     }
 
@@ -445,7 +453,7 @@ export function EmployeeForm({
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} noValidate>
       <div className="mb-4 flex flex-col gap-4 xl:flex-row">
         <div className="w-full max-w-3xl space-y-6 xl:w-1/2">
           <Card>
@@ -559,6 +567,18 @@ export function EmployeeForm({
                   autoComplete="off"
                   maxLength={BANK_ACCOUNT_MAX_LENGTH}
                   aria-invalid={Boolean(fieldErrors.bankAccountNumber)}
+                />
+              </FormField>
+
+              <FormField label="IFSC code" id="ifscCode" error={fieldErrors.ifscCode} optional>
+                <Input
+                  id="ifscCode"
+                  value={form.ifscCode}
+                  onChange={update("ifscCode")}
+                  placeholder={`${IFSC_CODE_LENGTH}-character IFSC (e.g. SBIN0001234)`}
+                  autoComplete="off"
+                  maxLength={IFSC_CODE_LENGTH}
+                  aria-invalid={Boolean(fieldErrors.ifscCode)}
                 />
               </FormField>
             </CardContent>

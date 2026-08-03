@@ -95,6 +95,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
         title: toast.title,
         body: toast.body,
         href: toast.href,
+        variant: toast.variant ?? "default",
       };
 
       setToasts((current) => {
