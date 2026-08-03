@@ -24,11 +24,85 @@ const MONTH_NAMES = [
   "Dec",
 ] as const;
 
+export type AppZonedParts = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+/** Business timezone for attendance dates/times (punch, sheets, “today”). */
+export function getAppTimeZone(): string {
+  return process.env.APP_TIME_ZONE?.trim() || "Asia/Kolkata";
+}
+
+export function getAppZonedParts(date: Date = new Date()): AppZonedParts {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: getAppTimeZone(),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const values: Record<string, string> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") values[part.type] = part.value;
+  }
+
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+    second: Number(values.second),
+  };
+}
+
+/**
+ * Convert an app-timezone wall clock on a calendar day to a UTC epoch ms.
+ * Needed so punch metrics stay correct when the Node host runs in UTC (e.g. Vercel).
+ */
+export function appZonedDateTimeToUtcMs(
+  year: number,
+  month: number,
+  day: number,
+  hour = 0,
+  minute = 0,
+  second = 0,
+): number {
+  let utcMs = Date.UTC(year, month - 1, day, hour, minute, second);
+
+  for (let i = 0; i < 3; i++) {
+    const parts = getAppZonedParts(new Date(utcMs));
+    const asUtc = Date.UTC(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hour,
+      parts.minute,
+      parts.second,
+    );
+    const desired = Date.UTC(year, month - 1, day, hour, minute, second);
+    const diff = desired - asUtc;
+    if (diff === 0) break;
+    utcMs += diff;
+  }
+
+  return utcMs;
+}
+
 /** Sheet tab name: `May-2026` */
 export function monthlySheetTitle(date: Date = new Date()): string {
-  const month = MONTH_NAMES[date.getMonth()];
-  const year = date.getFullYear();
-  return `${month}-${year}`;
+  const parts = getAppZonedParts(date);
+  const month = MONTH_NAMES[parts.month - 1];
+  return `${month}-${parts.year}`;
 }
 
 export function parseMonthlySheetTitle(title: string): { month: number; year: number } | null {
@@ -45,10 +119,8 @@ export function parseMonthlySheetTitle(title: string): { month: number; year: nu
 }
 
 export function formatIsoDate(date: Date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  const parts = getAppZonedParts(date);
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
 }
 
 /** Normalize sheet date cells (ISO, locale strings, serial numbers) for comparison. */
@@ -101,13 +173,25 @@ export function formatSheetDateLiteral(date: Date = new Date()): string {
 
 export function formatClockTime(date: Date = new Date()): string {
   return date.toLocaleTimeString("en-IN", {
+    timeZone: getAppTimeZone(),
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
   });
 }
 
-/** Parse `09:04 AM` / `09:04` / ISO into ms since midnight on `baseDate`. */
+/** Format hour/minute values that are already app-timezone wall clock as `hh:mm am/pm`. */
+export function formatWallClockTime(hours: number, minutes: number, seconds = 0): string {
+  const utc = new Date(Date.UTC(2000, 0, 1, hours, minutes, seconds));
+  return utc.toLocaleTimeString("en-IN", {
+    timeZone: "UTC",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+/** Parse `09:04 AM` / `09:04` / ISO into epoch ms on `baseDate`'s app-timezone calendar day. */
 export function parseTimeOnDate(value: string, baseDate: Date): number | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -128,9 +212,8 @@ export function parseTimeOnDate(value: string, baseDate: Date): number | null {
   if (meridiem === "PM" && hours < 12) hours += 12;
   if (meridiem === "AM" && hours === 12) hours = 0;
 
-  const result = new Date(baseDate);
-  result.setHours(hours, minutes, seconds, 0);
-  return result.getTime();
+  const day = getAppZonedParts(baseDate);
+  return appZonedDateTimeToUtcMs(day.year, day.month, day.day, hours, minutes, seconds);
 }
 
 /**
@@ -145,31 +228,29 @@ export function parseSheetClockTime(
   const trimmed = value.trim();
   if (!trimmed) return null;
 
+  const day = getAppZonedParts(baseDate);
+
   const hourOnly = trimmed.match(/^(\d{1,2})$/);
   if (hourOnly && !/AM|PM/i.test(trimmed)) {
     let hours = parseInt(hourOnly[1], 10);
     if (options?.role === "out" && hours >= 1 && hours <= 11) hours += 12;
-    const result = new Date(baseDate);
-    result.setHours(hours, 0, 0, 0);
-    return result.getTime();
+    return appZonedDateTimeToUtcMs(day.year, day.month, day.day, hours, 0, 0);
   }
 
   if (/^\d+(\.\d+)?$/.test(trimmed)) {
     const serial = parseFloat(trimmed);
     if (serial > 0 && serial < 1) {
       const ms = Math.round(serial * 24 * 60 * 60 * 1000);
-      const result = new Date(baseDate);
-      result.setHours(0, 0, 0, 0);
-      return result.getTime() + ms;
+      return appZonedDateTimeToUtcMs(day.year, day.month, day.day, 0, 0, 0) + ms;
     }
   }
 
-  const ms = parseTimeOnDate(trimmed, baseDate);
-  if (ms == null) return null;
-  if (/AM|PM/i.test(trimmed)) return ms;
+  const parsedMs = parseTimeOnDate(trimmed, baseDate);
+  if (parsedMs == null) return null;
+  if (/AM|PM/i.test(trimmed)) return parsedMs;
 
   const match = trimmed.match(/^(\d{1,2}):(\d{1,2})/);
-  if (!match) return ms;
+  if (!match) return parsedMs;
 
   const hours = parseInt(match[1], 10);
   const minutes = parseInt(match[2], 10);
@@ -177,21 +258,18 @@ export function parseSheetClockTime(
   const punchInMs = options?.punchIn ? parseTimeOnDate(options.punchIn, baseDate) : null;
 
   const treatAsPm =
-    options?.role === "out" || (punchInMs != null && ms <= punchInMs && hours >= 1 && hours <= 11);
+    options?.role === "out" ||
+    (punchInMs != null && parsedMs <= punchInMs && hours >= 1 && hours <= 11);
 
   if (treatAsPm && hours < 12) {
-    const result = new Date(baseDate);
-    result.setHours(hours + 12, minutes, 0, 0);
-    return result.getTime();
+    return appZonedDateTimeToUtcMs(day.year, day.month, day.day, hours + 12, minutes, 0);
   }
 
   if (options?.role === "in" && hours >= 1 && hours <= 11 && !/PM/i.test(trimmed)) {
-    const result = new Date(baseDate);
-    result.setHours(hours, minutes, 0, 0);
-    return result.getTime();
+    return appZonedDateTimeToUtcMs(day.year, day.month, day.day, hours, minutes, 0);
   }
 
-  return ms;
+  return parsedMs;
 }
 
 export function parseDurationToMs(value: string): number {
@@ -408,9 +486,7 @@ export function parseLegacyImportClockTime(
     hours += 12;
   }
 
-  const result = new Date(baseDate);
-  result.setHours(hours, minutes, seconds, 0);
-  return formatClockTime(result);
+  return formatWallClockTime(hours, minutes, seconds);
 }
 
 export function formatBreakAllowance(usedMs: number): string {

@@ -458,13 +458,11 @@ export function EmployeeForm({
                   id="name"
                   value={form.name}
                   onChange={update("name")}
-                  placeholder="First Last"
+                  placeholder="Full Name"
                   required
                   aria-invalid={Boolean(fieldErrors.name)}
                 />
-                <p className="text-ex-muted text-xs">
-                  Full name with first and last name. Letters only — no numbers or random text.
-                </p>
+                <p className="text-ex-muted text-xs">Full name with first and last name.</p>
               </FormField>
 
               <FormField label="Role" id="role" error={fieldErrors.role}>
@@ -494,10 +492,6 @@ export function EmployeeForm({
                     required
                     aria-invalid={Boolean(fieldErrors.address)}
                   />
-                  <p className="text-ex-muted text-xs">
-                    Enter a complete residential address. Short placeholders like &quot;test&quot;
-                    are not allowed.
-                  </p>
                 </FormField>
               </div>
 
@@ -510,7 +504,6 @@ export function EmployeeForm({
                   required
                   aria-invalid={Boolean(fieldErrors.birthdayDate)}
                 />
-                <p className="text-ex-muted text-xs">Employee must be at least 18 years old.</p>
               </FormField>
 
               <FormField label="PAN number" id="panNumber" error={fieldErrors.panNumber} optional>
@@ -567,10 +560,6 @@ export function EmployeeForm({
                   maxLength={BANK_ACCOUNT_MAX_LENGTH}
                   aria-invalid={Boolean(fieldErrors.bankAccountNumber)}
                 />
-                <p className="text-ex-muted text-xs">
-                  Leave blank if unknown. If entered, must be {BANK_ACCOUNT_MIN_LENGTH}–
-                  {BANK_ACCOUNT_MAX_LENGTH} digits.
-                </p>
               </FormField>
             </CardContent>
           </Card>
@@ -703,6 +692,10 @@ export function EmployeeForm({
                       <option value="">Select</option>
                       {[
                         { value: POSITIONS.TRAINEE, label: "Trainee" },
+                        {
+                          value: POSITIONS.AI_ML_LLM_TRAINEE,
+                          label: "AI/ML & LLM Trainee",
+                        },
                         { value: POSITIONS.FRONTEND_DEVELOPER, label: "Frontend Developer" },
                         {
                           value: POSITIONS.SENIOR_FRONTEND_DEVELOPER,
@@ -717,6 +710,10 @@ export function EmployeeForm({
                         {
                           value: POSITIONS.SENIOR_FULLSTACK_DEVELOPER,
                           label: "Senior Fullstack Developer",
+                        },
+                        {
+                          value: POSITIONS.AI_ML_LLM_DEVELOPER,
+                          label: "AI/ML & LLM Developer",
                         },
                         { value: POSITIONS.HR_MANAGER, label: "HR Manager" },
                         { value: POSITIONS.TEAM_LEAD, label: "Team Lead" },
@@ -742,9 +739,23 @@ export function EmployeeForm({
                       required
                       aria-invalid={Boolean(fieldErrors.email)}
                     />
-                    <p className="text-ex-muted text-xs">
-                      Use a real email with a valid domain (e.g. gmail.com, yahoo.com, company.com).
-                    </p>
+                  </FormField>
+                </div>
+
+                <div className="space-y-2">
+                  <FormField
+                    label="Contact number"
+                    id="contactNumber"
+                    error={fieldErrors.contactNumber}
+                  >
+                    <IndianPhoneInput
+                      id="contactNumber"
+                      value={form.contactNumber}
+                      onChange={(value) => updateField("contactNumber", value)}
+                      placeholder="Enter Number"
+                      required
+                      aria-invalid={Boolean(fieldErrors.contactNumber)}
+                    />
                   </FormField>
                 </div>
 
@@ -785,23 +796,6 @@ export function EmployeeForm({
                   </FormField>
                 </div>
 
-                <div className="space-y-2">
-                  <FormField
-                    label="Contact number"
-                    id="contactNumber"
-                    error={fieldErrors.contactNumber}
-                  >
-                    <IndianPhoneInput
-                      id="contactNumber"
-                      value={form.contactNumber}
-                      onChange={(value) => updateField("contactNumber", value)}
-                      placeholder="Enter Number"
-                      required
-                      aria-invalid={Boolean(fieldErrors.contactNumber)}
-                    />
-                  </FormField>
-                </div>
-
                 {!hideEmploymentFields ? (
                   <>
                     <div className="space-y-2">
@@ -817,9 +811,6 @@ export function EmployeeForm({
                           placeholder="Years of experience"
                           aria-invalid={Boolean(fieldErrors.experience)}
                         />
-                        <p className="text-ex-muted text-xs">
-                          Maximum {EMPLOYEE_MAX_EXPERIENCE_YEARS} years.
-                        </p>
                       </FormField>
                     </div>
 
@@ -906,7 +897,7 @@ export function EmployeeForm({
                       ? skillsError
                       : skillsLoading
                         ? "Loading skill suggestions…"
-                        : "Type a skill and click Add. Click chips to select."}
+                        : "Enter a skill and click Add to create a chip. Click any chip to select it."}
                   </p>
                 </FormField>
               </CardContent>

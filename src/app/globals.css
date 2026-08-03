@@ -43,6 +43,9 @@
   --ex-banner-warning-border: #fcd34d;
   --ex-banner-warning-icon-bg: #fef3c7;
   --ex-banner-warning-icon-fg: #b45309;
+  --ex-banner-danger-bg: #fef2f2;
+  --ex-banner-danger-fg: #b91c1c;
+  --ex-banner-danger-border: #fecaca;
 
   /* Charts */
   --ex-chart-1: #0f766e;
@@ -77,9 +80,9 @@
   --ex-chip-success-bg: #064e3b;
   --ex-chip-success-fg: #6ee7b7;
   --ex-chip-success-border: #059669;
-  --ex-chip-danger-bg: #4c0519;
-  --ex-chip-danger-fg: #fda4af;
-  --ex-chip-danger-border: #be123c;
+  --ex-chip-danger-bg: #6b3040;
+  --ex-chip-danger-fg: #fecdd3;
+  --ex-chip-danger-border: #fb7185;
   --ex-chip-info-bg: #1e3a5f;
   --ex-chip-info-fg: #7dd3fc;
   --ex-chip-info-border: #0284c7;
@@ -90,6 +93,9 @@
   --ex-banner-warning-border: #d97706;
   --ex-banner-warning-icon-bg: #6d5735;
   --ex-banner-warning-icon-fg: #fde68a;
+  --ex-banner-danger-bg: #6b3040;
+  --ex-banner-danger-fg: #ffe4e6;
+  --ex-banner-danger-border: #fb7185;
 
   --ex-chart-1: #2dd4bf;
   --ex-chart-2: #34d399;
@@ -128,6 +134,9 @@
   --color-ex-banner-warning-border: var(--ex-banner-warning-border);
   --color-ex-banner-warning-icon-bg: var(--ex-banner-warning-icon-bg);
   --color-ex-banner-warning-icon-fg: var(--ex-banner-warning-icon-fg);
+  --color-ex-banner-danger-bg: var(--ex-banner-danger-bg);
+  --color-ex-banner-danger-fg: var(--ex-banner-danger-fg);
+  --color-ex-banner-danger-border: var(--ex-banner-danger-border);
   --color-ex-border: var(--ex-border);
   --color-ex-muted: var(--ex-muted);
   --color-ex-ring: var(--ex-ring);

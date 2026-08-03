@@ -393,7 +393,7 @@ export function PunchDesk({
               onClick={onPunchIn}
             >
               {acting ? <Loader2 className="size-5 animate-spin" /> : <LogIn className="size-5" />}
-              {acting ? "Starting your day…" : "Punch in — start my day"}
+              {acting ? "Starting your day…" : "Punch in — Start my day"}
             </Button>
           ) : null}
 
@@ -402,7 +402,7 @@ export function PunchDesk({
               <Button
                 size="lg"
                 variant="outline"
-                className="h-12 gap-2 border-amber-300/60 bg-amber-50/80 text-amber-900 hover:bg-amber-100 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100"
+                className="h-12 gap-2 border-amber-300/60 bg-amber-50/80 text-amber-900 hover:bg-amber-100 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-950/60 dark:hover:text-amber-50"
                 disabled={acting || loading || isHalfDayLeave}
                 onClick={onBreakStart}
               >

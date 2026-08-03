@@ -99,6 +99,8 @@ export default function SalarySlipsPage() {
   const [basic, setBasic] = useState("");
   const [loyaltyBonus, setLoyaltyBonus] = useState("10");
   const [professionalTax, setProfessionalTax] = useState("200");
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadSlips = useCallback(async () => {
     setLoading(true);
@@ -139,7 +141,7 @@ export default function SalarySlipsPage() {
     } catch (error) {
       console.error(error);
       setSlips([]);
-      window.alert(toUserFacingFetchError(error));
+      setError(toUserFacingFetchError(error));
     } finally {
       setLoading(false);
     }
@@ -166,7 +168,7 @@ export default function SalarySlipsPage() {
       );
     } catch (error) {
       console.error(error);
-      window.alert(toUserFacingFetchError(error));
+      setError(toUserFacingFetchError(error));
     }
   }, [canManage]);
 
@@ -188,7 +190,7 @@ export default function SalarySlipsPage() {
     } catch (error) {
       console.error(error);
       setHistoryRecords([]);
-      window.alert(toUserFacingFetchError(error));
+      setError(toUserFacingFetchError(error));
     } finally {
       setHistoryLoading(false);
     }
@@ -270,11 +272,14 @@ export default function SalarySlipsPage() {
 
   const generateSlips = async () => {
     if (!year.trim() || !month.trim()) {
-      window.alert("Select year and month before generating slips.");
+      setSuccessMessage(null);
+      setError("Select year and month before generating slips.");
       return;
     }
 
     setBusy(true);
+    setError(null);
+    setSuccessMessage(null);
     try {
       const payload: Record<string, unknown> = {
         year: Number(year),
@@ -297,7 +302,7 @@ export default function SalarySlipsPage() {
       }
       await loadSlips();
     } catch (error) {
-      window.alert(toUserFacingActionError(error));
+      setError(toUserFacingActionError(error));
     } finally {
       setBusy(false);
     }
@@ -306,16 +311,19 @@ export default function SalarySlipsPage() {
   const addSalaryHistory = async () => {
     const selectedRow = Number(historyEmployeeSheetRow);
     if (!Number.isInteger(selectedRow) || selectedRow < 2) {
-      window.alert("Select an employee first.");
+      setSuccessMessage(null);
+      setError("Select an employee first.");
       return;
     }
     if (!effectiveFrom.trim()) {
-      window.alert("Select an effective date.");
+      setSuccessMessage(null);
+      setError("Select an effective date.");
       return;
     }
     const basicAmount = Number(basic || 0);
     if (!(basicAmount > 0)) {
-      window.alert("Enter a basic salary greater than 0.");
+      setSuccessMessage(null);
+      setError("Enter a basic salary greater than 0.");
       return;
     }
 
@@ -345,6 +353,8 @@ export default function SalarySlipsPage() {
     }
 
     setBusy(true);
+    setError(null);
+    setSuccessMessage(null);
     try {
       const employeeName = employees.find((e) => e.sheetRow === historyEmployeeSheetRow)?.name;
       const res = await fetch("/api/salary-history", {
@@ -366,12 +376,12 @@ export default function SalarySlipsPage() {
         [key: string]: unknown;
       }>(res, "action");
       if (!data.success) throw new Error(data.message ?? "Failed to save salary history");
-      window.alert("Salary history saved");
+      setSuccessMessage("Salary history saved");
       setBasic("");
       setEffectiveFrom("");
       await loadHistory();
     } catch (error) {
-      window.alert(toUserFacingActionError(error));
+      setError(toUserFacingActionError(error));
     } finally {
       setBusy(false);
     }
@@ -379,6 +389,8 @@ export default function SalarySlipsPage() {
 
   const deleteSlip = async (slipId: string) => {
     setBusy(true);
+    setError(null);
+    setSuccessMessage(null);
     try {
       const res = await fetch(`/api/salary-slips?slipId=${encodeURIComponent(slipId)}`, {
         method: "DELETE",
@@ -392,7 +404,7 @@ export default function SalarySlipsPage() {
       if (!data.success) throw new Error(data.message ?? "Failed to delete slip");
       await loadSlips();
     } catch (error) {
-      window.alert(toUserFacingActionError(error));
+      setError(toUserFacingActionError(error));
     } finally {
       setBusy(false);
     }
@@ -408,6 +420,16 @@ export default function SalarySlipsPage() {
         title="Salary Slips"
         description="Pay slips with secure download, month-wise release, and percentage-based deductions."
       />
+      {error ? (
+        <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg rounded-xl border px-4 py-3 text-sm">
+          {error}
+        </p>
+      ) : null}
+      {successMessage ? (
+        <p className="border-ex-chip-success-border bg-ex-chip-success-bg text-ex-chip-success-fg rounded-xl border px-4 py-3 text-sm">
+          {successMessage}
+        </p>
+      ) : null}
       {canManage ? (
         <div className="flex flex-wrap items-center gap-4">
           <div className="w-auto min-w-28">

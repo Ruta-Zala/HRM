@@ -18,6 +18,7 @@ import { getMonthAttendance, type AttendanceRow } from "@/lib/google/attendance-
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import { leaveDateToIso } from "@/lib/payroll/leave-attendance";
 import { isWeekend } from "@/lib/payroll/working-days";
+import { getAppTimeZone } from "@/lib/attendance/time";
 import { notificationDateIso } from "@/lib/notifications/automation-date";
 
 export type UnapprovedAbsenceReason = "no_punch";
@@ -107,7 +108,7 @@ function shouldEvaluateNoPunch(dateIso: string): boolean {
   if (dateIso > todayIso) return false;
 
   const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: process.env.APP_TIME_ZONE?.trim() || "Asia/Kolkata",
+    timeZone: getAppTimeZone(),
     hour: "numeric",
     minute: "numeric",
     hourCycle: "h23",
