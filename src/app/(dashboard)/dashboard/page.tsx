@@ -31,6 +31,9 @@ import { resolveProfileImageSrc } from "@/lib/employee";
 import { toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { cn } from "@/lib/utils";
 
+/** Shared body height so holiday / on-leave / absence cards don’t jump while loading. */
+const DASHBOARD_PANEL_BODY = "h-80";
+
 // const headcountTrend = [
 //   { month: "Jan", onboarded: 4, attrition: 1 },
 //   { month: "Feb", onboarded: 2, attrition: 0 },
@@ -494,16 +497,21 @@ export default function DashboardPage() {
               </Badge>
             ) : null}
           </CardHeader>
-          <CardContent className="flex flex-1 flex-col p-4">
+          <CardContent className="flex flex-1 flex-col p-5">
             {upcomingHolidays.length === 0 ? (
-              <div className="border-ex-border flex h-60 flex-col items-center justify-center rounded-xl border border-dashed px-5 text-center">
+              <div
+                className={cn(
+                  "border-ex-border flex flex-col items-center justify-center rounded-xl border border-dashed px-5 text-center",
+                  DASHBOARD_PANEL_BODY,
+                )}
+              >
                 <p className="text-ex-primary text-sm font-medium">No upcoming holidays</p>
                 <p className="text-ex-muted mt-1 text-xs">
                   New company leave days and celebrations will appear here.
                 </p>
               </div>
             ) : (
-              <div className="h-80 space-y-3 overflow-y-auto pr-1">
+              <div className={cn(DASHBOARD_PANEL_BODY, "space-y-3 overflow-y-auto pr-1")}>
                 {upcomingHolidays.map((holiday) => (
                   <UpcomingHolidayItem key={holiday.id} holiday={holiday} />
                 ))}
@@ -542,28 +550,37 @@ export default function DashboardPage() {
                 />
               ) : null}
             </div>
-            {!onLeaveLoading ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={onLeave.length > 0 ? "warning" : "default"}>
-                  {onLeave.length} on leave
-                </Badge>
-                {canManageLeave ? (
-                  <Badge variant={birthdayLeaveEmployees.length > 0 ? "accent" : "default"}>
-                    {birthdayLeaveEmployees.length} birthday
+            <div className="flex min-h-7 flex-wrap items-center gap-2">
+              {onLeaveLoading ? (
+                <>
+                  <div className="bg-ex-surface h-6 w-20 animate-pulse rounded-full" />
+                  {canManageLeave ? (
+                    <div className="bg-ex-surface h-6 w-20 animate-pulse rounded-full" />
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <Badge variant={onLeave.length > 0 ? "warning" : "default"}>
+                    {onLeave.length} on leave
                   </Badge>
-                ) : null}
-              </div>
-            ) : null}
+                  {canManageLeave ? (
+                    <Badge variant={birthdayLeaveEmployees.length > 0 ? "accent" : "default"}>
+                      {birthdayLeaveEmployees.length} birthday
+                    </Badge>
+                  ) : null}
+                </>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col p-5">
             {onLeaveError ? (
-              <div className="flex h-60 items-center">
-                <p className="w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+              <div className={cn("flex items-center", DASHBOARD_PANEL_BODY)}>
+                <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg w-full rounded-lg border px-4 py-3 text-sm">
                   {onLeaveError}
                 </p>
               </div>
             ) : onLeaveLoading ? (
-              <div className="grid h-60 gap-3">
+              <div className={cn("grid gap-3", DASHBOARD_PANEL_BODY)}>
                 {[0, 1, 2].map((item) => (
                   <div
                     key={item}
@@ -572,7 +589,12 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : onLeave.length === 0 ? (
-              <div className="border-ex-border bg-ex-surface/40 flex h-80 flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center">
+              <div
+                className={cn(
+                  "border-ex-border bg-ex-surface/40 flex flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center",
+                  DASHBOARD_PANEL_BODY,
+                )}
+              >
                 <div className="bg-ex-elevated text-ex-muted mx-auto flex size-12 items-center justify-center rounded-full text-xl">
                   ✓
                 </div>
@@ -583,7 +605,7 @@ export default function DashboardPage() {
                 </p>
               </div>
             ) : (
-              <div className="h-60 space-y-6 overflow-y-auto pr-1">
+              <div className={cn(DASHBOARD_PANEL_BODY, "space-y-6 overflow-y-auto pr-1")}>
                 {birthdayLeaveEmployees.length > 0 ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -653,23 +675,25 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              {!unapprovedAbsenceLoading ? (
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-h-7 flex-wrap items-center gap-2">
+                {unapprovedAbsenceLoading ? (
+                  <div className="bg-ex-surface h-6 w-24 animate-pulse rounded-full" />
+                ) : (
                   <Badge variant={unapprovedNoPunch.length > 0 ? "danger" : "default"}>
                     {unapprovedNoPunch.length} no punch
                   </Badge>
-                </div>
-              ) : null}
+                )}
+              </div>
             </CardHeader>
             <CardContent className="flex flex-1 flex-col p-5">
               {unapprovedAbsenceError ? (
-                <div className="flex h-60 items-center">
-                  <p className="w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                <div className={cn("flex items-center", DASHBOARD_PANEL_BODY)}>
+                  <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg w-full rounded-lg border px-4 py-3 text-sm">
                     {unapprovedAbsenceError}
                   </p>
                 </div>
               ) : unapprovedAbsenceLoading ? (
-                <div className="grid h-60 gap-3">
+                <div className={cn("grid gap-3", DASHBOARD_PANEL_BODY)}>
                   {[0, 1, 2].map((item) => (
                     <div
                       key={item}
@@ -678,7 +702,12 @@ export default function DashboardPage() {
                   ))}
                 </div>
               ) : unapprovedAbsence.length === 0 ? (
-                <div className="border-ex-border bg-ex-surface/40 flex h-80 flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center">
+                <div
+                  className={cn(
+                    "border-ex-border bg-ex-surface/40 flex flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center",
+                    DASHBOARD_PANEL_BODY,
+                  )}
+                >
                   <div className="bg-ex-elevated text-ex-muted mx-auto flex size-12 items-center justify-center rounded-full text-xl">
                     ✓
                   </div>
@@ -688,7 +717,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
               ) : (
-                <div className="h-60 overflow-y-auto pr-1">
+                <div className={cn(DASHBOARD_PANEL_BODY, "overflow-y-auto pr-1")}>
                   <div className="divide-ex-border border-ex-border divide-y overflow-hidden rounded-xl border">
                     {unapprovedAbsence.map((employee) => (
                       <UnapprovedAbsenceEmployeeCard key={employee.id} employee={employee} />

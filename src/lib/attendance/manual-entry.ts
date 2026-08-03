@@ -1,5 +1,11 @@
 import { canonicalizeWorkMode, isPunchOptionalWorkMode } from "@/lib/attendance/constants";
-import { parseLegacyImportClockTime, parseTimeOnDate, formatDuration } from "@/lib/attendance/time";
+import {
+  formatIsoDate,
+  getAppZonedParts,
+  parseLegacyImportClockTime,
+  parseTimeOnDate,
+  formatDuration,
+} from "@/lib/attendance/time";
 
 export type ManualAttendanceInput = {
   dateIso: string;
@@ -14,12 +20,9 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export { isPunchOptionalWorkMode };
 
-/** Local calendar date as YYYY-MM-DD. */
+/** App-timezone calendar date as YYYY-MM-DD. */
 export function localTodayIso(date: Date = new Date()): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return formatIsoDate(date);
 }
 
 export function assertValidManualAttendanceDate(dateIso: string): void {
@@ -48,8 +51,8 @@ export function timeInputToClock(value: string, kind: "in" | "out", baseDate: Da
 export function clockToTimeInput(value: string, baseDate: Date): string {
   const ms = parseTimeOnDate(value.trim(), baseDate);
   if (ms == null) return "";
-  const date = new Date(ms);
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  const parts = getAppZonedParts(new Date(ms));
+  return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
 }
 
 export function normalizeManualAttendanceInput(input: ManualAttendanceInput): {

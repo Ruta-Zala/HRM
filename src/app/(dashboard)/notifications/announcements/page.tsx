@@ -173,7 +173,7 @@ export default function AnnouncementsPage() {
           </div>
 
           {error ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 md:col-span-2 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg rounded-lg border px-4 py-3 text-sm md:col-span-2">
               {error}
             </p>
           ) : null}

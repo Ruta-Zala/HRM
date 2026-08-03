@@ -124,7 +124,7 @@ export default function LeaveDeskPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const canApplyLeave = user ? roleCanApplyLeave(user.role) : false;
-  const { refresh: refreshNotifications, pushToast } = useNotifications();
+  const { refresh: refreshNotifications } = useNotifications();
   const [isSingleDay, setIsSingleDay] = useState(true);
 
   const [fromDate, setFromDate] = useState("");
@@ -139,6 +139,7 @@ export default function LeaveDeskPage() {
 
   const [balancesLoading, setBalancesLoading] = useState(true);
   const [balances, setBalances] = useState<LeaveBalanceResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const formDisabled = balancesLoading || submitting;
 
@@ -156,16 +157,22 @@ export default function LeaveDeskPage() {
     setBalancesLoading(true);
     try {
       const res = await fetch("/api/employee/leaves");
-      const data = await readResponseJson<LeaveBalanceResponse>(res, "fetch");
+      const data = await readResponseJson<LeaveBalanceResponse & { message?: string }>(
+        res,
+        "fetch",
+      );
 
       if (data.success) {
         setBalances(data);
+        setError(null);
         if (data.birthdayDateIso) {
           setBirthdayLeaveDate((current) => current || data.birthdayDateIso || "");
         }
+      } else {
+        setError(toUserFacingFetchError());
       }
     } catch (error) {
-      window.alert(toUserFacingFetchError(error));
+      setError(toUserFacingFetchError(error));
     } finally {
       setBalancesLoading(false);
     }
@@ -242,28 +249,29 @@ export default function LeaveDeskPage() {
   const submitLeaveRequest = async () => {
     if (isBirthdayLeave) {
       if (!birthdayLeaveDateValue) {
-        window.alert("Please select your birthday leave date");
+        setError("Please select your birthday leave date");
         return;
       }
     } else {
       if (!fromDate) {
-        window.alert("Please select a date");
+        setError("Please select a date");
         return;
       }
 
       if (!isSingleDay && !toDate) {
-        window.alert("Please select end date");
+        setError("Please select end date");
         return;
       }
 
       if (!reason.trim()) {
-        window.alert("Please provide a reason");
+        setError("Please provide a reason");
         return;
       }
     }
 
     setSubmitting(true);
     setBalancesLoading(true);
+    setError(null);
 
     try {
       const body = isBirthdayLeave
@@ -306,10 +314,7 @@ export default function LeaveDeskPage() {
       await loadBalances();
       await refreshNotifications();
     } catch (error) {
-      pushToast({
-        title: "Leave request failed",
-        body: toUserFacingActionError(error),
-      });
+      setError(toUserFacingActionError(error));
     } finally {
       setSubmitting(false);
       setBalancesLoading(false);
@@ -324,6 +329,11 @@ export default function LeaveDeskPage() {
         title="Leave Desk"
         description="Apply for paid, sick, casual, birthday, or unpaid leave. Submitted requests show as Applied (pending approval) until HR accepts or rejects them."
       />
+      {error ? (
+        <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg rounded-xl border px-4 py-3 text-sm">
+          {error}
+        </p>
+      ) : null}
       <div className="grid items-start gap-4 lg:grid-cols-3">
         <Card className="h-fit lg:col-span-2">
           <CardHeader>
