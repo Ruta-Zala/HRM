@@ -134,6 +134,11 @@ export const navStructure: NavItem[] = [
         href: "/employee/salary-advances",
         roles: [SUPER_ADMIN, HR_MANAGER],
       },
+      {
+        label: "Expenses",
+        href: "/employee/expenses",
+        roles: [SUPER_ADMIN, HR_MANAGER],
+      },
       { label: "Complaints", href: "/employee/complaints", roles: [] },
       {
         label: "Attendance History",

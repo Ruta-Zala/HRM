@@ -4,6 +4,7 @@ import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { addDaysToDateIso, notificationDateIso } from "@/lib/notifications/automation-date";
 import { ensureEmployeeBirthdayNotifications } from "@/lib/notifications/birthday-reminders";
+import { processExpensePaymentRemindersOncePerDay } from "@/lib/notifications/expense-payment-reminders";
 import { ensureIncrementReminders } from "@/lib/notifications/increment-reminders";
 import { processLeaveUpcomingRemindersOncePerDay } from "@/lib/notifications/leave-reminders";
 import {
@@ -66,6 +67,7 @@ export const GET = withActiveSession(async (_req, user) => {
           processLeaveUpcomingRemindersOncePerDay(),
           ensureEmployeeBirthdayNotifications(),
           ensureIncrementReminders(),
+          processExpensePaymentRemindersOncePerDay(),
         ]);
       } catch (reminderError) {
         console.error("On-demand notification automation error:", reminderError);

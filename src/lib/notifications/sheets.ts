@@ -176,6 +176,11 @@ function effectiveExpiresAt(record: NotificationRecord): string {
     return endDate ? addDaysToDateIso(endDate, 1) : "";
   }
 
+  if (record.type === "expense_payment_due") {
+    const reminderDate = record.dedupeKey.match(/:(\d{4}-\d{2}-\d{2}):/)?.[1] ?? "";
+    return reminderDate ? addDaysToDateIso(reminderDate, 1) : "";
+  }
+
   return "";
 }
 

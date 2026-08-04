@@ -1,0 +1,30 @@
+/** Client-safe exports only. Sheet I/O lives in `./sheets` — import that from API routes. */
+export type {
+  CreateExpenseInput,
+  DefaultExpenseCategory,
+  ExpensePaymentMode,
+  ExpenseRecord,
+  ExpenseStatus,
+  ExpenseType,
+  RecurringExpenseCategory,
+  UpdateExpenseInput,
+} from "@/lib/expenses/types";
+export {
+  DEFAULT_EXPENSE_CATEGORIES,
+  ELECTRICITY_DEFAULT_DUE_DAY,
+  EXPENSE_PAYMENT_MODES,
+  EXPENSE_PAYMENT_MODE_OPTIONS,
+  EXPENSE_STATUS,
+  EXPENSE_TYPES,
+  RECURRING_EXPENSE_CATEGORIES,
+  effectiveExpenseDueDate,
+  electricityDefaultDueDate,
+  isExpensePaymentMode,
+  isExpenseStatus,
+  isExpenseType,
+  sheetNameForType,
+  suggestedDueDateForCategory,
+  validateExpenseCategory,
+  validateExpenseDueDate,
+  validateExpensePaymentMode,
+} from "@/lib/expenses/types";
