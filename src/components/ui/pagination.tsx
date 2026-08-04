@@ -7,10 +7,12 @@ export function Pagination({
   pagination,
   onPageChange,
   className,
+  itemLabel = "employees",
 }: {
   pagination: SheetPagination;
   onPageChange: (page: number) => void;
   className?: string;
+  itemLabel?: string;
 }) {
   const { page, totalPages, total, pageSize } = pagination;
 
@@ -29,7 +31,7 @@ export function Pagination({
       )}
     >
       <p className="text-ex-muted text-sm">
-        {total === 0 ? "No records" : `Showing ${start}–${end} of ${total} employees`}
+        {total === 0 ? "No records" : `Showing ${start}–${end} of ${total} ${itemLabel}`}
       </p>
 
       <div className="flex items-center gap-1">

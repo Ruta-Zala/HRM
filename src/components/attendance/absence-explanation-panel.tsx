@@ -105,12 +105,20 @@ async function fetchPendingGroups(): Promise<{
   return { groups: parsed.data.groups ?? [], error: null };
 }
 
+export type AbsenceGateStatus = {
+  loading: boolean;
+  /** True while checking, when pending absences exist, or when the check failed. */
+  blocked: boolean;
+  pendingCount: number;
+  error: string | null;
+};
+
 export function AbsenceExplanationPanel({
   onSubmitted,
-  onPendingChange,
+  onGateChange,
 }: {
   onSubmitted?: () => void;
-  onPendingChange?: (pendingCount: number) => void;
+  onGateChange?: (status: AbsenceGateStatus) => void;
 }) {
   const [groups, setGroups] = useState<PendingAbsenceGroup[]>([]);
   const [explanations, setExplanations] = useState<Record<string, string>>({});
@@ -118,21 +126,25 @@ export function AbsenceExplanationPanel({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Keep parent callbacks in refs so the mount fetch does not re-run when
   // parents pass inline functions (which would otherwise loop: fetch → setState
   // → new callback → effect deps change → fetch again).
-  const onPendingChangeRef = useRef(onPendingChange);
+  const onGateChangeRef = useRef(onGateChange);
   const onSubmittedRef = useRef(onSubmitted);
   useEffect(() => {
-    onPendingChangeRef.current = onPendingChange;
+    onGateChangeRef.current = onGateChange;
     onSubmittedRef.current = onSubmitted;
   });
+
+  const notifyGate = useCallback((status: AbsenceGateStatus) => {
+    onGateChangeRef.current?.(status);
+  }, []);
 
   const applyGroups = useCallback((items: PendingAbsenceGroup[]) => {
     setGroups(items);
     setAbsenceGateSessionHint(items.length > 0);
-    onPendingChangeRef.current?.(items.length);
     setExplanations((current) => {
       const next = { ...current };
       for (const item of items) {
@@ -161,18 +173,41 @@ export function AbsenceExplanationPanel({
   useEffect(() => {
     let cancelled = false;
 
+    notifyGate({ loading: true, blocked: true, pendingCount: 0, error: null });
+
     void (async () => {
       const result = await fetchPendingGroups();
       if (cancelled) return;
-      setError(result.error);
+
+      if (result.error) {
+        setGroups([]);
+        setFetchError(result.error);
+        setAbsenceGateSessionHint(true);
+        setLoading(false);
+        notifyGate({
+          loading: false,
+          blocked: true,
+          pendingCount: 0,
+          error: result.error,
+        });
+        return;
+      }
+
       applyGroups(result.groups);
+      setFetchError(null);
       setLoading(false);
+      notifyGate({
+        loading: false,
+        blocked: result.groups.length > 0,
+        pendingCount: result.groups.length,
+        error: null,
+      });
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [applyGroups]);
+  }, [applyGroups, notifyGate]);
 
   const allValid =
     groups.length > 0 &&
@@ -231,8 +266,15 @@ export function AbsenceExplanationPanel({
       }
 
       // Use groups from POST response — avoid a second GET round-trip.
-      applyGroups(parsed.data.groups ?? []);
+      const nextGroups = parsed.data.groups ?? [];
+      applyGroups(nextGroups);
       setAbsenceGateSessionHint(false);
+      notifyGate({
+        loading: false,
+        blocked: nextGroups.length > 0,
+        pendingCount: nextGroups.length,
+        error: null,
+      });
       onSubmittedRef.current?.();
     } catch (submitError) {
       setError(toUserFacingActionError(submitError));
@@ -243,7 +285,7 @@ export function AbsenceExplanationPanel({
 
   if (loading) {
     return (
-      <Card className="border-amber-200 dark:border-amber-900/60">
+      <Card className="border-ex-border">
         <CardContent className="text-ex-muted flex items-center justify-center gap-2 py-10 text-sm">
           <Loader2 className="size-4 animate-spin" aria-hidden />
           Checking attendance...
@@ -252,7 +294,8 @@ export function AbsenceExplanationPanel({
     );
   }
 
-  if (groups.length === 0) {
+  // Fetch failures are surfaced by the parent page banner; keep the desk blocked via onGateChange.
+  if (fetchError || groups.length === 0) {
     return null;
   }
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { CorrectionForm } from "@/components/attendance/correction-form";
@@ -16,45 +16,34 @@ import { Select } from "@/components/ui/select";
 import { useTodayAttendance } from "@/hooks/use-today-attendance";
 import { useAuth } from "@/contexts/auth-provider";
 import { toUserFacingActionError } from "@/lib/api/user-facing-error";
-import { canManageEmployees, roleCanPunchInOut } from "@/lib/auth/roles";
+import { roleCanPunchInOut } from "@/lib/auth/roles";
 import { roleRequiresAbsenceExplanationGate } from "@/lib/attendance/absence-gate";
-import { readAbsenceGateSessionHint } from "@/lib/attendance/absence-gate-session";
-import {
-  fetchCorrectionRequests,
-  reviewCorrection,
-  updateDailyUpdate,
-  type CorrectionRequestDto,
-} from "@/lib/attendance/client";
-import {
-  CORRECTION_STATUS,
-  WORK_MODE,
-  WORK_MODE_OPTIONS,
-  workModeOptionLabel,
-} from "@/lib/attendance/constants";
+import { updateDailyUpdate } from "@/lib/attendance/client";
+import { WORK_MODE, WORK_MODE_OPTIONS, workModeOptionLabel } from "@/lib/attendance/constants";
 
 export default function PunchPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const canPunch = user ? roleCanPunchInOut(user.role) : false;
-  const isHr = user ? canManageEmployees(user.role) : false;
   const showAbsenceGate = user ? roleRequiresAbsenceExplanationGate(user.role) : false;
-  const { today, loading, error, acting, liveWorkedMs, runAction, refresh } = useTodayAttendance();
+  const { today, loading, error, acting, actingAction, liveWorkedMs, runAction, refresh } =
+    useTodayAttendance();
   const [showCorrection, setShowCorrection] = useState(false);
-  const [corrections, setCorrections] = useState<CorrectionRequestDto[]>([]);
-  const [reviewing, setReviewing] = useState<{
-    id: string;
-    status: "Approved" | "Rejected";
-  } | null>(null);
+  const correctionFormRef = useRef<HTMLDivElement>(null);
   const [earlyLeaveOpen, setEarlyLeaveOpen] = useState(false);
   const [earlyLeaveError, setEarlyLeaveError] = useState<string | null>(null);
   const [dailyUpdateDraft, setDailyUpdateDraft] = useState<string | null>(null);
   const [dailyUpdateSaving, setDailyUpdateSaving] = useState(false);
   const [dailyUpdateError, setDailyUpdateError] = useState<string | null>(null);
   const [workMode, setWorkMode] = useState<string>(WORK_MODE.FULL_DAY_ONSITE);
-  const [explanationBlocked, setExplanationBlocked] = useState(() => {
-    if (!showAbsenceGate) return false;
-    return readAbsenceGateSessionHint() ?? true;
-  });
+  // Stay blocked until the absence check finishes successfully with no pending items.
+  // Derived from the panel report so we never sync props into state via an effect.
+  const [absenceGate, setAbsenceGate] = useState<{
+    blocked: boolean;
+    error: string | null;
+  } | null>(null);
+  const absenceGateBlocked = showAbsenceGate && (absenceGate?.blocked ?? true);
+  const absenceGateError = showAbsenceGate ? (absenceGate?.error ?? null) : null;
 
   const targetMs = (today?.idealHours ?? 8) * 60 * 60 * 1000;
   const shortfallMs = Math.max(0, targetMs - liveWorkedMs);
@@ -103,22 +92,9 @@ export default function PunchPage() {
   }, [authLoading, user, canPunch, router]);
 
   useEffect(() => {
-    if (!isHr || !canPunch) return;
-    void fetchCorrectionRequests()
-      .then(setCorrections)
-      .catch(() => {});
-  }, [isHr, canPunch]);
-
-  async function handleReview(id: string, status: "Approved" | "Rejected") {
-    setReviewing({ id, status });
-    try {
-      await reviewCorrection(id, status);
-      setCorrections(await fetchCorrectionRequests());
-      await refresh();
-    } finally {
-      setReviewing(null);
-    }
-  }
+    if (!showCorrection) return;
+    correctionFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [showCorrection]);
 
   if (authLoading) {
     return (
@@ -156,22 +132,24 @@ export default function PunchPage() {
         </p>
       </div>
 
-      {error ? (
+      {error || absenceGateError ? (
         <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg rounded-xl border px-4 py-3 text-sm">
-          {error}
+          {error ?? absenceGateError}
         </p>
       ) : null}
 
       {showAbsenceGate ? (
         <AbsenceExplanationPanel
-          onPendingChange={(count) => setExplanationBlocked(count > 0)}
+          onGateChange={(status) => {
+            setAbsenceGate({ blocked: status.blocked, error: status.error });
+          }}
           onSubmitted={() => {
             window.location.reload();
           }}
         />
       ) : null}
 
-      {showAbsenceGate && explanationBlocked ? null : (
+      {showAbsenceGate && absenceGateBlocked ? null : (
         <>
           {!today?.hasPunchedIn ? (
             <Card>
@@ -202,6 +180,7 @@ export default function PunchPage() {
             today={today}
             loading={loading}
             acting={acting}
+            actingAction={actingAction}
             liveWorkedMs={liveWorkedMs}
             onPunchIn={() => void runAction("punch-in", { workMode })}
             onPunchOut={() => void handlePunchOut()}
@@ -269,70 +248,13 @@ export default function PunchPage() {
           ) : null}
 
           {showCorrection && today?.hasPunchedIn ? (
-            <CorrectionForm
-              date={today.date}
-              onSuccess={() => setShowCorrection(false)}
-              onCancel={() => setShowCorrection(false)}
-            />
-          ) : null}
-
-          {isHr && corrections.some((c) => c.status === CORRECTION_STATUS.PENDING) ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Pending correction requests</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {corrections
-                  .filter((c) => c.status === CORRECTION_STATUS.PENDING)
-                  .map((c) => (
-                    <div
-                      key={c.id}
-                      className="border-ex-border bg-ex-surface/50 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="text-sm">
-                        <p className="text-ex-primary font-medium">
-                          {c.employeeName} · {c.date} · {c.field}
-                        </p>
-                        <p className="text-ex-muted">
-                          {c.originalValue || "—"} → {c.requestedValue}
-                        </p>
-                        <p className="text-ex-muted mt-1">{c.reason}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          disabled={reviewing !== null}
-                          onClick={() => void handleReview(c.id, "Approved")}
-                        >
-                          {reviewing?.id === c.id && reviewing.status === "Approved" ? (
-                            <>
-                              <Loader2 className="size-4 animate-spin" aria-hidden />
-                              Approving…
-                            </>
-                          ) : (
-                            "Approve"
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={reviewing !== null}
-                          onClick={() => void handleReview(c.id, "Rejected")}
-                        >
-                          {reviewing?.id === c.id && reviewing.status === "Rejected" ? (
-                            <>
-                              <Loader2 className="size-4 animate-spin" aria-hidden />
-                              Rejecting…
-                            </>
-                          ) : (
-                            "Reject"
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-              </CardContent>
-            </Card>
+            <div ref={correctionFormRef} className="scroll-mt-6">
+              <CorrectionForm
+                date={today.date}
+                onSuccess={() => setShowCorrection(false)}
+                onCancel={() => setShowCorrection(false)}
+              />
+            </div>
           ) : null}
         </>
       )}
