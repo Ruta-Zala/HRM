@@ -7,6 +7,7 @@ import { createNotifications } from "@/lib/notifications/sheets";
 import { NOTIFICATION_TYPES, type NotificationType } from "@/lib/notifications/types";
 
 const PUNCH_HREF = "/employee/punch";
+const APPROVALS_HREF = "/leave/approvals#corrections";
 
 function fieldLabel(field: CorrectionField | string): string {
   const labels: Record<string, string> = {
@@ -44,7 +45,7 @@ export async function notifyCorrectionSubmitted(params: {
       type: NOTIFICATION_TYPES.CORRECTION_SUBMITTED as NotificationType,
       title: "New correction request",
       body: `${request.employeeName} requested a ${field} correction for ${request.date} to ${request.requestedValue}.`,
-      href: PUNCH_HREF,
+      href: APPROVALS_HREF,
       dedupeKey: `correction_submitted_hr:${request.id}:${recipient.sheetRow}`,
     });
   }

@@ -94,7 +94,19 @@ export function readNetworkGateDecision(
   if (payload.exp < Date.now()) return "revalidate";
 
   const currentIp = getClientIp(req);
-  if (payload.ip && currentIp && payload.ip !== currentIp) return "revalidate";
+  /**
+   * Forwarded client IP can occasionally fluctuate between requests (proxy/header variance).
+   * Treat mismatch as soft revalidation instead of hard-blocking a previously allowed user.
+   */
+  if (payload.ip && currentIp && payload.ip !== currentIp) {
+    return payload.allowed ? "allow" : "revalidate";
+  }
 
-  return payload.allowed ? "allow" : "block";
+  /**
+   * Never hard-cache "blocked" in middleware. Revalidate through /api/auth/network-access
+   * so recent office-IP / WFH-list changes can take effect immediately.
+   */
+  if (!payload.allowed) return "revalidate";
+
+  return "allow";
 }

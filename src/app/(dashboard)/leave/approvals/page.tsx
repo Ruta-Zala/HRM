@@ -2,14 +2,17 @@
 
 import { readResponseJson } from "@/lib/api/read-response-json";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PendingCorrectionRequests } from "@/components/attendance/pending-correction-requests";
 import { PageHeader } from "@/components/ui/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import { RefreshCw } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
+import { parseLeaveDisplayDate } from "@/lib/attendance/leave-range-display";
 import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { useNotifications } from "@/contexts/notifications-provider";
 
@@ -29,6 +32,8 @@ type LeaveApprovalRow = {
 };
 
 type StatusFilter = "Applied" | "Accepted" | "Rejected" | "all";
+
+const PAGE_SIZE = 15;
 
 const STATUS_FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: LEAVE_STATUS.APPLIED, label: "Pending" },
@@ -60,6 +65,20 @@ function isPendingStatus(status: string): boolean {
   return status.trim().toLowerCase() === LEAVE_STATUS.APPLIED.toLowerCase();
 }
 
+/** Ascending by leave date: 1/7/2026, 2/7/2026, 3/7/2026, … */
+function sortApprovalsByDate(applications: LeaveApprovalRow[]): LeaveApprovalRow[] {
+  return [...applications].sort((a, b) => {
+    const aTime = parseLeaveDisplayDate(a.date)?.getTime() ?? Number.POSITIVE_INFINITY;
+    const bTime = parseLeaveDisplayDate(b.date)?.getTime() ?? Number.POSITIVE_INFINITY;
+    if (aTime !== bTime) return aTime - bTime;
+
+    const nameCompare = a.employeeName.localeCompare(b.employeeName);
+    if (nameCompare !== 0) return nameCompare;
+
+    return a.id.localeCompare(b.id);
+  });
+}
+
 function emptyCopy(filter: StatusFilter): { title: string; description: string } {
   if (filter === LEAVE_STATUS.APPLIED) {
     return {
@@ -88,6 +107,7 @@ function emptyCopy(filter: StatusFilter): { title: string; description: string }
 export default function LeaveApprovalsPage() {
   const { refresh: refreshNotifications, pushToast } = useNotifications();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(LEAVE_STATUS.APPLIED);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -114,7 +134,7 @@ export default function LeaveApprovalsPage() {
         throw new Error(data.message ?? "Failed to load approvals");
       }
 
-      setRows(data.applications ?? []);
+      setRows(sortApprovalsByDate(data.applications ?? []));
       setWarnings(Array.isArray(data.warnings) ? data.warnings : []);
     } catch (err) {
       setError(toUserFacingFetchError(err));
@@ -132,6 +152,14 @@ export default function LeaveApprovalsPage() {
   const pendingCount = useMemo(
     () => rows.filter((row) => isPendingStatus(row.status)).length,
     [rows],
+  );
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+
+  const paginatedRows = useMemo(
+    () => rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [rows, currentPage],
   );
 
   const showRejectReasonColumn = statusFilter === LEAVE_STATUS.REJECTED || statusFilter === "all";
@@ -207,7 +235,7 @@ export default function LeaveApprovalsPage() {
     <div className="space-y-8">
       <PageHeader
         title="Leave Approvals"
-        description="Review leave requests from all employees. HR and Super Admin can accept or reject pending requests; rejection requires a reason."
+        description="Review leave and attendance correction requests from all employees. HR and Super Admin can accept or reject pending items; leave rejection requires a reason."
         actions={
           <div className="flex items-center gap-2">
             {statusFilter === LEAVE_STATUS.APPLIED ? (
@@ -228,12 +256,17 @@ export default function LeaveApprovalsPage() {
         }
       />
 
+      <PendingCorrectionRequests />
+
       <div className="flex flex-wrap gap-2">
         {STATUS_FILTERS.map((filter) => (
           <button
             key={filter.id}
             type="button"
-            onClick={() => setStatusFilter(filter.id)}
+            onClick={() => {
+              setStatusFilter(filter.id);
+              setPage(1);
+            }}
             className={cn(
               "inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition",
               statusFilter === filter.id
@@ -296,81 +329,96 @@ export default function LeaveApprovalsPage() {
         </div>
       ) : null}
 
-      <DataTable
-        loading={loading}
-        rows={rows}
-        emptyTitle={emptyState.title}
-        emptyDescription={emptyState.description}
-        columns={[
-          { key: "employeeName", header: "Employee" },
-          {
-            key: "leaveType",
-            header: "Request",
-            render: (r) => {
-              const typeLabel = formatLeaveTypeLabel(r.leaveType);
-              const duration = r.duration ? ` · ${r.duration}` : "";
-              const days = r.days > 0 ? ` · ${r.days} day${r.days === 1 ? "" : "s"}` : "";
-              return `${typeLabel}${duration}${days} · ${r.date}`;
+      <div className="space-y-4">
+        <DataTable
+          loading={loading}
+          rows={paginatedRows}
+          emptyTitle={emptyState.title}
+          emptyDescription={emptyState.description}
+          columns={[
+            { key: "employeeName", header: "Employee" },
+            {
+              key: "leaveType",
+              header: "Request",
+              render: (r) => {
+                const typeLabel = formatLeaveTypeLabel(r.leaveType);
+                const duration = r.duration ? ` · ${r.duration}` : "";
+                const days = r.days > 0 ? ` · ${r.days} day${r.days === 1 ? "" : "s"}` : "";
+                return `${typeLabel}${duration}${days} · ${r.date}`;
+              },
             },
-          },
-          {
-            key: "reason",
-            header: "Reason",
-            render: (r) => r.reason || "—",
-          },
-          {
-            key: "status",
-            header: "State",
-            render: (r) => (
-              <Badge variant={statusBadgeVariant(r.status)}>{r.status || "Pending"}</Badge>
-            ),
-          },
-          ...(showRejectReasonColumn
-            ? [
-                {
-                  key: "rejectReason" as const,
-                  header: "Reject reason",
-                  render: (r: LeaveApprovalRow) => r.rejectReason || "—",
-                },
-              ]
-            : []),
-          ...(showActions
-            ? [
-                {
-                  key: "id" as const,
-                  header: "Actions",
-                  render: (r: LeaveApprovalRow) =>
-                    isPendingStatus(r.status) ? (
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={reviewingId === r.id}
-                          onClick={() => void reviewApplication(r, "Accepted")}
-                        >
-                          {reviewingId === r.id ? "..." : "Accept"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={reviewingId === r.id}
-                          onClick={() => {
-                            setRejectingRow(r);
-                            setRejectReason("");
-                            setError(null);
-                          }}
-                        >
-                          Reject
-                        </Button>
-                      </div>
-                    ) : (
-                      "—"
-                    ),
-                },
-              ]
-            : []),
-        ]}
-      />
+            {
+              key: "reason",
+              header: "Reason",
+              render: (r) => r.reason || "—",
+            },
+            {
+              key: "status",
+              header: "State",
+              render: (r) => (
+                <Badge variant={statusBadgeVariant(r.status)}>{r.status || "Pending"}</Badge>
+              ),
+            },
+            ...(showRejectReasonColumn
+              ? [
+                  {
+                    key: "rejectReason" as const,
+                    header: "Reject reason",
+                    render: (r: LeaveApprovalRow) => r.rejectReason || "—",
+                  },
+                ]
+              : []),
+            ...(showActions
+              ? [
+                  {
+                    key: "id" as const,
+                    header: "Actions",
+                    render: (r: LeaveApprovalRow) =>
+                      isPendingStatus(r.status) ? (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={reviewingId === r.id}
+                            onClick={() => void reviewApplication(r, "Accepted")}
+                          >
+                            {reviewingId === r.id ? "..." : "Accept"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={reviewingId === r.id}
+                            onClick={() => {
+                              setRejectingRow(r);
+                              setRejectReason("");
+                              setError(null);
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      ) : (
+                        "—"
+                      ),
+                  },
+                ]
+              : []),
+          ]}
+        />
+
+        {!loading && rows.length > PAGE_SIZE ? (
+          <Pagination
+            pagination={{
+              page: currentPage,
+              totalPages,
+              total: rows.length,
+              pageSize: PAGE_SIZE,
+            }}
+            onPageChange={setPage}
+            itemLabel="requests"
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

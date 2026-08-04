@@ -191,6 +191,7 @@ export function PunchDesk({
   today,
   loading,
   acting,
+  actingAction,
   liveWorkedMs,
   onPunchIn,
   onPunchOut,
@@ -202,6 +203,7 @@ export function PunchDesk({
   today: TodayAttendance | null;
   loading: boolean;
   acting: boolean;
+  actingAction: "punch-in" | "punch-out" | "break-start" | "break-end" | null;
   liveWorkedMs: number;
   onPunchIn: () => void;
   onPunchOut: () => void;
@@ -392,8 +394,12 @@ export function PunchDesk({
               disabled={acting || loading}
               onClick={onPunchIn}
             >
-              {acting ? <Loader2 className="size-5 animate-spin" /> : <LogIn className="size-5" />}
-              {acting ? "Starting your day…" : "Punch in — Start my day"}
+              {actingAction === "punch-in" ? (
+                <Loader2 className="size-5 animate-spin" />
+              ) : (
+                <LogIn className="size-5" />
+              )}
+              {actingAction === "punch-in" ? "Starting your day…" : "Punch in — Start my day"}
             </Button>
           ) : null}
 
@@ -406,7 +412,7 @@ export function PunchDesk({
                 disabled={acting || loading || isHalfDayLeave}
                 onClick={onBreakStart}
               >
-                {acting ? (
+                {actingAction === "break-start" ? (
                   <Loader2 className="size-5 animate-spin" />
                 ) : (
                   <Coffee className="size-5" />
@@ -420,7 +426,7 @@ export function PunchDesk({
                 disabled={acting || loading}
                 onClick={onPunchOut}
               >
-                {acting ? (
+                {actingAction === "punch-out" ? (
                   <Loader2 className="size-5 animate-spin" />
                 ) : (
                   <LogOut className="size-5" />
@@ -437,12 +443,12 @@ export function PunchDesk({
               disabled={acting || loading}
               onClick={onBreakEnd}
             >
-              {acting ? (
+              {actingAction === "break-end" ? (
                 <Loader2 className="size-5 animate-spin" />
               ) : (
                 <Sparkles className="size-5" />
               )}
-              {acting ? "Wrapping up break…" : "Back to work"}
+              {actingAction === "break-end" ? "Wrapping up break…" : "Back to work"}
             </Button>
           ) : null}
 

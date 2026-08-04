@@ -30,6 +30,7 @@ import {
   formatDuration,
   formatIsoDate,
   formatSheetDateLiteral,
+  formatWallClockTime,
   monthlySheetTitle,
   normalizeSheetDate,
   parseDurationToMs,
@@ -1581,6 +1582,74 @@ export async function punchOut(
 
   await updateAttendanceRow(targetSpreadsheetId, sheetTitle, found.sheetRow, rowValues);
 
+  return rowFromValues(rowValues, found.sheetRow);
+}
+
+/** End-of-day clock used when a session is left open past midnight (same calendar day). */
+export const AUTO_PUNCH_OUT_CLOCK = formatWallClockTime(23, 59);
+
+const AUTO_PUNCH_OUT_NOTE =
+  "Auto punch-out at midnight (forgot to punch out). Contact HR or Super Admin to correct punch-out time.";
+
+/**
+ * Close an open punch session for a past date (punch in set, punch out empty).
+ * Uses 11:59 pm on that calendar day so working-hours math stays valid for same-day punches.
+ * Returns null when there is nothing to close.
+ */
+export async function autoPunchOutOpenSession(
+  spreadsheetId: string,
+  dateIso: string,
+): Promise<AttendanceRow | null> {
+  const normalizedDate = normalizeSheetDate(dateIso);
+  if (!normalizedDate) {
+    throw new Error("Invalid attendance date for auto punch-out");
+  }
+
+  const baseDate = new Date(`${normalizedDate}T12:00:00`);
+  const targetSpreadsheetId = await resolveSpreadsheetForDate(spreadsheetId, baseDate);
+  const sheetTitle = await ensureMonthlySheet(targetSpreadsheetId, baseDate);
+  const rows = await readMonthlyRows(targetSpreadsheetId, sheetTitle);
+  const found = findTodayRow(rows, normalizedDate);
+
+  if (!found?.row[ATTENDANCE_COL.punchIn]?.trim()) return null;
+  if (found.row[ATTENDANCE_COL.punchOut]?.trim()) return null;
+
+  const rowValues = [...found.row];
+  while (rowValues.length < ATTENDANCE_HEADERS.length) rowValues.push("");
+
+  // Close an open break before auto punch-out so metrics stay consistent.
+  if (rowValues[ATTENDANCE_COL.breakStart]?.trim() && !rowValues[ATTENDANCE_COL.breakEnd]?.trim()) {
+    const breakEnd = AUTO_PUNCH_OUT_CLOCK;
+    rowValues[ATTENDANCE_COL.breakEnd] = breakEnd;
+    const breakStartMs = parseTimeOnDate(rowValues[ATTENDANCE_COL.breakStart], baseDate);
+    const breakEndMs = parseTimeOnDate(breakEnd, baseDate);
+    const breakMs =
+      breakStartMs != null && breakEndMs != null && breakEndMs > breakStartMs
+        ? breakEndMs - breakStartMs
+        : 0;
+    const existingBreakMs = parseDurationToMs(rowValues[ATTENDANCE_COL.totalBreakTime] ?? "");
+    rowValues[ATTENDANCE_COL.totalBreakTime] = formatDuration(existingBreakMs + breakMs);
+    rowValues[ATTENDANCE_COL.breakStart] = "";
+    rowValues[ATTENDANCE_COL.breakEnd] = "";
+  }
+
+  rowValues[ATTENDANCE_COL.punchOut] = AUTO_PUNCH_OUT_CLOCK;
+  applyAttendanceMetrics(rowValues, baseDate);
+
+  if ((rowValues[ATTENDANCE_COL.status] ?? "") === WORKING_STATUS.SHORT) {
+    if (!(rowValues[ATTENDANCE_COL.earlyLeaveReason] ?? "").trim()) {
+      rowValues[ATTENDANCE_COL.earlyLeaveReason] = AUTO_PUNCH_OUT_NOTE;
+    }
+  }
+
+  const existingUpdate = (rowValues[ATTENDANCE_COL.dailyUpdate] ?? "").trim();
+  if (!existingUpdate) {
+    rowValues[ATTENDANCE_COL.dailyUpdate] = AUTO_PUNCH_OUT_NOTE;
+  } else if (!existingUpdate.toLowerCase().includes("auto punch-out")) {
+    rowValues[ATTENDANCE_COL.dailyUpdate] = `${existingUpdate}\n${AUTO_PUNCH_OUT_NOTE}`;
+  }
+
+  await updateAttendanceRow(targetSpreadsheetId, sheetTitle, found.sheetRow, rowValues);
   return rowFromValues(rowValues, found.sheetRow);
 }
 

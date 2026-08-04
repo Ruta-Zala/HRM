@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ArrowUpRight,
   Bell,
   Cake,
@@ -68,6 +69,9 @@ function typeBadgeVariant(type: string): "default" | "success" | "warning" | "da
   if (type.includes("submitted")) return "warning";
   if (type.includes("upcoming")) return "accent";
   if (type.includes("birthday")) return "accent";
+  if (type === "expense_payment_due") return "warning";
+  if (type === "expense_payment_overdue") return "danger";
+  if (type === "auto_punch_out") return "warning";
   if (type === "announcement") return "accent";
   return "default";
 }
@@ -89,6 +93,9 @@ function typeLabel(type: string): string {
     correction_submitted_employee: "Submitted",
     correction_approved: "Correction approved",
     correction_rejected: "Correction rejected",
+    expense_payment_due: "Expense payment pending",
+    expense_payment_overdue: "Expense payment overdue",
+    auto_punch_out: "Auto punch-out",
   };
   return labels[type] ?? "Notification";
 }
@@ -101,6 +108,9 @@ function NotificationIcon({ type }: { type: string }) {
   if (type.includes("birthday")) return <Cake className={className} />;
   if (type.includes("increment")) return <Sparkles className={className} />;
   if (type.includes("upcoming")) return <CalendarClock className={className} />;
+  if (type === "expense_payment_overdue") return <AlertTriangle className={className} />;
+  if (type === "expense_payment_due") return <Clock3 className={className} />;
+  if (type === "auto_punch_out") return <AlertTriangle className={className} />;
   if (type === "announcement") return <Megaphone className={className} />;
   return <Bell className={className} />;
 }
@@ -111,6 +121,9 @@ function notificationIconClasses(type: string): string {
   if (type.includes("submitted")) return "bg-amber-500/12 text-amber-700";
   if (type.includes("birthday")) return "bg-pink-500/12 text-pink-600";
   if (type.includes("increment")) return "bg-violet-500/12 text-violet-600";
+  if (type === "expense_payment_overdue") return "bg-rose-500/12 text-rose-600";
+  if (type === "expense_payment_due") return "bg-amber-500/12 text-amber-700";
+  if (type === "auto_punch_out") return "bg-amber-500/12 text-amber-700";
   if (type === "announcement") return "bg-sky-500/12 text-sky-600";
   return "bg-ex-accent/15 text-ex-accent";
 }
@@ -343,7 +356,7 @@ export default function NotificationsPage() {
                         {isLong ? (
                           <button
                             type="button"
-                            className="text-ex-muted hover:text-ex-primary text-xs font-medium"
+                            className="text-ex-muted hover:text-ex-primary cursor-pointer text-xs font-medium"
                             onClick={() =>
                               setExpandedIds((current) => {
                                 const next = new Set(current);
@@ -368,7 +381,7 @@ export default function NotificationsPage() {
                           <button
                             type="button"
                             onClick={() => void markRead(row.id)}
-                            className="text-ex-muted hover:text-ex-primary ml-auto inline-flex items-center gap-1.5 text-xs font-medium"
+                            className="text-ex-muted hover:text-ex-primary ml-auto inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium"
                           >
                             <Check className="size-3.5" />
                             Mark as read

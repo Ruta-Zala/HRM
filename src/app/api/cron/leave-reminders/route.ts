@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { processForgottenPunchOuts } from "@/lib/attendance/auto-punch-out";
 import { processEmployeeBirthdayNotifications } from "@/lib/notifications/birthday-reminders";
+import { processExpensePaymentReminders } from "@/lib/notifications/expense-payment-reminders";
 import { processIncrementReminders } from "@/lib/notifications/increment-reminders";
 import { processLeaveUpcomingReminders } from "@/lib/notifications/leave-reminders";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
@@ -23,10 +25,18 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [leaveReminders, birthdayNotifications, incrementReminders] = await Promise.all([
+    const [
+      leaveReminders,
+      birthdayNotifications,
+      incrementReminders,
+      expensePaymentReminders,
+      forgottenPunchOuts,
+    ] = await Promise.all([
       processLeaveUpcomingReminders(),
       processEmployeeBirthdayNotifications(),
       processIncrementReminders(),
+      processExpensePaymentReminders(),
+      processForgottenPunchOuts(),
     ]);
 
     return NextResponse.json({
@@ -34,6 +44,8 @@ export async function GET(req: NextRequest) {
       leaveReminders,
       birthdayNotifications,
       incrementReminders,
+      expensePaymentReminders,
+      forgottenPunchOuts,
     });
   } catch (error) {
     console.error("Notification automations cron error:", error);

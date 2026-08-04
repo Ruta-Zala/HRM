@@ -16,6 +16,9 @@ export const NOTIFICATION_TYPES = {
   CORRECTION_SUBMITTED_EMPLOYEE: "correction_submitted_employee",
   CORRECTION_APPROVED: "correction_approved",
   CORRECTION_REJECTED: "correction_rejected",
+  EXPENSE_PAYMENT_DUE: "expense_payment_due",
+  EXPENSE_PAYMENT_OVERDUE: "expense_payment_overdue",
+  AUTO_PUNCH_OUT: "auto_punch_out",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
