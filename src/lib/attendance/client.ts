@@ -1,3 +1,6 @@
+import { assertApiSuccess, readResponseJson } from "@/lib/api/read-response-json";
+import { toUserFacingActionError } from "@/lib/api/user-facing-error";
+
 export type TodayAttendance = {
   date: string;
   workMode?: string;
@@ -78,10 +81,45 @@ export type OvertimeRequestDto = {
   createdAt: string;
 };
 
+function mapTodayRecord(record: Record<string, unknown>, fallbackDate?: string): TodayAttendance {
+  const workedMs = Number(record.workedMs ?? 0);
+  const idealHours = Number(record.idealHours ?? 8);
+  return {
+    date: String(record.date || fallbackDate || new Date().toISOString().slice(0, 10)),
+    workMode: String(record.workMode ?? ""),
+    punchIn: String(record.punchIn ?? ""),
+    punchOut: String(record.punchOut ?? ""),
+    breakStart: String(record.breakStart ?? ""),
+    breakEnd: String(record.breakEnd ?? ""),
+    totalBreakTime: String(record.totalBreakTime ?? ""),
+    workingHours: String(record.workingHours ?? ""),
+    overtime: String(record.overtime ?? "—"),
+    status: String(record.status ?? ""),
+    onBreak: Boolean(record.onBreak),
+    hasPunchedIn: Boolean(record.hasPunchedIn),
+    hasPunchedOut: Boolean(record.hasPunchedOut),
+    workedMs,
+    workedFormatted: String(record.workedFormatted ?? ""),
+    workedShort: String(record.workedFormatted ?? ""),
+    idealHours,
+    idealBreakHours: Number(record.idealBreakHours ?? 1),
+    idealShiftHours: Number(record.idealShiftHours ?? 9),
+    remainingMs: Math.max(0, idealHours * 60 * 60 * 1000 - workedMs),
+    remainingFormatted: "",
+    breakAllowanceFormatted: String(record.breakAllowanceFormatted ?? "0h / 1h"),
+    earlyLeaveReason: String(record.earlyLeaveReason ?? ""),
+    dailyUpdate: String(record.dailyUpdate ?? ""),
+  };
+}
+
 export async function fetchTodayAttendance(): Promise<TodayAttendance | null> {
   const res = await fetch("/api/attendance", { credentials: "include" });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.message ?? "Failed to load attendance");
+  const data = await readResponseJson<{
+    success?: boolean;
+    message?: string;
+    today?: TodayAttendance | null;
+  }>(res, "fetch");
+  assertApiSuccess(data, "fetch");
   return data.today ?? null;
 }
 
@@ -101,36 +139,13 @@ export async function postAttendanceAction(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, ...payload }),
   });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.message ?? "Action failed");
-
-  const record = data.record;
-  return {
-    date: record.date || new Date().toISOString().slice(0, 10),
-    workMode: record.workMode ?? "",
-    punchIn: record.punchIn,
-    punchOut: record.punchOut,
-    breakStart: record.breakStart,
-    breakEnd: record.breakEnd,
-    totalBreakTime: record.totalBreakTime,
-    workingHours: record.workingHours,
-    overtime: record.overtime ?? "—",
-    status: record.status,
-    onBreak: record.onBreak,
-    hasPunchedIn: record.hasPunchedIn,
-    hasPunchedOut: record.hasPunchedOut,
-    workedMs: record.workedMs,
-    workedFormatted: record.workedFormatted,
-    workedShort: record.workedFormatted,
-    idealHours: record.idealHours ?? 8,
-    idealBreakHours: record.idealBreakHours ?? 1,
-    idealShiftHours: record.idealShiftHours ?? 9,
-    remainingMs: Math.max(0, (record.idealHours ?? 8) * 60 * 60 * 1000 - record.workedMs),
-    remainingFormatted: "",
-    breakAllowanceFormatted: record.breakAllowanceFormatted ?? "0h / 1h",
-    earlyLeaveReason: record.earlyLeaveReason ?? "",
-    dailyUpdate: record.dailyUpdate ?? "",
-  };
+  const data = await readResponseJson<{
+    success?: boolean;
+    message?: string;
+    record?: Record<string, unknown>;
+  }>(res, "action");
+  assertApiSuccess(data, "action");
+  return mapTodayRecord(data.record ?? {});
 }
 
 export async function updateDailyUpdate(
@@ -143,36 +158,13 @@ export async function updateDailyUpdate(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ date, dailyUpdate }),
   });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.message ?? "Failed to update daily update");
-
-  const record = data.record;
-  return {
-    date: record.date || date,
-    workMode: record.workMode ?? "",
-    punchIn: record.punchIn,
-    punchOut: record.punchOut,
-    breakStart: record.breakStart,
-    breakEnd: record.breakEnd,
-    totalBreakTime: record.totalBreakTime,
-    workingHours: record.workingHours,
-    overtime: record.overtime ?? "—",
-    status: record.status,
-    onBreak: record.onBreak,
-    hasPunchedIn: record.hasPunchedIn,
-    hasPunchedOut: record.hasPunchedOut,
-    workedMs: record.workedMs,
-    workedFormatted: record.workedFormatted,
-    workedShort: record.workedFormatted,
-    idealHours: record.idealHours ?? 8,
-    idealBreakHours: record.idealBreakHours ?? 1,
-    idealShiftHours: record.idealShiftHours ?? 9,
-    remainingMs: Math.max(0, (record.idealHours ?? 8) * 60 * 60 * 1000 - record.workedMs),
-    remainingFormatted: "",
-    breakAllowanceFormatted: record.breakAllowanceFormatted ?? "0h / 1h",
-    earlyLeaveReason: record.earlyLeaveReason ?? "",
-    dailyUpdate: record.dailyUpdate ?? "",
-  };
+  const data = await readResponseJson<{
+    success?: boolean;
+    message?: string;
+    record?: Record<string, unknown>;
+  }>(res, "action");
+  assertApiSuccess(data, "action");
+  return mapTodayRecord(data.record ?? {}, date);
 }
 
 function attendanceSearchParams(base: Record<string, string>, employeeSheetRow?: number): string {
@@ -190,8 +182,12 @@ export async function fetchAttendancePeriods(
     `/api/attendance?${attendanceSearchParams({ mode: "periods" }, employeeSheetRow)}`,
     { credentials: "include" },
   );
-  const data = await res.json();
-  if (!data.success) throw new Error(data.message ?? "Failed to load periods");
+  const data = await readResponseJson<{
+    success?: boolean;
+    message?: string;
+    periods?: AttendancePeriod[];
+  }>(res, "fetch");
+  assertApiSuccess(data, "fetch");
   return data.periods ?? [];
 }
 
@@ -204,8 +200,12 @@ export async function fetchAttendanceHistory(
     `/api/attendance?${attendanceSearchParams({ year: String(year), month: String(month) }, employeeSheetRow)}`,
     { credentials: "include" },
   );
-  const data = await res.json();
-  if (!data.success) throw new Error(data.message ?? "Failed to load history");
+  const data = await readResponseJson<{
+    success?: boolean;
+    message?: string;
+    records?: AttendanceHistoryRow[];
+  }>(res, "fetch");
+  assertApiSuccess(data, "fetch");
   return data.records ?? [];
 }
 
@@ -221,14 +221,18 @@ export async function submitCorrectionRequest(body: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.message ?? "Failed to submit correction");
+  const data = await readResponseJson<{ success?: boolean; message?: string }>(res, "action");
+  assertApiSuccess(data, "action");
 }
 
 export async function fetchCorrectionRequests(): Promise<CorrectionRequestDto[]> {
   const res = await fetch("/api/attendance/corrections", { credentials: "include" });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.message ?? "Failed to load corrections");
+  const data = await readResponseJson<{
+    success?: boolean;
+    message?: string;
+    requests?: CorrectionRequestDto[];
+  }>(res, "fetch");
+  assertApiSuccess(data, "fetch");
   return data.requests ?? [];
 }
 
@@ -257,18 +261,26 @@ export async function importAttendanceCsv(
     credentials: "include",
     body: formData,
   });
-  const data = await res.json();
+  const data = await readResponseJson<{
+    success?: boolean;
+    message?: string;
+    imported?: number;
+    updated?: number;
+    holidaysSkipped?: number;
+    errors?: string[];
+    employee?: { employeeId: string; employeeName: string };
+  }>(res, "action");
   if (!data.success) {
     throw new Error(
       data.errors?.length
-        ? `${data.message}: ${data.errors.join("; ")}`
-        : (data.message ?? "Import failed"),
+        ? `${toUserFacingActionError(data.message)}: ${data.errors.join("; ")}`
+        : toUserFacingActionError(data.message),
     );
   }
   return {
-    message: data.message,
-    imported: data.imported,
-    updated: data.updated,
+    message: data.message ?? "Import completed",
+    imported: data.imported ?? 0,
+    updated: data.updated ?? 0,
     holidaysSkipped: data.holidaysSkipped ?? 0,
     errors: data.errors ?? [],
     employee: data.employee,
@@ -286,8 +298,8 @@ export async function reviewCorrection(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, status, remarks }),
   });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.message ?? "Failed to review correction");
+  const data = await readResponseJson<{ success?: boolean; message?: string }>(res, "action");
+  assertApiSuccess(data, "action");
 }
 
 export async function submitOvertimeRequest(body: {
@@ -301,14 +313,18 @@ export async function submitOvertimeRequest(body: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.message ?? "Failed to submit overtime request");
+  const data = await readResponseJson<{ success?: boolean; message?: string }>(res, "action");
+  assertApiSuccess(data, "action");
 }
 
 export async function fetchOvertimeRequests(): Promise<OvertimeRequestDto[]> {
   const res = await fetch("/api/attendance/overtime-requests", { credentials: "include" });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.message ?? "Failed to load overtime requests");
+  const data = await readResponseJson<{
+    success?: boolean;
+    message?: string;
+    requests?: OvertimeRequestDto[];
+  }>(res, "fetch");
+  assertApiSuccess(data, "fetch");
   return data.requests ?? [];
 }
 
@@ -327,8 +343,8 @@ export async function saveHrAttendance(body: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.message ?? "Failed to save attendance");
+  const data = await readResponseJson<{ success?: boolean; message?: string }>(res, "action");
+  assertApiSuccess(data, "action");
   return { message: data.message ?? "Attendance saved" };
 }
 
@@ -343,6 +359,6 @@ export async function reviewOvertimeRequest(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, status, remarks }),
   });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.message ?? "Failed to review overtime request");
+  const data = await readResponseJson<{ success?: boolean; message?: string }>(res, "action");
+  assertApiSuccess(data, "action");
 }

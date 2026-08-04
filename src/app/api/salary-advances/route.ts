@@ -5,6 +5,7 @@ import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { sheetRowToForm } from "@/lib/employee";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import {
   cancelSalaryAdvance,
@@ -206,10 +207,7 @@ export const POST = withActiveSession(async (req, user) => {
       { status: 201 },
     );
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : formatGoogleApiClientMessage(error) || "Failed to create salary advance";
+    const message = toApiErrorMessage(error, "Failed to create salary advance");
     const status = /must|required|available|outside|match|window|increment/i.test(message)
       ? 400
       : 500;
@@ -300,10 +298,7 @@ export const PATCH = withActiveSession(async (req, user) => {
 
     return NextResponse.json({ success: true, advance: enrichAdvanceForDisplay(advance) });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : formatGoogleApiClientMessage(error) || "Failed to update salary advance";
+    const message = toApiErrorMessage(error, "Failed to update salary advance");
     const status = /not found/i.test(message)
       ? 404
       : /must|required|available|outside|match|window|increment|reschedule|cancelled|nothing left/i.test(

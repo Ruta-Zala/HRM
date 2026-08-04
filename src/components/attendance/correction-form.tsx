@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { submitCorrectionRequest } from "@/lib/attendance/client";
-import { formatClockTime } from "@/lib/attendance/time";
+import { formatWallClockTime } from "@/lib/attendance/time";
+import { toUserFacingActionError } from "@/lib/api/user-facing-error";
 
 export function CorrectionForm({
   date,
@@ -31,7 +32,7 @@ export function CorrectionForm({
     setError(null);
     try {
       const [hours, minutes] = requestedTime.split(":").map((p) => parseInt(p, 10));
-      const clock = formatClockTime(new Date(2000, 0, 1, hours || 0, minutes || 0));
+      const clock = formatWallClockTime(hours || 0, minutes || 0);
 
       await submitCorrectionRequest({
         field,
@@ -41,7 +42,7 @@ export function CorrectionForm({
       });
       onSuccess?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Submission failed");
+      setError(toUserFacingActionError(err));
     } finally {
       setSubmitting(false);
     }

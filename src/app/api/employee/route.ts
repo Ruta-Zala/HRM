@@ -46,6 +46,7 @@ import {
   findLatestActiveSalaryForEmployee,
   hydrateEmployeeRowSalaryFromHistory,
 } from "@/lib/salary-slips/sheets";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 /**
  * GET
@@ -177,7 +178,7 @@ export const GET = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to fetch sheet data",
+        message: toApiErrorMessage(error, "Failed to fetch sheet data"),
       },
       { status: 500 },
     );
@@ -298,7 +299,7 @@ export const POST = withActiveSession(async (req) => {
   } catch (error: unknown) {
     console.error(error);
 
-    const message = error instanceof Error ? error.message : "Request failed";
+    const message = toApiErrorMessage(error, "Request failed");
     const isPasswordValidation = /password must be at least/i.test(message);
 
     return Response.json(
@@ -484,7 +485,7 @@ export const PUT = withActiveSession(async (req, user) => {
   } catch (error: unknown) {
     console.error("PUT Sheet Error:", error);
 
-    const message = error instanceof Error ? error.message : "Failed to update sheet";
+    const message = toApiErrorMessage(error, "Failed to update sheet");
     const isPasswordValidation = /password must be at least/i.test(message);
 
     return NextResponse.json(
@@ -537,7 +538,7 @@ export const DELETE = withActiveSession(async (req) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to clear range",
+        message: toApiErrorMessage(error, "Failed to clear range"),
       },
       { status: 500 },
     );

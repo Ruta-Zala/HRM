@@ -1,5 +1,6 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
@@ -11,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { formatIsoDate } from "@/lib/attendance/time";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { COMPANY_HOLIDAYS_2026, type CompanyHoliday } from "@/lib/company-holidays";
 
 const MONTH_NAMES = [
@@ -50,9 +52,10 @@ function HolidayItem({
 }) {
   const date = holidayDateParts(holiday);
   const isLeave = holiday.type === "leave";
+  const canAct = Boolean(onEdit || onDelete);
 
   return (
-    <div className="border-ex-border bg-ex-elevated flex items-center gap-3 rounded-xl border p-3">
+    <div className="border-ex-border bg-ex-elevated flex min-w-0 items-start gap-3 overflow-hidden rounded-xl border p-3">
       <div
         className={
           isLeave
@@ -64,40 +67,48 @@ function HolidayItem({
         <span className="mt-1 text-[10px] leading-none uppercase">{date.weekday}</span>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-ex-primary truncate text-sm font-medium">{holiday.name}</p>
-        <p className="text-ex-muted mt-0.5 text-xs">
-          {new Intl.DateTimeFormat("en-IN", {
-            day: "numeric",
-            month: "long",
-          }).format(new Date(`${holiday.date}T00:00:00`))}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-0.5">
-        {onEdit ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="size-8 p-0"
-            disabled={deleting}
-            aria-label={`Edit ${holiday.name}`}
-            onClick={() => onEdit(holiday)}
-          >
-            <Pencil className="size-4" />
-          </Button>
-        ) : null}
-        {onDelete ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="size-8 p-0"
-            disabled={deleting}
-            aria-label={`Delete ${holiday.name}`}
-            onClick={() => onDelete(holiday)}
-          >
-            <Trash2 className="size-4 text-red-600 dark:text-red-400" />
-          </Button>
-        ) : null}
-        <Badge variant={isLeave ? "warning" : "accent"}>{isLeave ? "Leave" : "Celebration"}</Badge>
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-ex-primary truncate text-sm font-medium">{holiday.name}</p>
+            <p className="text-ex-muted mt-0.5 text-xs">
+              {new Intl.DateTimeFormat("en-IN", {
+                day: "numeric",
+                month: "long",
+              }).format(new Date(`${holiday.date}T00:00:00`))}
+            </p>
+          </div>
+          {canAct ? (
+            <div className="flex shrink-0 items-center gap-0.5">
+              {onEdit ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="size-8 p-0"
+                  disabled={deleting}
+                  aria-label={`Edit ${holiday.name}`}
+                  onClick={() => onEdit(holiday)}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+              ) : null}
+              {onDelete ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="size-8 p-0"
+                  disabled={deleting}
+                  aria-label={`Delete ${holiday.name}`}
+                  onClick={() => onDelete(holiday)}
+                >
+                  <Trash2 className="size-4 text-red-600 dark:text-red-400" />
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        <Badge variant={isLeave ? "warning" : "accent"} className="mt-2">
+          {isLeave ? "Leave" : "Celebration"}
+        </Badge>
       </div>
     </div>
   );
@@ -135,11 +146,11 @@ export default function CompanyHolidaysPage() {
     let cancelled = false;
     void fetch(`/api/company-holidays?year=${holidayYear}`, { cache: "no-store" })
       .then(async (response) => {
-        const data = (await response.json()) as {
+        const data = await readResponseJson<{
           success?: boolean;
           holidays?: CompanyHoliday[];
           message?: string;
-        };
+        }>(response, "fetch");
         if (!response.ok || !data.success) {
           throw new Error(data.message ?? "Failed to load company holidays");
         }
@@ -150,9 +161,7 @@ export default function CompanyHolidaysPage() {
       })
       .catch((loadError: unknown) => {
         if (!cancelled) {
-          setError(
-            loadError instanceof Error ? loadError.message : "Failed to load company holidays",
-          );
+          setError(toUserFacingFetchError(loadError));
         }
       });
 
@@ -181,11 +190,11 @@ export default function CompanyHolidaysPage() {
           type: editor.type,
         }),
       });
-      const data = (await response.json()) as {
+      const data = await readResponseJson<{
         success?: boolean;
         message?: string;
         holiday?: CompanyHoliday;
-      };
+      }>(response, "action");
       if (!response.ok || !data.success || !data.holiday) {
         throw new Error(data.message ?? "Failed to save company holiday");
       }
@@ -198,7 +207,7 @@ export default function CompanyHolidaysPage() {
       setHolidayMonth("all");
       setEditor(null);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Failed to save company holiday");
+      setError(toUserFacingActionError(saveError));
     } finally {
       setSaving(false);
     }
@@ -216,16 +225,17 @@ export default function CompanyHolidaysPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: holiday.id }),
       });
-      const data = (await response.json()) as { success?: boolean; message?: string };
+      const data = await readResponseJson<{ success?: boolean; message?: string }>(
+        response,
+        "action",
+      );
       if (!response.ok || !data.success) {
         throw new Error(data.message ?? "Failed to delete company holiday");
       }
       setHolidays((current) => current.filter((item) => item.id !== holiday.id));
       setEditor((current) => (current?.id === holiday.id ? null : current));
     } catch (deleteError) {
-      setError(
-        deleteError instanceof Error ? deleteError.message : "Failed to delete company holiday",
-      );
+      setError(toUserFacingActionError(deleteError));
     } finally {
       setDeletingId(null);
     }
@@ -358,7 +368,7 @@ export default function CompanyHolidaysPage() {
           ) : null}
 
           {error ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg rounded-lg border px-4 py-3 text-sm">
               {error}
             </p>
           ) : null}
@@ -369,19 +379,19 @@ export default function CompanyHolidaysPage() {
               <p className="text-ex-muted mt-1 text-sm">Select another month to view holidays.</p>
             </div>
           ) : (
-            <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid min-w-0 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
               {groups.map((group) => (
                 <div
                   key={group.month}
-                  className="border-ex-border bg-ex-surface/40 rounded-xl border p-4"
+                  className="border-ex-border bg-ex-surface/40 min-w-0 overflow-hidden rounded-xl border p-4"
                 >
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="text-ex-primary font-semibold">{group.month}</p>
-                    <span className="text-ex-muted text-xs">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <p className="text-ex-primary min-w-0 truncate font-semibold">{group.month}</p>
+                    <span className="text-ex-muted shrink-0 text-xs">
                       {group.holidays.length} day{group.holidays.length === 1 ? "" : "s"}
                     </span>
                   </div>
-                  <div className="space-y-2">
+                  <div className="min-w-0 space-y-2">
                     {group.holidays.map((holiday) => (
                       <HolidayItem
                         key={holiday.id}

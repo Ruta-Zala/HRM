@@ -15,6 +15,7 @@ import {
   notifyCorrectionReviewed,
   notifyCorrectionSubmitted,
 } from "@/lib/notifications/correction-events";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 export const GET = withActiveSession(async (_req, user) => {
   try {
@@ -25,7 +26,7 @@ export const GET = withActiveSession(async (_req, user) => {
 
     return NextResponse.json({ success: true, requests });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to load corrections";
+    const message = toApiErrorMessage(error, "Failed to load corrections");
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });
@@ -100,7 +101,7 @@ export const POST = withActiveSession(async (req, user) => {
 
     return NextResponse.json({ success: true, request });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to submit correction";
+    const message = toApiErrorMessage(error, "Failed to submit correction");
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });
@@ -148,7 +149,7 @@ export const PATCH = withActiveSession(async (req, user) => {
 
     return NextResponse.json({ success: true, request });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to review correction";
+    const message = toApiErrorMessage(error, "Failed to review correction");
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });

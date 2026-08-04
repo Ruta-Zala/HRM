@@ -16,10 +16,10 @@ import {
   BANK_ACCOUNT_MIN_LENGTH,
   EMPLOYEE_DOCUMENT_FIELDS,
   EMPLOYEE_MAX_EXPERIENCE_YEARS,
-  firstEmployeeValidationMessage,
   formToSheetRow,
   initialEmployeeForm,
-  isCeoPosition,
+  hidesEmploymentFields,
+  IFSC_CODE_LENGTH,
   maskAadhar,
   maskPan,
   maxBirthDateForMinAge,
@@ -30,11 +30,12 @@ import {
   type EmployeeFieldErrors,
   type EmployeeFormState,
 } from "@/lib/employee";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { POSITIONS, ROLES } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { joinSkillsValue, parseSkillsValue } from "@/app/consts/tech-skills";
-import { fetchProjects, getProjectsForEmployee, type ProjectInfo } from "../../lib/projects-client";
 import { Select } from "../ui/select";
 import { resolveProfileImageSrc } from "@/lib/employee/documents";
 import { type DocumentField, FileUploaderField } from "../ui/file-uploader";
@@ -99,11 +100,8 @@ export function EmployeeForm({
   const [form, setForm] = useState<EmployeeFormState>(initialEmployeeForm);
   const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
   const [skillSuggestions, setSkillSuggestions] = useState<string[]>([]);
-  const [allProjects, setAllProjects] = useState<ProjectInfo[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState<string | null>(null);
-  const [projectsError, setProjectsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(isEdit);
   const [headersLoading, setHeadersLoading] = useState(!isEdit);
   const [submitting, setSubmitting] = useState(false);
@@ -115,7 +113,10 @@ export function EmployeeForm({
   const profileImageSrc = resolveProfileImageSrc(form.profileImage, profileImagePreview);
   const maxBirthDate = useMemo(() => maxBirthDateForMinAge(), []);
   const todayDate = useMemo(() => todayIsoDate(), []);
-  const hideCeoEmploymentFields = isCeoPosition(form.position);
+  const hideEmploymentFields = hidesEmploymentFields({
+    position: form.position,
+    role: form.role,
+  });
 
   useEffect(() => {
     return () => {
@@ -141,11 +142,15 @@ export function EmployeeForm({
 
         if (isEdit && useOwnProfileEndpoint) {
           const response = await fetch("/api/employee/me");
-          const result = await response.json();
+          const result = await readResponseJson<{
+            success?: boolean;
+            message?: string;
+            [key: string]: unknown;
+          }>(response, "fetch");
           if (cancelled) return;
 
           if (!result.success) {
-            setError(result.message || "Employee not found");
+            setError(toUserFacingFetchError(result.message || "Employee not found"));
             return;
           }
 
@@ -157,11 +162,15 @@ export function EmployeeForm({
 
         if (isEdit && sheetRow) {
           const response = await fetch(`/api/employee?row=${sheetRow}`);
-          const result = await response.json();
+          const result = await readResponseJson<{
+            success?: boolean;
+            message?: string;
+            [key: string]: unknown;
+          }>(response, "fetch");
           if (cancelled) return;
 
           if (!result.success) {
-            setError(result.message || "Employee not found");
+            setError(toUserFacingFetchError(result.message || "Employee not found"));
             return;
           }
 
@@ -172,7 +181,11 @@ export function EmployeeForm({
         }
 
         const response = await fetch("/api/employee?headersOnly=true");
-        const result = await response.json();
+        const result = await readResponseJson<{
+          success?: boolean;
+          message?: string;
+          [key: string]: unknown;
+        }>(response, "fetch");
         if (cancelled) return;
 
         if (result.success) {
@@ -183,11 +196,15 @@ export function EmployeeForm({
             setSheetHeaders(headers);
           }
         } else {
-          setError(result.message || "Failed to load sheet columns");
+          setError(toUserFacingFetchError(result.message || "Failed to load sheet columns"));
         }
       } catch {
         if (!cancelled) {
-          setError(isEdit ? "Failed to load employee" : "Failed to load sheet columns");
+          setError(
+            toUserFacingFetchError(
+              isEdit ? "Failed to load employee" : "Failed to load sheet columns",
+            ),
+          );
         }
       } finally {
         if (!cancelled) {
@@ -211,7 +228,11 @@ export function EmployeeForm({
         setSkillsLoading(true);
 
         const response = await fetch("/api/employee/skills");
-        const result = await response.json();
+        const result = await readResponseJson<{
+          success?: boolean;
+          message?: string;
+          [key: string]: unknown;
+        }>(response, "fetch");
 
         if (cancelled) return;
 
@@ -238,40 +259,6 @@ export function EmployeeForm({
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        setProjectsError(null);
-        setProjectsLoading(true);
-
-        const projects = await fetchProjects();
-        if (cancelled) return;
-
-        setAllProjects(projects);
-      } catch {
-        if (!cancelled) {
-          setProjectsError("Failed to load project list");
-          setAllProjects([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setProjectsLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const employeeProjects = useMemo(
-    () => getProjectsForEmployee(form.name, allProjects),
-    [form.name, allProjects],
-  );
-
   const update =
     (field: keyof EmployeeFormState) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -285,17 +272,29 @@ export function EmployeeForm({
         value = value.replace(/\D/g, "").slice(0, 12);
       } else if (field === "bankAccountNumber") {
         value = value.replace(/\D/g, "").slice(0, BANK_ACCOUNT_MAX_LENGTH);
+      } else if (field === "ifscCode") {
+        value = value
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "")
+          .slice(0, IFSC_CODE_LENGTH);
       } else if (field === "name" || field === "parentName") {
         value = sanitizePersonNameInput(value);
       }
 
       setForm((prev) => {
         const next = { ...prev, [field]: value };
-        if (field === "position" && isCeoPosition(value)) {
+        if (
+          (field === "position" || field === "role") &&
+          hidesEmploymentFields({
+            position: field === "position" ? value : next.position,
+            role: field === "role" ? value : next.role,
+          })
+        ) {
           next.experience = "";
           next.joiningDate = "";
           next.lastIncrementDate = "";
           next.salary = "";
+          next.skills = "";
         }
         return next;
       });
@@ -303,7 +302,13 @@ export function EmployeeForm({
       setFieldErrors((prev) => {
         const next = { ...prev };
         delete next[field];
-        if (field === "position" && isCeoPosition(value)) {
+        if (
+          (field === "position" || field === "role") &&
+          hidesEmploymentFields({
+            position: field === "position" ? value : form.position,
+            role: field === "role" ? value : form.role,
+          })
+        ) {
           delete next.experience;
           delete next.joiningDate;
           delete next.lastIncrementDate;
@@ -316,10 +321,25 @@ export function EmployeeForm({
   const updateField = (field: keyof EmployeeFormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setFieldErrors((prev) => {
-      if (!prev[field]) return prev;
       const next = { ...prev };
-      delete next[field];
-      return next;
+      let changed = false;
+
+      if (next[field]) {
+        delete next[field];
+        changed = true;
+      }
+
+      // Clear the paired "must differ" error when either phone number changes.
+      if (field === "contactNumber" && next.parentContact?.toLowerCase().includes("different")) {
+        delete next.parentContact;
+        changed = true;
+      }
+      if (field === "parentContact" && next.contactNumber?.toLowerCase().includes("different")) {
+        delete next.contactNumber;
+        changed = true;
+      }
+
+      return changed ? next : prev;
     });
   };
 
@@ -364,7 +384,11 @@ export function EmployeeForm({
         method: isEdit ? "PUT" : "POST",
         body,
       });
-      const result = await response.json();
+      const result = await readResponseJson<{
+        success?: boolean;
+        message?: string;
+        [key: string]: unknown;
+      }>(response, "action");
 
       if (result.success) {
         if (result.documentWarning) {
@@ -393,14 +417,18 @@ export function EmployeeForm({
 
       if (result.errors && typeof result.errors === "object") {
         setFieldErrors(result.errors as EmployeeFieldErrors);
+        if (Object.keys(result.errors).length > 0) {
+          setError(null);
+          return;
+        }
       }
-      setError(result.message || (isEdit ? "Failed to update employee" : "Failed to add employee"));
-    } catch {
       setError(
-        isEdit
-          ? "Failed to update employee. Please try again."
-          : "Failed to add employee. Please try again.",
+        toUserFacingActionError(
+          result.message || (isEdit ? "Failed to update employee" : "Failed to add employee"),
+        ),
       );
+    } catch (error) {
+      setError(toUserFacingActionError(error));
     } finally {
       setSubmitting(false);
     }
@@ -412,9 +440,8 @@ export function EmployeeForm({
     const errors = validateEmployeeForm(form);
     setFieldErrors(errors);
 
-    const message = firstEmployeeValidationMessage(errors);
-    if (message) {
-      setError(message);
+    if (Object.keys(errors).length > 0) {
+      setError(null);
       return;
     }
 
@@ -426,7 +453,7 @@ export function EmployeeForm({
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} noValidate>
       <div className="mb-4 flex flex-col gap-4 xl:flex-row">
         <div className="w-full max-w-3xl space-y-6 xl:w-1/2">
           <Card>
@@ -439,13 +466,11 @@ export function EmployeeForm({
                   id="name"
                   value={form.name}
                   onChange={update("name")}
-                  placeholder="First Last"
+                  placeholder="Full Name"
                   required
                   aria-invalid={Boolean(fieldErrors.name)}
                 />
-                <p className="text-ex-muted text-xs">
-                  Full name with first and last name. Letters only — no numbers or random text.
-                </p>
+                <p className="text-ex-muted text-xs">Full name with first and last name.</p>
               </FormField>
 
               <FormField label="Role" id="role" error={fieldErrors.role}>
@@ -475,10 +500,6 @@ export function EmployeeForm({
                     required
                     aria-invalid={Boolean(fieldErrors.address)}
                   />
-                  <p className="text-ex-muted text-xs">
-                    Enter a complete residential address. Short placeholders like &quot;test&quot;
-                    are not allowed.
-                  </p>
                 </FormField>
               </div>
 
@@ -491,7 +512,6 @@ export function EmployeeForm({
                   required
                   aria-invalid={Boolean(fieldErrors.birthdayDate)}
                 />
-                <p className="text-ex-muted text-xs">Employee must be at least 18 years old.</p>
               </FormField>
 
               <FormField label="PAN number" id="panNumber" error={fieldErrors.panNumber} optional>
@@ -548,10 +568,18 @@ export function EmployeeForm({
                   maxLength={BANK_ACCOUNT_MAX_LENGTH}
                   aria-invalid={Boolean(fieldErrors.bankAccountNumber)}
                 />
-                <p className="text-ex-muted text-xs">
-                  Leave blank if unknown. If entered, must be {BANK_ACCOUNT_MIN_LENGTH}–
-                  {BANK_ACCOUNT_MAX_LENGTH} digits.
-                </p>
+              </FormField>
+
+              <FormField label="IFSC code" id="ifscCode" error={fieldErrors.ifscCode} optional>
+                <Input
+                  id="ifscCode"
+                  value={form.ifscCode}
+                  onChange={update("ifscCode")}
+                  placeholder={`${IFSC_CODE_LENGTH}-character IFSC (e.g. SBIN0001234)`}
+                  autoComplete="off"
+                  maxLength={IFSC_CODE_LENGTH}
+                  aria-invalid={Boolean(fieldErrors.ifscCode)}
+                />
               </FormField>
             </CardContent>
           </Card>
@@ -604,7 +632,7 @@ export function EmployeeForm({
                     id="parentName"
                     value={form.parentName}
                     onChange={update("parentName")}
-                    placeholder="Parent / Guardian Name"
+                    placeholder="Full Name"
                     required
                     aria-invalid={Boolean(fieldErrors.parentName)}
                   />
@@ -618,7 +646,7 @@ export function EmployeeForm({
                     id="parentContact"
                     value={form.parentContact}
                     onChange={(value) => updateField("parentContact", value)}
-                    placeholder="Parent / Guardian Contact"
+                    placeholder="Enter Number"
                     required
                     aria-invalid={Boolean(fieldErrors.parentContact)}
                   />
@@ -641,38 +669,7 @@ export function EmployeeForm({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Projects</CardTitle>
-            </CardHeader>
-            <CardContent className="py-2">
-              {projectsLoading ? (
-                <p>Loading project assignments…</p>
-              ) : !form.name.trim() ? (
-                <p>Enter employee name to see assigned projects.</p>
-              ) : employeeProjects.length > 0 ? (
-                <>
-                  {employeeProjects.map((project, index) => (
-                    <p
-                      key={`${project.name}-${index}`}
-                      className={`${project.status === "inactive" ? "opacity-50" : ""}`}
-                    >
-                      {project.name}
-                      <span className={`${project.status === "inactive" ? "text-sm" : ""}`}>
-                        {project.status === "inactive" && " [Inactive]"}
-                      </span>
-                    </p>
-                  ))}
-                </>
-              ) : (
-                <p>No projects found for this employee.</p>
-              )}
-            </CardContent>
-          </Card>
           {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
-          {projectsError ? (
-            <p className="text-sm text-red-600 dark:text-red-400">{projectsError}</p>
-          ) : null}
         </div>
         <div className="w-full max-w-3xl space-y-6 xl:w-1/2">
           <Card>
@@ -715,6 +712,10 @@ export function EmployeeForm({
                       <option value="">Select</option>
                       {[
                         { value: POSITIONS.TRAINEE, label: "Trainee" },
+                        {
+                          value: POSITIONS.AI_ML_LLM_TRAINEE,
+                          label: "AI/ML & LLM Trainee",
+                        },
                         { value: POSITIONS.FRONTEND_DEVELOPER, label: "Frontend Developer" },
                         {
                           value: POSITIONS.SENIOR_FRONTEND_DEVELOPER,
@@ -729,6 +730,10 @@ export function EmployeeForm({
                         {
                           value: POSITIONS.SENIOR_FULLSTACK_DEVELOPER,
                           label: "Senior Fullstack Developer",
+                        },
+                        {
+                          value: POSITIONS.AI_ML_LLM_DEVELOPER,
+                          label: "AI/ML & LLM Developer",
                         },
                         { value: POSITIONS.HR_MANAGER, label: "HR Manager" },
                         { value: POSITIONS.TEAM_LEAD, label: "Team Lead" },
@@ -754,9 +759,23 @@ export function EmployeeForm({
                       required
                       aria-invalid={Boolean(fieldErrors.email)}
                     />
-                    <p className="text-ex-muted text-xs">
-                      Use a real email with a valid domain (e.g. gmail.com, yahoo.com, company.com).
-                    </p>
+                  </FormField>
+                </div>
+
+                <div className="space-y-2">
+                  <FormField
+                    label="Contact number"
+                    id="contactNumber"
+                    error={fieldErrors.contactNumber}
+                  >
+                    <IndianPhoneInput
+                      id="contactNumber"
+                      value={form.contactNumber}
+                      onChange={(value) => updateField("contactNumber", value)}
+                      placeholder="Enter Number"
+                      required
+                      aria-invalid={Boolean(fieldErrors.contactNumber)}
+                    />
                   </FormField>
                 </div>
 
@@ -770,8 +789,7 @@ export function EmployeeForm({
                       autoComplete="off"
                     />
                     <p className="text-ex-muted text-xs">
-                      Leave blank to use the part of the email before @ (e.g. swati from
-                      swati@gmail.com).
+                      Leave blank to use the part of the email before @.
                     </p>
                   </FormField>
                 </div>
@@ -798,24 +816,7 @@ export function EmployeeForm({
                   </FormField>
                 </div>
 
-                <div className="space-y-2">
-                  <FormField
-                    label="Contact number"
-                    id="contactNumber"
-                    error={fieldErrors.contactNumber}
-                  >
-                    <IndianPhoneInput
-                      id="contactNumber"
-                      value={form.contactNumber}
-                      onChange={(value) => updateField("contactNumber", value)}
-                      placeholder="Enter Number"
-                      required
-                      aria-invalid={Boolean(fieldErrors.contactNumber)}
-                    />
-                  </FormField>
-                </div>
-
-                {!hideCeoEmploymentFields ? (
+                {!hideEmploymentFields ? (
                   <>
                     <div className="space-y-2">
                       <FormField label="Experience" id="experience" error={fieldErrors.experience}>
@@ -830,9 +831,6 @@ export function EmployeeForm({
                           placeholder="Years of experience"
                           aria-invalid={Boolean(fieldErrors.experience)}
                         />
-                        <p className="text-ex-muted text-xs">
-                          Maximum {EMPLOYEE_MAX_EXPERIENCE_YEARS} years.
-                        </p>
                       </FormField>
                     </div>
 
@@ -898,35 +896,37 @@ export function EmployeeForm({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Skills</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FormField label="Tech skills" id="skills">
-                <SkillsChipsInput
-                  id="skills"
-                  value={parseSkillsValue(form.skills)}
-                  suggestions={skillSuggestions}
-                  onChange={(skills) =>
-                    setForm((prev) => ({ ...prev, skills: joinSkillsValue(skills) }))
-                  }
-                  disabled={skillsLoading}
-                />
-                <p className="text-ex-muted text-xs">
-                  {skillsError
-                    ? skillsError
-                    : skillsLoading
-                      ? "Loading skill suggestions…"
-                      : "Type a skill and click Add. Click chips to select."}
-                </p>
-              </FormField>
-            </CardContent>
-          </Card>
+          {!hideEmploymentFields ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Skills</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <FormField label="Tech skills" id="skills">
+                  <SkillsChipsInput
+                    id="skills"
+                    value={parseSkillsValue(form.skills)}
+                    suggestions={skillSuggestions}
+                    onChange={(skills) =>
+                      setForm((prev) => ({ ...prev, skills: joinSkillsValue(skills) }))
+                    }
+                    disabled={skillsLoading}
+                  />
+                  <p className="text-ex-muted text-xs">
+                    {skillsError
+                      ? skillsError
+                      : skillsLoading
+                        ? "Loading skill suggestions…"
+                        : "Enter a skill and click Add to create a chip. Click any chip to select it."}
+                  </p>
+                </FormField>
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
         <Button type="submit" disabled={submitting || headersLoading || !sheetHeaders.length}>
           {submitting ? "Saving…" : isEdit ? "Save changes" : "Add employee"}
         </Button>

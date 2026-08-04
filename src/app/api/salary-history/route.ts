@@ -4,6 +4,7 @@ import { ROLES } from "@/app/consts/common";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { sheetRowToForm } from "@/lib/employee";
+import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import {
   cleanupCorruptSalaryHistoryRecords,
@@ -37,7 +38,7 @@ export const GET = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to load salary history",
+        message: formatGoogleApiClientMessage(error, { forHrAdmin: true }),
       },
       { status: 500 },
     );
@@ -96,7 +97,7 @@ export const POST = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to save salary history",
+        message: formatGoogleApiClientMessage(error, { forHrAdmin: true }),
       },
       { status: 500 },
     );

@@ -73,7 +73,7 @@ export function DataTable<T extends { id: string }>({
   emptyAction?: ReactNode;
 }) {
   if (loading) {
-    return <TableSkeleton />;
+    return <TableSkeleton columnCount={columns.length} className={className} />;
   }
 
   if (rows.length === 0) {

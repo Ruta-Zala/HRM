@@ -15,7 +15,8 @@ import {
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { filterNav, isNavChildActive, isNavGroupActive, type NavItem } from "@/lib/rbac";
 import { useAuth } from "@/contexts/auth-provider";
@@ -40,7 +41,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const unreadCount = notifications?.unreadCount ?? 0;
 
   return (
-    <nav className="flex max-h-[calc(100vh-64px)] flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
+    <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
       {items.map((item) => (
         <NavGroup
           key={item.href}
@@ -150,38 +151,76 @@ export function AppSidebar() {
 
 export function MobileDrawer() {
   const [open, setOpen] = useState(false);
+
+  // Clear a stuck body scroll lock left behind after mobile → desktop transitions.
+  useEffect(() => {
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      document.body.style.removeProperty("overflow");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const media = window.matchMedia("(min-width: 1024px)");
+    const previousOverflow = document.body.style.overflow;
+
+    const syncLock = () => {
+      // Desktop layout hides this drawer; never keep body scroll locked there.
+      if (media.matches) {
+        document.body.style.overflow = previousOverflow || "";
+        setOpen(false);
+        return;
+      }
+      document.body.style.overflow = "hidden";
+    };
+
+    syncLock();
+    media.addEventListener("change", syncLock);
+    return () => {
+      media.removeEventListener("change", syncLock);
+      document.body.style.removeProperty("overflow");
+    };
+  }, [open]);
+
+  const close = () => setOpen(false);
+
   return (
     <>
       <ButtonIcon onClick={() => setOpen(true)} label="Open menu">
         <Menu className="size-5" />
       </ButtonIcon>
-      {open ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            aria-label="Close menu backdrop"
-            onClick={() => setOpen(false)}
-          />
-          <div className="border-ex-border bg-ex-elevated absolute top-0 left-0 flex min-h-full w-[min(100%,20rem)] flex-col border-r shadow-xl">
-            <div className="border-ex-border flex items-center justify-between border-b px-3 py-3">
-              <SidebarBrand compact />
-              <ButtonIcon onClick={() => setOpen(false)} label="Close menu">
-                <X className="size-5" />
-              </ButtonIcon>
-            </div>
-            <NavLinks onNavigate={() => setOpen(false)} />
-          </div>
-        </div>
-      ) : null}
+      {open
+        ? createPortal(
+            <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                aria-label="Close menu backdrop"
+                onClick={close}
+              />
+              <div className="border-ex-border bg-ex-elevated absolute inset-0 flex w-full flex-col">
+                <div className="border-ex-border flex items-center justify-between border-b px-3 py-3">
+                  <SidebarBrand compact onNavigate={close} />
+                  <ButtonIcon onClick={close} label="Close menu">
+                    <X className="size-5" />
+                  </ButtonIcon>
+                </div>
+                <NavLinks onNavigate={close} />
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }
 
-function SidebarBrand({ compact }: { compact?: boolean }) {
+function SidebarBrand({ compact, onNavigate }: { compact?: boolean; onNavigate?: () => void }) {
   return (
     <Link
       href="/dashboard"
+      onClick={onNavigate}
       className={cn(
         "border-ex-border flex items-center gap-3 border-b px-4 py-3",
         compact && "border-0 py-2",

@@ -10,6 +10,8 @@ import {
   withSheetRowUpdatedAt,
 } from "@/lib/employee";
 import { EMPLOYEE_SHEET_RANGE, readSheet, updateSheetRow } from "@/lib/google/sheets";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
+import { todayIsoDate } from "@/lib/employee";
 
 export const POST = withActiveSession(async (req, user) => {
   try {
@@ -35,6 +37,13 @@ export const POST = withActiveSession(async (req, user) => {
     if (!lastWorkingDay) {
       return NextResponse.json(
         { success: false, message: "Last working day is required." },
+        { status: 400 },
+      );
+    }
+
+    if (lastWorkingDay < todayIsoDate()) {
+      return NextResponse.json(
+        { success: false, message: "Last working day cannot be a past date." },
         { status: 400 },
       );
     }
@@ -71,7 +80,7 @@ export const POST = withActiveSession(async (req, user) => {
     });
   } catch (error: unknown) {
     console.error("Offboard employee error:", error);
-    const message = error instanceof Error ? error.message : "Failed to offboard employee.";
+    const message = toApiErrorMessage(error, "Failed to offboard employee.");
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });

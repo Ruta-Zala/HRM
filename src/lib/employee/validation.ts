@@ -1,13 +1,21 @@
-import { POSITIONS } from "@/app/consts/common";
+import { POSITIONS, ROLES } from "@/app/consts/common";
 import { passwordStrengthError } from "@/lib/auth/password-rules";
 import type { EmployeeFormState } from "./form";
 
 export const EMPLOYEE_MIN_AGE = 18;
 export const EMPLOYEE_MAX_EXPERIENCE_YEARS = 35;
 
-/** CEO profile does not use experience / joining / increment / salary fields. */
+/** CEO profile does not use experience / joining / increment / salary / skills fields. */
 export function isCeoPosition(position: string): boolean {
   return position.trim().toLowerCase() === POSITIONS.CEO.toLowerCase();
+}
+
+/** Super Admin / CEO do not use experience, joining, increment, salary, or skills fields. */
+export function hidesEmploymentFields(input: { position?: string; role?: string }): boolean {
+  const role = String(input.role ?? "")
+    .trim()
+    .toLowerCase();
+  return isCeoPosition(String(input.position ?? "")) || role === ROLES.SUPER_ADMIN.toLowerCase();
 }
 
 /** Indian PAN: 5 letters + 4 digits + 1 letter */
@@ -20,6 +28,10 @@ export const AADHAAR_PATTERN = /^\d{12}$/;
 export const BANK_ACCOUNT_MIN_LENGTH = 5;
 export const BANK_ACCOUNT_MAX_LENGTH = 18;
 export const BANK_ACCOUNT_PATTERN = /^\d{5,18}$/;
+
+/** Optional IFSC: exactly 11 alphanumeric characters when provided */
+export const IFSC_CODE_LENGTH = 11;
+export const IFSC_CODE_PATTERN = /^[A-Z0-9]{11}$/;
 
 /** Indian mobile: 10 digits starting 6–9 */
 export const INDIAN_MOBILE_PATTERN = /^[6-9]\d{9}$/;
@@ -480,6 +492,10 @@ export function isValidBankAccountNumber(value: string): boolean {
   return BANK_ACCOUNT_PATTERN.test(value.replace(/\D/g, ""));
 }
 
+export function isValidIfscCode(value: string): boolean {
+  return IFSC_CODE_PATTERN.test(value.replace(/\s/g, "").toUpperCase());
+}
+
 export function isValidIndianMobile(value: string): boolean {
   return INDIAN_MOBILE_PATTERN.test(parseIndianMobileDigits(value));
 }
@@ -575,9 +591,12 @@ export function validateEmployeeForm(
     }
   }
 
-  const isCeo = isCeoPosition(form.position);
+  const skipEmploymentFields = hidesEmploymentFields({
+    position: form.position,
+    role: form.role,
+  });
 
-  if (!isCeo) {
+  if (!skipEmploymentFields) {
     if (!form.joiningDate.trim()) {
       errors.joiningDate = "Joining date is required.";
     } else {
@@ -632,6 +651,11 @@ export function validateEmployeeForm(
     errors.bankAccountNumber = `Enter a valid bank account number (${BANK_ACCOUNT_MIN_LENGTH}–${BANK_ACCOUNT_MAX_LENGTH} digits), or leave blank.`;
   }
 
+  const ifsc = form.ifscCode.replace(/\s/g, "").toUpperCase();
+  if (ifsc && !isValidIfscCode(ifsc)) {
+    errors.ifscCode = `Enter a valid ${IFSC_CODE_LENGTH}-character IFSC code, or leave blank.`;
+  }
+
   const parentNameErr = personNameError(form.parentName, "Parent / guardian name");
   if (parentNameErr) {
     errors.parentName = parentNameErr;
@@ -641,6 +665,14 @@ export function validateEmployeeForm(
     errors.parentContact = "Parent / guardian contact is required.";
   } else if (!isValidIndianMobile(form.parentContact)) {
     errors.parentContact = "Enter a valid 10-digit Indian mobile number.";
+  } else if (
+    isValidIndianMobile(form.contactNumber) &&
+    parseIndianMobileDigits(form.contactNumber) === parseIndianMobileDigits(form.parentContact)
+  ) {
+    errors.parentContact =
+      "Parent / guardian contact must be different from the employee contact number.";
+    errors.contactNumber =
+      "Employee contact number must be different from the parent / guardian contact.";
   }
 
   const parentDetailsErr = parentDetailsError(form.parentDetails);

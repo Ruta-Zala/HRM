@@ -21,7 +21,7 @@ export function MultiSelect({
   options,
   value,
   onChange,
-  placeholder = "Select options",
+  placeholder = "Select Options",
   disabled = false,
   emptyMessage = "No options available",
   className,

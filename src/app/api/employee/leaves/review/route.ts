@@ -11,6 +11,7 @@ import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
 import type { LeaveBucketType } from "@/lib/attendance/leave-bucket-layout";
 import { findEmployeeByAttendanceSpreadsheetId } from "@/lib/notifications/employee-lookup";
 import { notifyLeaveReviewed } from "@/lib/notifications/leave-events";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 function normalizeReviewStatus(
   value: unknown,
@@ -122,7 +123,7 @@ export const PATCH = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to review leave request",
+        message: toApiErrorMessage(error, "Failed to review leave request"),
       },
       { status: 500 },
     );

@@ -11,6 +11,7 @@ import {
   withSheetRowUpdatedAt,
 } from "@/lib/employee";
 import { updateSheetRow } from "@/lib/google/sheets";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 export const PATCH = withActiveSession(async (req, user) => {
   try {
@@ -96,7 +97,7 @@ export const PATCH = withActiveSession(async (req, user) => {
     });
   } catch (error: unknown) {
     console.error("PATCH employee/me/password error:", error);
-    const message = error instanceof Error ? error.message : "Failed to update password.";
+    const message = toApiErrorMessage(error, "Failed to update password.");
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });

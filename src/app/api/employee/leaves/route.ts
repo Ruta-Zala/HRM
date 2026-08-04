@@ -28,6 +28,7 @@ import {
 import { formatIsoDate } from "@/lib/attendance/time";
 import { formatIsoDateLabel, formatIsoDateRange } from "@/lib/notifications/format";
 import { notifyLeaveSubmitted } from "@/lib/notifications/leave-events";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 function parseIsoDate(value: string): Date | null {
   const date = new Date(value);
@@ -373,7 +374,7 @@ export const POST = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to submit leave request",
+        message: toApiErrorMessage(error, "Failed to submit leave request"),
       },
       { status: 500 },
     );
@@ -441,7 +442,7 @@ export const GET = withActiveSession(async (_req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to fetch leave balances",
+        message: toApiErrorMessage(error, "Failed to fetch leave balances"),
       },
       { status: 500 },
     );

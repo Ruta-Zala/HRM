@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { FormSkeleton } from "@/components/ui/form-skeleton";
 import { EmployeeProfileView } from "@/components/employee/employee-profile-view";
 import { useAuth } from "@/contexts/auth-provider";
+import { readResponseJson } from "@/lib/api/read-response-json";
+import { toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { sheetRowToForm, type EmployeeFormState } from "@/lib/employee";
 
 export default function EmployeeProfileByRowPage() {
@@ -45,17 +47,22 @@ export default function EmployeeProfileByRowPage() {
         setLoading(true);
         setError(null);
         const response = await fetch(`/api/employee?row=${sheetRow}`);
-        const result = await response.json();
+        const result = await readResponseJson<{
+          success?: boolean;
+          message?: string;
+          headers?: string[];
+          row?: string[];
+        }>(response, "fetch");
 
         if (!result.success) {
-          setError(result.message ?? "Employee not found.");
+          setError(toUserFacingFetchError(result.message ?? "Employee not found."));
           return;
         }
 
-        const headers = (result.headers as string[]) ?? [];
-        setForm(sheetRowToForm(headers, (result.row as string[]) ?? []));
-      } catch {
-        setError("Failed to load employee profile.");
+        const headers = result.headers ?? [];
+        setForm(sheetRowToForm(headers, result.row ?? []));
+      } catch (error) {
+        setError(toUserFacingFetchError(error));
       } finally {
         setLoading(false);
       }

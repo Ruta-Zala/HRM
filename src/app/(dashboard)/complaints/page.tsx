@@ -1,6 +1,13 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, MessageSquareWarning, Send, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  MessageSquareWarning,
+  RefreshCw,
+  Send,
+  XCircle,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/auth-provider";
 import { useNotifications } from "@/contexts/notifications-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
+import { assertApiSuccess, readResponseJson } from "@/lib/api/read-response-json";
 import type {
   ComplaintCategory,
   ComplaintRecord,
@@ -54,14 +63,12 @@ function formatDate(value: string): string {
 
 async function fetchComplaintRecords(): Promise<ComplaintRecord[]> {
   const response = await fetch("/api/complaints", { cache: "no-store" });
-  const data = (await response.json()) as {
+  const data = await readResponseJson<{
     success?: boolean;
     message?: string;
     complaints?: ComplaintRecord[];
-  };
-  if (!response.ok || !data.success) {
-    throw new Error(data.message ?? "Failed to load complaints");
-  }
+  }>(response, "fetch");
+  assertApiSuccess(data, "fetch");
   return data.complaints ?? [];
 }
 
@@ -83,10 +90,11 @@ export default function ComplaintsPage() {
 
   const loadComplaints = useCallback(async () => {
     try {
+      setLoading(true);
       setComplaints(await fetchComplaintRecords());
       setError(null);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load complaints");
+      setError(toUserFacingFetchError(loadError));
     } finally {
       setLoading(false);
     }
@@ -103,7 +111,7 @@ export default function ComplaintsPage() {
       })
       .catch((loadError: unknown) => {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Failed to load complaints");
+          setError(toUserFacingFetchError(loadError));
         }
       })
       .finally(() => {
@@ -143,11 +151,11 @@ export default function ComplaintsPage() {
           details: details.trim(),
         }),
       });
-      const data = (await response.json()) as {
+      const data = await readResponseJson<{
         success?: boolean;
         message?: string;
         complaint?: ComplaintRecord;
-      };
+      }>(response, "action");
       if (!response.ok || !data.success || !data.complaint) {
         throw new Error(data.message ?? "Failed to submit complaint");
       }
@@ -159,10 +167,11 @@ export default function ComplaintsPage() {
         title: "Complaint submitted",
         body: "Your complaint was sent to HR and Super Admin for review.",
         href: "/complaints",
+        variant: "success",
       });
       await Promise.all([loadComplaints(), refreshNotifications()]);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Failed to submit complaint");
+      setError(toUserFacingActionError(submitError));
     } finally {
       setSubmitting(false);
     }
@@ -184,7 +193,10 @@ export default function ComplaintsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: complaint.id, status, reviewNote }),
       });
-      const data = (await response.json()) as { success?: boolean; message?: string };
+      const data = await readResponseJson<{ success?: boolean; message?: string }>(
+        response,
+        "action",
+      );
       if (!response.ok || !data.success) {
         throw new Error(data.message ?? "Failed to review complaint");
       }
@@ -197,10 +209,11 @@ export default function ComplaintsPage() {
         title: `Complaint ${status.toLowerCase()}`,
         body: `${complaint.submitterName}'s complaint has been ${status.toLowerCase()}.`,
         href: "/complaints",
+        variant: "success",
       });
       await Promise.all([loadComplaints(), refreshNotifications()]);
     } catch (reviewError) {
-      setError(reviewError instanceof Error ? reviewError.message : "Failed to review complaint");
+      setError(toUserFacingActionError(reviewError));
     } finally {
       setReviewingId(null);
     }
@@ -214,6 +227,17 @@ export default function ComplaintsPage() {
           canReview
             ? "Review employee concerns and record the action taken."
             : "Raise workplace concerns and track their review status."
+        }
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void loadComplaints()}
+            disabled={loading}
+          >
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
         }
       />
 
@@ -283,7 +307,7 @@ export default function ComplaintsPage() {
       ) : null}
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+        <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg rounded-lg border px-4 py-3 text-sm">
           {error}
         </p>
       ) : null}

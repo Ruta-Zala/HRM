@@ -1,5 +1,6 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 
@@ -91,7 +92,7 @@ export function ProfileAccountSettings({
         body: JSON.stringify({ currentPassword }),
       });
 
-      const result = (await res.json()) as { success?: boolean; message?: string };
+      const result = await readResponseJson<{ success?: boolean; message?: string }>(res, "action");
 
       if (!res.ok || !result.success) {
         setError(result.message ?? "Password verification failed.");
@@ -138,7 +139,7 @@ export function ProfileAccountSettings({
         }),
       });
 
-      const result = (await res.json()) as { success?: boolean; message?: string };
+      const result = await readResponseJson<{ success?: boolean; message?: string }>(res, "action");
 
       if (!res.ok || !result.success) {
         setError(result.message ?? "Failed to update password.");

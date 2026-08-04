@@ -1,5 +1,6 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -32,11 +33,11 @@ function HeaderProfileAvatar({ userName, onLogout }: { userName?: string; onLogo
     void (async () => {
       try {
         const res = await fetch("/api/employee/me", { credentials: "include", cache: "no-store" });
-        const data = (await res.json()) as {
+        const data = await readResponseJson<{
           success?: boolean;
           headers?: string[];
           row?: string[];
-        };
+        }>(res, "fetch");
         if (cancelled || !data.success || !data.headers || !data.row) {
           if (!cancelled) {
             setSrc(null);

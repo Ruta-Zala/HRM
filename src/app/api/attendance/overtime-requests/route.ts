@@ -13,6 +13,7 @@ import {
 import { getMonthAttendance } from "@/lib/google/attendance-sheets";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees, canReviewOvertime } from "@/lib/auth/server";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 function isPositiveOvertime(value: string): boolean {
   const overtime = value.trim();
@@ -29,7 +30,7 @@ export const GET = withActiveSession(async (_req, user) => {
     );
     return NextResponse.json({ success: true, requests });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to load overtime requests";
+    const message = toApiErrorMessage(error, "Failed to load overtime requests");
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });
@@ -109,7 +110,7 @@ export const POST = withActiveSession(async (req, user) => {
     });
     return NextResponse.json({ success: true, request });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to create overtime request";
+    const message = toApiErrorMessage(error, "Failed to create overtime request");
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });
@@ -152,7 +153,7 @@ export const PATCH = withActiveSession(async (req, user) => {
     });
     return NextResponse.json({ success: true, request });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to review overtime request";
+    const message = toApiErrorMessage(error, "Failed to review overtime request");
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });

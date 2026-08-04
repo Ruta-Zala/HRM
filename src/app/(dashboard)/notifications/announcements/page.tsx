@@ -1,5 +1,6 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/ui/page-header";
@@ -10,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 
 type AnnouncementCategory = "general" | "office_leave" | "important";
 
@@ -49,11 +51,11 @@ export default function AnnouncementsPage() {
     let cancelled = false;
     void fetch("/api/announcements", { cache: "no-store" })
       .then(async (response) => {
-        const data = (await response.json()) as {
+        const data = await readResponseJson<{
           success?: boolean;
           message?: string;
           announcements?: AnnouncementRecord[];
-        };
+        }>(response, "fetch");
         if (!response.ok || !data.success) {
           throw new Error(data.message ?? "Failed to load announcements");
         }
@@ -64,7 +66,7 @@ export default function AnnouncementsPage() {
       })
       .catch((loadError: unknown) => {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Failed to load announcements");
+          setError(toUserFacingFetchError(loadError));
         }
       })
       .finally(() => {
@@ -96,11 +98,11 @@ export default function AnnouncementsPage() {
           category,
         }),
       });
-      const data = (await response.json()) as {
+      const data = await readResponseJson<{
         success?: boolean;
         message?: string;
         announcement?: AnnouncementRecord;
-      };
+      }>(response, "action");
 
       if (!response.ok || !data.success || !data.announcement) {
         throw new Error(data.message ?? "Failed to publish announcement");
@@ -114,9 +116,7 @@ export default function AnnouncementsPage() {
         `Announcement sent to ${data.announcement.recipientCount} active employee${data.announcement.recipientCount === 1 ? "" : "s"}.`,
       );
     } catch (publishError) {
-      setError(
-        publishError instanceof Error ? publishError.message : "Failed to publish announcement",
-      );
+      setError(toUserFacingActionError(publishError));
     } finally {
       setPublishing(false);
     }
@@ -173,7 +173,7 @@ export default function AnnouncementsPage() {
           </div>
 
           {error ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 md:col-span-2 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg rounded-lg border px-4 py-3 text-sm md:col-span-2">
               {error}
             </p>
           ) : null}

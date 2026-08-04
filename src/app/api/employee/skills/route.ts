@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { parseSkillsValue, normalizeSkillInput } from "@/app/consts/tech-skills";
 import { appendSheetRows, readSheet } from "@/lib/google/sheets";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 const SKILLS_SHEET_NAME = "Skills";
 const SKILLS_SHEET_RANGE = `'${SKILLS_SHEET_NAME}'!A:A`;
@@ -46,7 +47,7 @@ export const GET = withActiveSession(async () => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to load skill suggestions",
+        message: toApiErrorMessage(error, "Failed to load skill suggestions"),
       },
       { status: 500 },
     );
@@ -95,7 +96,7 @@ export const POST = withActiveSession(async (req) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to save skill",
+        message: toApiErrorMessage(error, "Failed to save skill"),
       },
       { status: 500 },
     );

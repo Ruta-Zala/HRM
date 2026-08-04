@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { useTodayAttendance } from "@/hooks/use-today-attendance";
 import { useAuth } from "@/contexts/auth-provider";
+import { toUserFacingActionError } from "@/lib/api/user-facing-error";
 import { canManageEmployees, roleCanPunchInOut } from "@/lib/auth/roles";
 import { roleRequiresAbsenceExplanationGate } from "@/lib/attendance/absence-gate";
 import { readAbsenceGateSessionHint } from "@/lib/attendance/absence-gate-session";
@@ -71,7 +72,7 @@ export default function PunchPage() {
       setDailyUpdateDraft(null);
       setEarlyLeaveOpen(false);
     } catch (err) {
-      setEarlyLeaveError(err instanceof Error ? err.message : "Punch out failed");
+      setEarlyLeaveError(toUserFacingActionError(err));
     }
   }
 
@@ -89,7 +90,7 @@ export default function PunchPage() {
       setDailyUpdateDraft(updated.dailyUpdate ?? null);
       await refresh();
     } catch (err) {
-      setDailyUpdateError(err instanceof Error ? err.message : "Failed to update daily update");
+      setDailyUpdateError(toUserFacingActionError(err));
     } finally {
       setDailyUpdateSaving(false);
     }
@@ -156,7 +157,7 @@ export default function PunchPage() {
       </div>
 
       {error ? (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+        <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg rounded-xl border px-4 py-3 text-sm">
           {error}
         </p>
       ) : null}

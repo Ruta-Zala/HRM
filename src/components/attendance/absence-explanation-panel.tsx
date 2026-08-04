@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ABSENCE_EXPLANATION_MIN_LENGTH } from "@/lib/attendance/constants";
 import { setAbsenceGateSessionHint } from "@/lib/attendance/absence-gate-session";
 import { apiResponseErrorMessage, parseJsonResponse } from "@/lib/api/json-response";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 
 type LeaveTypeOption = "sick" | "casual";
 
@@ -95,7 +96,9 @@ async function fetchPendingGroups(): Promise<{
   if (parsed.invalid || parsed.empty || !res.ok || !parsed.data?.success) {
     return {
       groups: [],
-      error: apiResponseErrorMessage(res, parsed, "Failed to load pending absences"),
+      error: toUserFacingFetchError(
+        apiResponseErrorMessage(res, parsed, "Failed to load pending absences"),
+      ),
     };
   }
 
@@ -219,7 +222,11 @@ export function AbsenceExplanationPanel({
         groups?: PendingAbsenceGroup[];
       }>(res);
       if (parsed.invalid || parsed.empty || !res.ok || !parsed.data?.success) {
-        setError(apiResponseErrorMessage(res, parsed, "Failed to submit explanation"));
+        setError(
+          toUserFacingActionError(
+            apiResponseErrorMessage(res, parsed, "Failed to submit explanation"),
+          ),
+        );
         return;
       }
 
@@ -228,9 +235,7 @@ export function AbsenceExplanationPanel({
       setAbsenceGateSessionHint(false);
       onSubmittedRef.current?.();
     } catch (submitError) {
-      const message =
-        submitError instanceof Error ? submitError.message : "Failed to submit explanation";
-      setError(message);
+      setError(toUserFacingActionError(submitError));
     } finally {
       setSubmitting(false);
     }

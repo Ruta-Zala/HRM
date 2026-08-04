@@ -13,6 +13,8 @@ import { DataTable } from "@/components/ui/data-table";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/auth-provider";
+import { readResponseJson } from "@/lib/api/read-response-json";
+import { toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { PAYROLL_DAY_CODE_LEGEND } from "@/lib/payroll/constants";
 import type { Column } from "@/types/table";
@@ -193,13 +195,15 @@ export default function PayrollPage() {
         credentials: "include",
         cache: "no-store",
       });
-      const json = (await res.json()) as PayrollApiResponse;
-      if (!json.success) throw new Error(json.message ?? "Failed to load payroll");
+      const json = await readResponseJson<PayrollApiResponse>(res, "fetch");
+      if (!res.ok || !json.success) {
+        throw new Error(json.message ?? "Failed to load payroll");
+      }
       setData(json);
     } catch (err) {
       console.error(err);
       setData(null);
-      setError(err instanceof Error ? err.message : "Failed to load payroll");
+      setError(toUserFacingFetchError(err));
     } finally {
       setLoading(false);
     }

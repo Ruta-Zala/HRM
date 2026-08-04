@@ -1,5 +1,6 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import {
   createContext,
   useCallback,
@@ -46,12 +47,12 @@ async function fetchNotifications(): Promise<{
   unreadCount: number;
 }> {
   const res = await fetch("/api/notifications", { cache: "no-store", credentials: "include" });
-  const data = (await res.json()) as {
+  const data = await readResponseJson<{
     success?: boolean;
     notifications?: NotificationRecord[];
     birthdayReminders?: NotificationRecord[];
     unreadCount?: number;
-  };
+  }>(res, "fetch");
 
   if (!res.ok || !data.success) {
     throw new Error("Failed to load notifications");
@@ -94,6 +95,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
         title: toast.title,
         body: toast.body,
         href: toast.href,
+        variant: toast.variant ?? "default",
       };
 
       setToasts((current) => {

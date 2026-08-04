@@ -1,6 +1,8 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 import { ROLES, STATUS } from "@/app/consts/common";
+import { readResponseJson } from "@/lib/api/read-response-json";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import {
   isAccountInactiveRedirectError,
   isAccountInactiveRedirectPending,
@@ -33,14 +35,24 @@ async function fetchEmployeeListPage(page: number, pageSize: number) {
     pageSize: String(pageSize),
   });
   const response = await fetch(`/api/employee?${params}`);
-  const result = await response.json();
+  const result = await readResponseJson<{
+    success?: boolean;
+    message?: string;
+    data?: string[][];
+    sheetRows?: number[];
+    pagination?: { page?: number; pageSize?: number; total?: number; totalPages?: number };
+  }>(response, "fetch");
 
   if (!response.ok || !result.success) {
     throw new Error(result.message ?? "Failed to load employees");
   }
 
   return {
-    items: parseEmployeeListApiResponse(result),
+    items: parseEmployeeListApiResponse({
+      success: result.success,
+      data: result.data,
+      sheetRows: result.sheetRows,
+    }),
     totalPages: result.pagination?.totalPages ?? 1,
   };
 }
@@ -63,7 +75,10 @@ export const offboardEmployee = createAsyncThunk(
         reason: payload.reason,
       }),
     });
-    const result = await response.json();
+    const result = await readResponseJson<{ success?: boolean; message?: string }>(
+      response,
+      "action",
+    );
 
     if (!response.ok || !result.success) {
       throw new Error(result.message ?? "Failed to offboard employee");
@@ -151,7 +166,7 @@ const employeeListSlice = createSlice({
         if (isAccountInactiveRedirectPending() || isAccountInactiveRedirectError(action.error)) {
           return;
         }
-        state.error = action.error.message ?? "Failed to load employees";
+        state.error = toUserFacingFetchError(action.error.message);
       })
       .addCase(offboardEmployee.pending, (state) => {
         state.offboarding = true;
@@ -170,7 +185,9 @@ const employeeListSlice = createSlice({
         if (isAccountInactiveRedirectPending() || isAccountInactiveRedirectError(action.error)) {
           return;
         }
-        state.error = action.error.message ?? "Failed to offboard employee";
+        state.error = toUserFacingActionError(
+          action.error.message ?? "Failed to offboard employee",
+        );
       });
   },
 });

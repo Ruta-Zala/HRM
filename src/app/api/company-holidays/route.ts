@@ -9,6 +9,7 @@ import {
   updateCompanyHoliday,
 } from "@/lib/company-holiday-sheets";
 import type { CompanyHoliday, CompanyHolidayType } from "@/lib/company-holidays";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 function validDate(value: string): boolean {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -53,7 +54,7 @@ export const GET = withActiveSession(async (req) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to load company holidays",
+        message: toApiErrorMessage(error, "Failed to load company holidays"),
       },
       { status: 500 },
     );
@@ -82,7 +83,7 @@ export const POST = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to create company holiday",
+        message: toApiErrorMessage(error, "Failed to create company holiday"),
       },
       { status: 500 },
     );
@@ -120,7 +121,7 @@ export const PATCH = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to update company holiday",
+        message: toApiErrorMessage(error, "Failed to update company holiday"),
       },
       { status: 500 },
     );
@@ -153,7 +154,7 @@ export const DELETE = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to delete company holiday",
+        message: toApiErrorMessage(error, "Failed to delete company holiday"),
       },
       { status: 500 },
     );

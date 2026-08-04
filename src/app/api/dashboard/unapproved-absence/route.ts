@@ -4,6 +4,7 @@ import { listUnapprovedAbsenceEmployees } from "@/lib/attendance/unapproved-abse
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { notificationDateIso } from "@/lib/notifications/automation-date";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 function isValidDateIso(value: string): boolean {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -46,8 +47,7 @@ export const GET = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message:
-          error instanceof Error ? error.message : "Failed to load unapproved absence employees",
+        message: toApiErrorMessage(error, "Failed to load unapproved absence employees"),
       },
       { status: 500 },
     );

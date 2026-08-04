@@ -5,6 +5,7 @@ import { resolveAttendanceEmployeeForTarget } from "@/lib/attendance/employee";
 import { importAttendanceRecords } from "@/lib/google/attendance-sheets";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 export const POST = withActiveSession(async (req, user) => {
   try {
@@ -84,7 +85,7 @@ export const POST = withActiveSession(async (req, user) => {
       },
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Import failed";
+    const message = toApiErrorMessage(error, "Import failed");
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
 });

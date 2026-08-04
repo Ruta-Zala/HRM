@@ -10,6 +10,7 @@ import {
   removeRemoteAccessEmployee,
   setNetworkRestrictionEnabled,
 } from "@/lib/network-access/settings-sheets";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export const GET = withActiveSession(async (_req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to load network settings",
+        message: toApiErrorMessage(error, "Failed to load network settings"),
       },
       { status: 500 },
     );
@@ -58,7 +59,7 @@ export const PATCH = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to update network settings",
+        message: toApiErrorMessage(error, "Failed to update network settings"),
       },
       { status: 500 },
     );
@@ -95,7 +96,7 @@ export const POST = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to add remote employee",
+        message: toApiErrorMessage(error, "Failed to add remote employee"),
       },
       { status: 500 },
     );
@@ -129,7 +130,7 @@ export const DELETE = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to remove remote employee",
+        message: toApiErrorMessage(error, "Failed to remove remote employee"),
       },
       { status: 500 },
     );

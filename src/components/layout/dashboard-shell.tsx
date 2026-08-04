@@ -35,6 +35,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }, [loading, user, router]);
 
+  // Ensure dashboard pages can always scroll (mobile drawer may leave body locked).
+  useEffect(() => {
+    document.body.style.removeProperty("overflow");
+  }, [pathname]);
+
   useEffect(() => {
     if (!gateApplies || loading || !user) return;
 

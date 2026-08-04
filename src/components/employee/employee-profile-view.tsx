@@ -17,6 +17,7 @@ import { canManageEmployees } from "@/lib/auth/roles";
 import {
   getDocumentDisplayName,
   getDocumentHref,
+  hidesEmploymentFields,
   maskAadhar,
   maskPan,
   isEmployeeStatusActive,
@@ -121,6 +122,10 @@ export function EmployeeProfileView({
   const showDocuments = user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
   const canManage = user ? canManageEmployees(user.role) : false;
   const isInactive = !isEmployeeStatusActive(form.status);
+  const hideEmploymentFields = hidesEmploymentFields({
+    position: form.position,
+    role: form.role,
+  });
 
   return (
     <div className="grid gap-4 xl:grid-cols-3">
@@ -196,19 +201,24 @@ export function EmployeeProfileView({
             </div>
 
             <ReadOnlyField label="Birthday" value={formatDate(form.birthdayDate)} />
-            <ReadOnlyField label="Joining date" value={formatDate(form.joiningDate)} />
-            <ReadOnlyField label="Last increment" value={formatDate(form.lastIncrementDate)} />
-            <ReadOnlyField label="Experience (years)" value={form.experience || "—"} />
-
-            {canManage ? (
-              <ReadOnlyField
-                label="Salary (monthly)"
-                value={form.salary?.trim() ? form.salary : "—"}
-              />
+            {!hideEmploymentFields ? (
+              <>
+                <ReadOnlyField label="Joining date" value={formatDate(form.joiningDate)} />
+                <ReadOnlyField label="Last increment" value={formatDate(form.lastIncrementDate)} />
+                <ReadOnlyField label="Experience (years)" value={form.experience || "—"} />
+                {canManage ? (
+                  <ReadOnlyField
+                    label="Salary (monthly)"
+                    value={form.salary?.trim() ? form.salary : "—"}
+                  />
+                ) : null}
+              </>
             ) : null}
 
             <ReadOnlyField label="PAN" value={maskPan(form.panNumber)} />
             <ReadOnlyField label="Aadhaar" value={maskAadhar(form.aadharNumber)} />
+            <ReadOnlyField label="Bank account" value={form.bankAccountNumber || "—"} />
+            <ReadOnlyField label="IFSC code" value={form.ifscCode || "—"} />
           </CardContent>
         </Card>
 
@@ -242,23 +252,25 @@ export function EmployeeProfileView({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Skills</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Tech skills</Label>
-              <Textarea
-                value={skills.length ? skills.join(", ") : "—"}
-                readOnly
-                disabled
-                rows={4}
-                className="disabled:opacity-100"
-              />
-            </div>
-          </CardContent>
-        </Card>
+        {!hideEmploymentFields ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Skills</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Tech skills</Label>
+                <Textarea
+                  value={skills.length ? skills.join(", ") : "—"}
+                  readOnly
+                  disabled
+                  rows={4}
+                  className="disabled:opacity-100"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {showDocuments ? (
           <Card>

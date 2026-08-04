@@ -1,5 +1,6 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/ui/page-header";
@@ -9,6 +10,7 @@ import { EmployeeForm } from "@/components/employee/employee-form";
 import { EmployeeProfileView } from "@/components/employee/employee-profile-view";
 import { useAuth } from "@/contexts/auth-provider";
 import { isAccountInactiveRedirectError } from "@/lib/account-inactive-client";
+import { toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { sheetRowToForm, type EmployeeFormState } from "@/lib/employee";
 
 export default function EmployeeProfilePage() {
@@ -25,10 +27,14 @@ export default function EmployeeProfilePage() {
       setLoading(true);
       setError(null);
       const response = await fetch("/api/employee/me");
-      const result = await response.json();
+      const result = await readResponseJson<{
+        success?: boolean;
+        message?: string;
+        [key: string]: unknown;
+      }>(response, "fetch");
 
       if (!result.success) {
-        setError(result.message ?? "Failed to load your profile.");
+        setError(toUserFacingFetchError(result.message ?? "Failed to load your profile."));
         return;
       }
 
@@ -39,7 +45,7 @@ export default function EmployeeProfilePage() {
       setHasPassword(Boolean(result.hasPassword));
     } catch (error) {
       if (isAccountInactiveRedirectError(error)) return;
-      setError("Failed to load your profile. Please try again.");
+      setError(toUserFacingFetchError(error));
     } finally {
       setLoading(false);
     }
@@ -54,11 +60,15 @@ export default function EmployeeProfilePage() {
         setLoading(true);
         setError(null);
         const response = await fetch("/api/employee/me");
-        const result = await response.json();
+        const result = await readResponseJson<{
+          success?: boolean;
+          message?: string;
+          [key: string]: unknown;
+        }>(response, "fetch");
         if (cancelled) return;
 
         if (!result.success) {
-          setError(result.message ?? "Failed to load your profile.");
+          setError(toUserFacingFetchError(result.message ?? "Failed to load your profile."));
           return;
         }
 
@@ -69,7 +79,7 @@ export default function EmployeeProfilePage() {
         setHasPassword(Boolean(result.hasPassword));
       } catch (error) {
         if (cancelled || isAccountInactiveRedirectError(error)) return;
-        setError("Failed to load your profile. Please try again.");
+        setError(toUserFacingFetchError(error));
       } finally {
         if (!cancelled) setLoading(false);
       }

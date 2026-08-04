@@ -1,5 +1,6 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import Image from "next/image";
 import Link from "next/link";
 import { AlertTriangle, CalendarDays, Sparkles, Users } from "lucide-react";
@@ -27,7 +28,11 @@ import { parseLeaveDisplayDate } from "@/lib/attendance/leave-range-display";
 import { formatIsoDate } from "@/lib/attendance/time";
 import { COMPANY_HOLIDAYS_2026, type CompanyHoliday } from "@/lib/company-holidays";
 import { resolveProfileImageSrc } from "@/lib/employee";
+import { toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { cn } from "@/lib/utils";
+
+/** Shared body height so holiday / on-leave / absence cards don’t jump while loading. */
+const DASHBOARD_PANEL_BODY = "h-80";
 
 // const headcountTrend = [
 //   { month: "Jan", onboarded: 4, attrition: 1 },
@@ -333,12 +338,12 @@ export default function DashboardPage() {
       cache: "no-store",
     })
       .then(async (response) => {
-        const data = (await response.json()) as {
+        const data = await readResponseJson<{
           success?: boolean;
           message?: string;
           employees?: OnLeaveEmployee[];
           totalEmployees?: number;
-        };
+        }>(response, "fetch");
         if (!response.ok || !data.success) {
           throw new Error(data.message ?? "Failed to load employees on leave");
         }
@@ -357,9 +362,7 @@ export default function DashboardPage() {
         if (cancelled) return;
         setOnLeave([]);
         setTotalEmployees(0);
-        setOnLeaveError(
-          error instanceof Error ? error.message : "Failed to load employees on leave",
-        );
+        setOnLeaveError(toUserFacingFetchError(error));
       })
       .finally(() => {
         if (!cancelled) setOnLeaveLoading(false);
@@ -380,11 +383,11 @@ export default function DashboardPage() {
         cache: "no-store",
       })
         .then(async (response) => {
-          const data = (await response.json()) as {
+          const data = await readResponseJson<{
             success?: boolean;
             message?: string;
             employees?: UnapprovedAbsenceEmployee[];
-          };
+          }>(response, "fetch");
           if (!response.ok || !data.success) {
             throw new Error(data.message ?? "Failed to load unapproved absences");
           }
@@ -399,9 +402,7 @@ export default function DashboardPage() {
         .catch((error: unknown) => {
           if (cancelled) return;
           setUnapprovedAbsence([]);
-          setUnapprovedAbsenceError(
-            error instanceof Error ? error.message : "Failed to load unapproved absences",
-          );
+          setUnapprovedAbsenceError(toUserFacingFetchError(error));
           setUnapprovedAbsenceFetchedDate(leaveDate);
         });
     };
@@ -422,10 +423,10 @@ export default function DashboardPage() {
     let cancelled = false;
     void fetch(`/api/company-holidays?year=${holidayYear}`, { cache: "no-store" })
       .then(async (response) => {
-        const data = (await response.json()) as {
+        const data = await readResponseJson<{
           success?: boolean;
           holidays?: CompanyHoliday[];
-        };
+        }>(response, "fetch");
         if (!response.ok || !data.success) {
           throw new Error("Failed to load company holidays");
         }
@@ -496,16 +497,21 @@ export default function DashboardPage() {
               </Badge>
             ) : null}
           </CardHeader>
-          <CardContent className="flex flex-1 flex-col p-4">
+          <CardContent className="flex flex-1 flex-col p-5">
             {upcomingHolidays.length === 0 ? (
-              <div className="border-ex-border flex h-60 flex-col items-center justify-center rounded-xl border border-dashed px-5 text-center">
+              <div
+                className={cn(
+                  "border-ex-border flex flex-col items-center justify-center rounded-xl border border-dashed px-5 text-center",
+                  DASHBOARD_PANEL_BODY,
+                )}
+              >
                 <p className="text-ex-primary text-sm font-medium">No upcoming holidays</p>
                 <p className="text-ex-muted mt-1 text-xs">
                   New company leave days and celebrations will appear here.
                 </p>
               </div>
             ) : (
-              <div className="h-80 space-y-3 overflow-y-auto pr-1">
+              <div className={cn(DASHBOARD_PANEL_BODY, "space-y-3 overflow-y-auto pr-1")}>
                 {upcomingHolidays.map((holiday) => (
                   <UpcomingHolidayItem key={holiday.id} holiday={holiday} />
                 ))}
@@ -518,15 +524,17 @@ export default function DashboardPage() {
           className={cn("flex h-full flex-col overflow-hidden", !canManageLeave && "lg:col-span-2")}
         >
           <CardHeader className="bg-ex-surface/40 flex flex-col gap-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-ex-chip-warning-bg text-ex-chip-warning-fg flex size-11 items-center justify-center rounded-xl">
-                <Users className="size-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <CardTitle>Employees On Leave</CardTitle>
-                <p className="text-ex-muted mt-1 text-sm">
-                  Approved leave for {displayDate(canManageLeave ? leaveDate : formatIsoDate())}
-                </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="bg-ex-chip-warning-bg text-ex-chip-warning-fg flex size-11 shrink-0 items-center justify-center rounded-xl">
+                  <Users className="size-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="text-balance">Employees On Leave</CardTitle>
+                  <p className="text-ex-muted mt-1 text-sm">
+                    Approved leave for {displayDate(canManageLeave ? leaveDate : formatIsoDate())}
+                  </p>
+                </div>
               </div>
               {canManageLeave ? (
                 <Input
@@ -537,33 +545,42 @@ export default function DashboardPage() {
                     setUnapprovedAbsenceFetchedDate(null);
                     setLeaveDate(event.target.value);
                   }}
-                  className="w-full shrink-0 sm:w-44"
+                  className="w-full sm:w-44 sm:shrink-0"
                   aria-label="Select leave date"
                 />
               ) : null}
             </div>
-            {!onLeaveLoading ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={onLeave.length > 0 ? "warning" : "default"}>
-                  {onLeave.length} on leave
-                </Badge>
-                {canManageLeave ? (
-                  <Badge variant={birthdayLeaveEmployees.length > 0 ? "accent" : "default"}>
-                    {birthdayLeaveEmployees.length} birthday
+            <div className="flex min-h-7 flex-wrap items-center gap-2">
+              {onLeaveLoading ? (
+                <>
+                  <div className="bg-ex-surface h-6 w-20 animate-pulse rounded-full" />
+                  {canManageLeave ? (
+                    <div className="bg-ex-surface h-6 w-20 animate-pulse rounded-full" />
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <Badge variant={onLeave.length > 0 ? "warning" : "default"}>
+                    {onLeave.length} on leave
                   </Badge>
-                ) : null}
-              </div>
-            ) : null}
+                  {canManageLeave ? (
+                    <Badge variant={birthdayLeaveEmployees.length > 0 ? "accent" : "default"}>
+                      {birthdayLeaveEmployees.length} birthday
+                    </Badge>
+                  ) : null}
+                </>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col p-5">
             {onLeaveError ? (
-              <div className="flex h-60 items-center">
-                <p className="w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+              <div className={cn("flex items-center", DASHBOARD_PANEL_BODY)}>
+                <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg w-full rounded-lg border px-4 py-3 text-sm">
                   {onLeaveError}
                 </p>
               </div>
             ) : onLeaveLoading ? (
-              <div className="grid h-60 gap-3">
+              <div className={cn("grid gap-3", DASHBOARD_PANEL_BODY)}>
                 {[0, 1, 2].map((item) => (
                   <div
                     key={item}
@@ -572,7 +589,12 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : onLeave.length === 0 ? (
-              <div className="border-ex-border bg-ex-surface/40 flex h-80 flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center">
+              <div
+                className={cn(
+                  "border-ex-border bg-ex-surface/40 flex flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center",
+                  DASHBOARD_PANEL_BODY,
+                )}
+              >
                 <div className="bg-ex-elevated text-ex-muted mx-auto flex size-12 items-center justify-center rounded-full text-xl">
                   ✓
                 </div>
@@ -583,7 +605,7 @@ export default function DashboardPage() {
                 </p>
               </div>
             ) : (
-              <div className="h-60 space-y-6 overflow-y-auto pr-1">
+              <div className={cn(DASHBOARD_PANEL_BODY, "space-y-6 overflow-y-auto pr-1")}>
                 {birthdayLeaveEmployees.length > 0 ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -653,23 +675,25 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              {!unapprovedAbsenceLoading ? (
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-h-7 flex-wrap items-center gap-2">
+                {unapprovedAbsenceLoading ? (
+                  <div className="bg-ex-surface h-6 w-24 animate-pulse rounded-full" />
+                ) : (
                   <Badge variant={unapprovedNoPunch.length > 0 ? "danger" : "default"}>
                     {unapprovedNoPunch.length} no punch
                   </Badge>
-                </div>
-              ) : null}
+                )}
+              </div>
             </CardHeader>
             <CardContent className="flex flex-1 flex-col p-5">
               {unapprovedAbsenceError ? (
-                <div className="flex h-60 items-center">
-                  <p className="w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                <div className={cn("flex items-center", DASHBOARD_PANEL_BODY)}>
+                  <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg w-full rounded-lg border px-4 py-3 text-sm">
                     {unapprovedAbsenceError}
                   </p>
                 </div>
               ) : unapprovedAbsenceLoading ? (
-                <div className="grid h-60 gap-3">
+                <div className={cn("grid gap-3", DASHBOARD_PANEL_BODY)}>
                   {[0, 1, 2].map((item) => (
                     <div
                       key={item}
@@ -678,7 +702,12 @@ export default function DashboardPage() {
                   ))}
                 </div>
               ) : unapprovedAbsence.length === 0 ? (
-                <div className="border-ex-border bg-ex-surface/40 flex h-60 flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center">
+                <div
+                  className={cn(
+                    "border-ex-border bg-ex-surface/40 flex flex-col items-center justify-center rounded-xl border border-dashed px-6 text-center",
+                    DASHBOARD_PANEL_BODY,
+                  )}
+                >
                   <div className="bg-ex-elevated text-ex-muted mx-auto flex size-12 items-center justify-center rounded-full text-xl">
                     ✓
                   </div>
@@ -688,7 +717,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
               ) : (
-                <div className="h-60 overflow-y-auto pr-1">
+                <div className={cn(DASHBOARD_PANEL_BODY, "overflow-y-auto pr-1")}>
                   <div className="divide-ex-border border-ex-border divide-y overflow-hidden rounded-xl border">
                     {unapprovedAbsence.map((employee) => (
                       <UnapprovedAbsenceEmployeeCard key={employee.id} employee={employee} />

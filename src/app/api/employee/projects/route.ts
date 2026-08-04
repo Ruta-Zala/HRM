@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { readSheet } from "@/lib/google/sheets";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 const PROJECTS_SHEET_NAME = "Projects";
 const PROJECTS_SHEET_RANGE = `'${PROJECTS_SHEET_NAME}'!A:E`;
@@ -69,7 +70,7 @@ export const GET = withActiveSession(async () => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to load project assignments",
+        message: toApiErrorMessage(error, "Failed to load project assignments"),
       },
       { status: 500 },
     );

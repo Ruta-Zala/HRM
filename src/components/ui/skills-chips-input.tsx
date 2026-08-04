@@ -1,4 +1,6 @@
 "use client";
+import { readResponseJson } from "@/lib/api/read-response-json";
+import { toUserFacingActionError } from "@/lib/api/user-facing-error";
 
 import { useMemo, useState } from "react";
 import { CheckIcon, PlusIcon } from "lucide-react";
@@ -82,7 +84,7 @@ export function SkillsChipsInput({
         body: JSON.stringify({ skill }),
       });
 
-      const result = (await res.json()) as { success?: boolean; message?: string };
+      const result = await readResponseJson<{ success?: boolean; message?: string }>(res, "action");
       if (!res.ok || !result.success) {
         throw new Error(result.message ?? "Failed to save skill");
       }
@@ -95,7 +97,7 @@ export function SkillsChipsInput({
       onChange([...value, skill]);
       setInputValue("");
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to add skill.");
+      setError(toUserFacingActionError(e));
     } finally {
       setPending(false);
     }

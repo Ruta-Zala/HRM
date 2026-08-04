@@ -1,13 +1,16 @@
 "use client";
 
+import { readResponseJson } from "@/lib/api/read-response-json";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { useNotifications } from "@/contexts/notifications-provider";
 
 type LeaveApprovalRow = {
@@ -100,7 +103,12 @@ export default function LeaveApprovalsPage() {
     try {
       const query = statusFilter === "all" ? "all" : statusFilter;
       const res = await fetch(`/api/employee/leaves/approvals?status=${encodeURIComponent(query)}`);
-      const data = await res.json();
+      const data = await readResponseJson<{
+        success?: boolean;
+        message?: string;
+        applications?: LeaveApprovalRow[];
+        warnings?: string[];
+      }>(res, "fetch");
 
       if (!data.success) {
         throw new Error(data.message ?? "Failed to load approvals");
@@ -109,7 +117,7 @@ export default function LeaveApprovalsPage() {
       setRows(data.applications ?? []);
       setWarnings(Array.isArray(data.warnings) ? data.warnings : []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load approvals");
+      setError(toUserFacingFetchError(err));
       setRows([]);
     } finally {
       setLoading(false);
@@ -151,7 +159,11 @@ export default function LeaveApprovalsPage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await readResponseJson<{
+        success?: boolean;
+        message?: string;
+        email?: { sent?: boolean; reason?: string; to?: string };
+      }>(res, "action");
       if (!data.success) {
         throw new Error(data.message ?? "Failed to review leave");
       }
@@ -166,16 +178,17 @@ export default function LeaveApprovalsPage() {
         data.email?.sent === false && data.email.reason
           ? ` Email was not sent: ${data.email.reason}`
           : emailSent
-            ? ` Email sent to ${data.email.to}.`
+            ? ` Email sent to ${data.email?.to}.`
             : "";
 
       pushToast({
         title: status === "Accepted" ? "Leave approved" : "Leave rejected",
         body: `${row.employeeName}'s leave request was ${status.toLowerCase()}. The employee has been notified.${emailNote}`,
         href: "/notifications",
+        variant: "success",
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to review leave");
+      setError(toUserFacingActionError(err));
     } finally {
       setReviewingId(null);
     }
@@ -202,7 +215,13 @@ export default function LeaveApprovalsPage() {
                 {pendingCount} pending
               </Badge>
             ) : null}
-            <Button variant="outline" onClick={() => void loadApprovals()} disabled={loading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadApprovals()}
+              disabled={loading}
+            >
+              <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
           </div>
@@ -239,7 +258,7 @@ export default function LeaveApprovalsPage() {
       ) : null}
 
       {error ? (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+        <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg rounded-xl border px-4 py-3 text-sm">
           {error}
         </p>
       ) : null}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import {
   type OvertimeRequestDto,
 } from "@/lib/attendance/client";
 import { canReviewOvertime } from "@/lib/auth/roles";
+import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 
 function statusVariant(status: OvertimeRequestDto["status"]) {
   if (status === "Approved") return "success" as const;
@@ -35,7 +37,7 @@ export default function OvertimePage() {
     try {
       setRows(await fetchOvertimeRequests());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load overtime requests");
+      setError(toUserFacingFetchError(err));
     } finally {
       setLoading(false);
     }
@@ -49,7 +51,7 @@ export default function OvertimePage() {
         if (!cancelled) setRows(data);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load overtime requests");
+          setError(toUserFacingFetchError(err));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -71,7 +73,7 @@ export default function OvertimePage() {
       await reviewOvertimeRequest(row.id, status, remarks);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to review overtime request");
+      setError(toUserFacingActionError(err));
     } finally {
       setActingId(null);
     }
@@ -85,11 +87,17 @@ export default function OvertimePage() {
         title="Overtime Approvals"
         description="Employees submit overtime for approval. HR can review requests, while super admin can approve or reject."
         actions={
-          <Badge variant={pendingCount > 0 ? "warning" : "default"}>{pendingCount} pending</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={pendingCount > 0 ? "warning" : "default"}>{pendingCount} pending</Badge>
+            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+              <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
         }
       />
       {error ? (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+        <p className="border-ex-banner-danger-border bg-ex-banner-danger-bg text-ex-banner-danger-fg rounded-xl border px-4 py-3 text-sm">
           {error}
         </p>
       ) : null}
@@ -100,6 +108,7 @@ export default function OvertimePage() {
         <CardContent className="p-0">
           <DataTable
             loading={loading}
+            className="rounded-none border-0 shadow-none"
             rows={rows}
             columns={[
               {

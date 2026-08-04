@@ -12,6 +12,7 @@ import {
   markNotificationRead,
 } from "@/lib/notifications/sheets";
 import { NOTIFICATION_TYPES, type NotificationDto } from "@/lib/notifications/types";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 function isBirthdayToday(notification: NotificationDto): boolean {
   return (
@@ -90,7 +91,7 @@ export const GET = withActiveSession(async (_req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to fetch notifications",
+        message: toApiErrorMessage(error, "Failed to fetch notifications"),
       },
       { status: 500 },
     );
@@ -164,7 +165,7 @@ export const PATCH = withActiveSession(async (req, user) => {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : "Failed to update notification",
+        message: toApiErrorMessage(error, "Failed to update notification"),
       },
       { status: 500 },
     );

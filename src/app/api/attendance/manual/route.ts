@@ -7,6 +7,7 @@ import { normalizeManualAttendanceInput } from "@/lib/attendance/manual-entry";
 import { WORK_MODE } from "@/lib/attendance/constants";
 import { upsertManualAttendanceRecord } from "@/lib/google/attendance-sheets";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
+import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 export const POST = withActiveSession(async (req, user) => {
   if (!canManageEmployees(user.role)) {
@@ -76,10 +77,10 @@ export const POST = withActiveSession(async (req, user) => {
       },
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : formatGoogleApiClientMessage(error) || "Failed to save attendance";
+    const message = toApiErrorMessage(
+      error,
+      formatGoogleApiClientMessage(error) || "Failed to save attendance",
+    );
     return NextResponse.json({ success: false, message }, { status: 400 });
   }
 });
