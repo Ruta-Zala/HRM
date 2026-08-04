@@ -1,448 +1,137 @@
 import { NextResponse } from "next/server";
 
 import { withActiveSession } from "@/lib/auth/api-guard";
-import { roleCanApplyLeave } from "@/lib/attendance/absence-gate";
-import { resolveAttendanceEmployee } from "@/lib/attendance/employee";
+import { canManageEmployees } from "@/lib/auth/roles";
 import {
-  formatBirthdayLeaveDate,
-  formatBirthdayLeaveDateIso,
-} from "@/lib/attendance/leave-bucket-layout";
-import { listLeaveApplications } from "@/lib/attendance/leave-approvals";
-import {
-  groupLeaveApplicationsForDisplay,
-  groupLeaveBucketEntriesForDisplay,
-} from "@/lib/attendance/leave-range-display";
-import {
-  allocateLeaveDates,
-  countLeaveBucketUsage,
-  getLeavePolicyBalances,
-  groupAssignmentsByBucket,
-  listLeaveBucketEntries,
-  type LeaveBucketType,
-} from "@/lib/attendance/leave-policy";
-import {
-  addGroupedLeaveDatesToBucket,
-  importLeaveBucketCsv,
-  readLeaveBucketRows,
-} from "@/lib/google/attendance-sheets";
-import { formatIsoDate } from "@/lib/attendance/time";
-import { formatIsoDateLabel, formatIsoDateRange } from "@/lib/notifications/format";
-import { notifyLeaveSubmitted } from "@/lib/notifications/leave-events";
+  getAttendanceSpreadsheetIdFromRow,
+  isAttendanceSpreadsheetAccessible,
+} from "@/lib/attendance/employee";
+import { listLeaveApplications, type LeaveApplication } from "@/lib/attendance/leave-approvals";
+import { parseLeaveDisplayDate } from "@/lib/attendance/leave-range-display";
+import { LEAVE_STATUS, type LeaveStatus } from "@/lib/attendance/leave-status";
+import { getSheetHeaders, sheetRowToForm } from "@/lib/employee";
+import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
-function parseIsoDate(value: string): Date | null {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function parseBirthdayLeaveDate(birthdayDate: string): Date | null {
-  const formatted = formatBirthdayLeaveDate(birthdayDate);
-  const slashMatch = formatted.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!slashMatch) return null;
-
-  const day = Number(slashMatch[1]);
-  const month = Number(slashMatch[2]);
-  const year = Number(slashMatch[3]);
-  const date = new Date(year, month - 1, day);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function getLeaveDatesBetween(start: Date, end: Date): Date[] {
-  const dates: Date[] = [];
-  const current = new Date(start);
-
-  while (current <= end) {
-    dates.push(new Date(current));
-    current.setDate(current.getDate() + 1);
-  }
-
-  return dates;
-}
-
-function normalizeLeaveType(value: unknown): LeaveBucketType {
-  const normalized = String(value ?? "")
+function parseStatusFilter(value: string | null): LeaveStatus | undefined {
+  const normalized = String(value ?? LEAVE_STATUS.APPLIED)
     .trim()
     .toLowerCase();
 
-  if (normalized === "paid" || normalized === "paid leave") {
-    return "paid";
-  }
+  if (!normalized || normalized === "all") return undefined;
 
-  if (normalized === "casual" || normalized === "casual leave") {
-    return "casual";
-  }
+  if (normalized === LEAVE_STATUS.APPLIED.toLowerCase()) return LEAVE_STATUS.APPLIED;
+  if (normalized === LEAVE_STATUS.ACCEPTED.toLowerCase()) return LEAVE_STATUS.ACCEPTED;
+  if (normalized === LEAVE_STATUS.REJECTED.toLowerCase()) return LEAVE_STATUS.REJECTED;
 
-  if (normalized === "sick" || normalized === "sick leave" || normalized === "sl") {
-    return "sick";
-  }
-
-  if (normalized === "birthday" || normalized === "birthday leave") {
-    return "birthday";
-  }
-
-  if (normalized === "unpaid" || normalized === "unpaid leave") {
-    return "unpaid";
-  }
-
-  return "paid";
+  return LEAVE_STATUS.APPLIED;
 }
 
-function normalizeLeaveDuration(value: unknown): "full" | "half_am" | "half_pm" {
-  const normalized = String(value ?? "")
-    .trim()
-    .toLowerCase();
-
-  if (normalized === "half_am") {
-    return "half_am";
-  }
-
-  if (normalized === "half_pm") {
-    return "half_pm";
-  }
-
-  return "full";
+function leaveSortKey(application: LeaveApplication): number {
+  return parseLeaveDisplayDate(application.date)?.getTime() ?? Number.POSITIVE_INFINITY;
 }
 
-export const POST = withActiveSession(async (req, user) => {
-  if (!roleCanApplyLeave(user.role)) {
-    return NextResponse.json(
-      { success: false, message: "Leave application is not available for your role" },
-      { status: 403 },
-    );
+function sortLeaveApplications(applications: LeaveApplication[]): LeaveApplication[] {
+  return [...applications].sort((a, b) => {
+    const dateCompare = leaveSortKey(a) - leaveSortKey(b);
+    if (dateCompare !== 0) return dateCompare;
+
+    const nameCompare = a.employeeName.localeCompare(b.employeeName);
+    if (nameCompare !== 0) return nameCompare;
+
+    return a.id.localeCompare(b.id);
+  });
+}
+
+export const GET = withActiveSession(async (req, user) => {
+  if (!canManageEmployees(user.role)) {
+    return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 });
   }
 
   try {
-    const body = await req.json();
+    const { searchParams } = new URL(req.url);
+    const statusFilter = parseStatusFilter(searchParams.get("status"));
+    const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
+    const headers = getSheetHeaders(raw);
+    const employees = [];
 
-    if (typeof body.csv === "string" && body.csv.trim()) {
-      const employee = await resolveAttendanceEmployee(user);
+    for (let i = 1; i < raw.length; i++) {
+      const row = raw[i] ?? [];
+      const form = sheetRowToForm(headers, row);
+      const attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(headers, row);
+      if (!attendanceSpreadsheetId) continue;
 
-      if (!employee?.attendanceSpreadsheetId) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "Leave bucket spreadsheet not found for employee",
-          },
-          { status: 404 },
-        );
-      }
-
-      await importLeaveBucketCsv(employee.attendanceSpreadsheetId, body.csv);
-
-      return NextResponse.json(
-        {
-          success: true,
-          message: "Leave bucket CSV imported successfully",
-        },
-        { status: 201 },
-      );
-    }
-
-    const employee = await resolveAttendanceEmployee(user);
-
-    if (!employee?.attendanceSpreadsheetId) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Employee attendance spreadsheet not found",
-        },
-        { status: 404 },
-      );
-    }
-
-    const leaveType = normalizeLeaveType(body.leaveType);
-    const duration = normalizeLeaveDuration(body.duration);
-    const reason = String(body.reason ?? "").trim();
-
-    if (leaveType === "birthday") {
-      const requestedDate = String(body.fromDate ?? "").trim();
-      let birthdayDate: Date | null = null;
-
-      if (requestedDate) {
-        birthdayDate = parseIsoDate(requestedDate);
-        if (!birthdayDate) {
-          return NextResponse.json(
-            {
-              success: false,
-              message: "Invalid birthday leave date",
-            },
-            { status: 400 },
-          );
-        }
-      } else if (employee.birthdayDate) {
-        birthdayDate = parseBirthdayLeaveDate(employee.birthdayDate);
-      }
-
-      if (!birthdayDate) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "Birthday leave date is required",
-          },
-          { status: 400 },
-        );
-      }
-
-      const leaveDateIso =
-        requestedDate ||
-        `${birthdayDate.getFullYear()}-${String(birthdayDate.getMonth() + 1).padStart(2, "0")}-${String(birthdayDate.getDate()).padStart(2, "0")}`;
-      const today = formatIsoDate();
-      if (leaveDateIso < today) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "Cannot apply leave for past dates",
-          },
-          { status: 400 },
-        );
-      }
-
-      const rows = await readLeaveBucketRows(employee.attendanceSpreadsheetId);
-      const usage = countLeaveBucketUsage(rows);
-
-      const { assignments, error } = allocateLeaveDates({
-        leaveType: "birthday",
-        dates: [birthdayDate],
-        duration: "full",
-        usage,
-        rows,
+      employees.push({
+        employeeId: form.employeeId.trim(),
+        employeeName: form.name.trim() || "Employee",
+        attendanceSpreadsheetId,
       });
-
-      if (error) {
-        return NextResponse.json({ success: false, message: error }, { status: 400 });
-      }
-
-      const grouped = groupAssignmentsByBucket(assignments);
-      const groups = Array.from(grouped.entries()).map(([bucket, dates]) => ({
-        leaveType: bucket,
-        dates,
-      }));
-
-      await addGroupedLeaveDatesToBucket(employee.attendanceSpreadsheetId, groups, "full", "");
-
-      const requestId = `LR-${Date.now()}`;
-      const dateRange = formatIsoDateLabel(leaveDateIso);
-
-      try {
-        await notifyLeaveSubmitted({
-          employeeSheetRow: employee.sheetRow,
-          employeeId: employee.employeeId,
-          employeeName: employee.employeeName,
-          leaveType: "birthday",
-          dateRange,
-          applicationId: `${employee.attendanceSpreadsheetId}:birthday:${leaveDateIso}:${requestId}`,
-        });
-      } catch (notifyError) {
-        console.error("Leave submit notification error:", notifyError);
-      }
-
-      return NextResponse.json(
-        {
-          success: true,
-          requestId,
-          message: "Birthday leave request submitted",
-        },
-        { status: 201 },
-      );
     }
 
-    const fromDate = String(body.fromDate ?? "").trim();
-    const toDate = String(body.toDate ?? "").trim();
+    const accessibleEmployees = (
+      await Promise.all(
+        employees.map(async (employee) => ({
+          employee,
+          accessible: await isAttendanceSpreadsheetAccessible(employee.attendanceSpreadsheetId),
+        })),
+      )
+    )
+      .filter((entry) => entry.accessible)
+      .map((entry) => entry.employee);
 
-    if (!fromDate) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "From date is required",
-        },
-        { status: 400 },
-      );
-    }
+    const skippedCount = employees.length - accessibleEmployees.length;
 
-    if (!toDate) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "To date is required",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (!reason) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Reason is required",
-        },
-        { status: 400 },
-      );
-    }
-
-    const startDate = parseIsoDate(fromDate);
-    const endDate = parseIsoDate(toDate);
-
-    if (!startDate || !endDate) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid date values",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (startDate > endDate) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "From date cannot be after To date",
-        },
-        { status: 400 },
-      );
-    }
-
-    const today = formatIsoDate();
-    if (fromDate < today || toDate < today) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Cannot apply leave for past dates",
-        },
-        { status: 400 },
-      );
-    }
-
-    const leaveDates = getLeaveDatesBetween(startDate, endDate);
-    const rows = await readLeaveBucketRows(employee.attendanceSpreadsheetId);
-    const usage = countLeaveBucketUsage(rows);
-
-    const { assignments, error } = allocateLeaveDates({
-      leaveType,
-      dates: leaveDates,
-      duration,
-      usage,
-      rows,
-    });
-
-    if (error) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: error,
-        },
-        { status: 400 },
-      );
-    }
-
-    const grouped = groupAssignmentsByBucket(assignments);
-    const groups = Array.from(grouped.entries()).map(([bucket, dates]) => ({
-      leaveType: bucket,
-      dates,
-    }));
-
-    await addGroupedLeaveDatesToBucket(employee.attendanceSpreadsheetId, groups, duration, reason);
-
-    const requestId = `LR-${Date.now()}`;
-    const dateRange = formatIsoDateRange(fromDate, toDate);
-
-    try {
-      await notifyLeaveSubmitted({
-        employeeSheetRow: employee.sheetRow,
-        employeeId: employee.employeeId,
-        employeeName: employee.employeeName,
-        leaveType,
-        dateRange,
-        reason,
-        applicationId: `${employee.attendanceSpreadsheetId}:${fromDate}:${toDate}:${leaveType}:${requestId}`,
-      });
-    } catch (notifyError) {
-      console.error("Leave submit notification error:", notifyError);
-    }
-
-    return NextResponse.json(
-      {
-        success: true,
-        requestId,
-        message: "Leave request submitted",
-      },
-      { status: 201 },
-    );
-  } catch (error: unknown) {
-    console.error("POST Leave Request Error:", error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        message: toApiErrorMessage(error, "Failed to submit leave request"),
-      },
-      { status: 500 },
-    );
-  }
-});
-
-export const GET = withActiveSession(async (_req, user) => {
-  if (!roleCanApplyLeave(user.role)) {
-    return NextResponse.json(
-      { success: false, message: "Leave desk is not available for your role" },
-      { status: 403 },
-    );
-  }
-
-  try {
-    const employee = await resolveAttendanceEmployee(user);
-
-    if (!employee?.attendanceSpreadsheetId) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Employee attendance spreadsheet not found",
-        },
-        { status: 404 },
-      );
-    }
-
-    const rows = await readLeaveBucketRows(employee.attendanceSpreadsheetId);
-    const usage = countLeaveBucketUsage(rows);
-    const policyBalances = getLeavePolicyBalances(rows);
-    const unpaidLeaves = groupLeaveBucketEntriesForDisplay(listLeaveBucketEntries(rows, "unpaid"));
-    const applications = groupLeaveApplicationsForDisplay(
-      (
-        await listLeaveApplications({
+    const batches = await Promise.allSettled(
+      accessibleEmployees.map((employee) =>
+        listLeaveApplications({
           employeeId: employee.employeeId,
           employeeName: employee.employeeName,
           attendanceSpreadsheetId: employee.attendanceSpreadsheetId,
-        })
-      ).filter((application) => application.leaveType !== "unpaid"),
+          statusFilter,
+        }),
+      ),
     );
+
+    const applications: LeaveApplication[] = [];
+    const warnings: string[] = [];
+
+    if (skippedCount > 0) {
+      warnings.push(
+        `${skippedCount} employee${skippedCount === 1 ? "" : "s"} skipped (attendance spreadsheet missing or inaccessible).`,
+      );
+    }
+
+    for (let i = 0; i < batches.length; i++) {
+      const result = batches[i];
+      const employee = accessibleEmployees[i];
+      if (result.status === "fulfilled") {
+        applications.push(...result.value);
+        continue;
+      }
+
+      const reason =
+        result.reason instanceof Error ? result.reason.message : "Failed to read leave bucket";
+      warnings.push(`${employee.employeeName} (${employee.employeeId}): ${reason}`);
+      console.warn(
+        `Leave approvals: skipped ${employee.employeeId} (${employee.attendanceSpreadsheetId})`,
+        result.reason,
+      );
+    }
+
+    const sortedApplications = sortLeaveApplications(applications);
 
     return NextResponse.json({
       success: true,
-      birthdayDate: formatBirthdayLeaveDate(employee.birthdayDate),
-      birthdayDateIso: formatBirthdayLeaveDateIso(employee.birthdayDate),
-
-      paid: policyBalances.paid,
-
-      casual: policyBalances.casual,
-
-      sick: policyBalances.sick,
-
-      unpaid: {
-        used: usage.unpaid,
-        leaves: unpaidLeaves,
-      },
-
-      birthday: policyBalances.birthday,
-
-      applications,
+      applications: sortedApplications,
+      warnings,
     });
   } catch (error) {
-    console.error("GET Leave Balance Error:", error);
+    console.error("GET Leave Approvals Error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        message: toApiErrorMessage(error, "Failed to fetch leave balances"),
+        message: toApiErrorMessage(error, "Failed to fetch leave approvals"),
       },
       { status: 500 },
     );

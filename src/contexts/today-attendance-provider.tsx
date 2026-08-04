@@ -14,18 +14,20 @@ import {
 import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { computeLiveWorkedMsFromFields } from "@/lib/attendance/time";
 
+export type AttendanceActionName = "punch-in" | "punch-out" | "break-start" | "break-end";
+
 type TodayAttendanceContextValue = {
   today: TodayAttendance | null;
   loading: boolean;
   error: string | null;
+  /** True while any punch/break action is in flight. */
   acting: boolean;
+  /** Which action button is currently submitting, if any. */
+  actingAction: AttendanceActionName | null;
   tick: number;
   liveWorkedMs: number;
   refresh: () => Promise<void>;
-  runAction: (
-    action: "punch-in" | "punch-out" | "break-start" | "break-end",
-    payload?: AttendanceActionPayload,
-  ) => Promise<void>;
+  runAction: (action: AttendanceActionName, payload?: AttendanceActionPayload) => Promise<void>;
 };
 
 const TodayAttendanceContext = createContext<TodayAttendanceContextValue | null>(null);
@@ -34,7 +36,7 @@ function useTodayAttendanceState(enabled: boolean): TodayAttendanceContextValue 
   const [today, setToday] = useState<TodayAttendance | null>(null);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
-  const [acting, setActing] = useState(false);
+  const [actingAction, setActingAction] = useState<AttendanceActionName | null>(null);
   const [tick, setTick] = useState(0);
 
   const refresh = useCallback(async () => {
@@ -79,11 +81,8 @@ function useTodayAttendanceState(enabled: boolean): TodayAttendanceContextValue 
   }, [today?.hasPunchedIn, today?.hasPunchedOut]);
 
   const runAction = useCallback(
-    async (
-      action: "punch-in" | "punch-out" | "break-start" | "break-end",
-      payload?: AttendanceActionPayload,
-    ) => {
-      setActing(true);
+    async (action: AttendanceActionName, payload?: AttendanceActionPayload) => {
+      setActingAction(action);
       setError(null);
       try {
         const updated = await postAttendanceAction(action, payload);
@@ -92,7 +91,7 @@ function useTodayAttendanceState(enabled: boolean): TodayAttendanceContextValue 
         setError(toUserFacingActionError(err));
         throw err;
       } finally {
-        setActing(false);
+        setActingAction(null);
       }
     },
     [],
@@ -116,7 +115,8 @@ function useTodayAttendanceState(enabled: boolean): TodayAttendanceContextValue 
     today,
     loading,
     error,
-    acting,
+    acting: actingAction != null,
+    actingAction,
     tick,
     liveWorkedMs,
     refresh,
