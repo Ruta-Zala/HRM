@@ -3,11 +3,36 @@ import { NextResponse } from "next/server";
 import { syncAbsenceGateForUser } from "@/lib/attendance/absence-gate-sync";
 import { setAbsenceGateCookie } from "@/lib/attendance/absence-gate-cookie";
 import { roleRequiresAbsenceExplanationGate } from "@/lib/attendance/absence-gate";
+import { ensureForgottenPunchOutForUser } from "@/lib/attendance/auto-punch-out";
 import { authenticateFromSheet } from "@/lib/auth/login";
 import { evaluateNetworkAccess } from "@/lib/network-access/gate";
 import { isValidIpv4, normalizeIp } from "@/lib/network-access/ip";
 import { setNetworkGateCookie } from "@/lib/network-access/network-gate-cookie";
 import { COOKIE, encodeSession, SESSION_COOKIE_OPTIONS } from "@/lib/session";
+
+const LOGIN_RETRY_DELAYS_MS = [150, 350];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function authenticateWithRetry(login: string, password: string) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= LOGIN_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      return await authenticateFromSheet(login, password);
+    } catch (error) {
+      lastError = error;
+      if (attempt < LOGIN_RETRY_DELAYS_MS.length) {
+        await sleep(LOGIN_RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Authentication failed");
+}
 
 export async function POST(req: Request) {
   try {
@@ -29,7 +54,7 @@ export async function POST(req: Request) {
     const reportedPublicIp = normalizeIp(body.publicIp ?? "");
     const safeReportedIp = isValidIpv4(reportedPublicIp) ? reportedPublicIp : null;
 
-    const result = await authenticateFromSheet(login, password);
+    const result = await authenticateWithRetry(login, password);
 
     if (!result.ok) {
       if (result.reason === "account_inactive") {
@@ -48,14 +73,36 @@ export async function POST(req: Request) {
 
     let requiresAbsenceExplanation = false;
     if (roleRequiresAbsenceExplanationGate(result.user.role)) {
-      requiresAbsenceExplanation = await syncAbsenceGateForUser(result.user, {
-        forceRefresh: true,
-      });
+      try {
+        requiresAbsenceExplanation = await syncAbsenceGateForUser(result.user, {
+          forceRefresh: true,
+        });
+      } catch (error) {
+        // Absence gate sync is non-critical for successful authentication.
+        console.warn("[auth/login] absence gate sync failed:", error);
+      }
+
+      try {
+        // Catch up forgotten punch-outs from prior days and create the employee notification.
+        await ensureForgottenPunchOutForUser(result.user);
+      } catch (error) {
+        console.warn("[auth/login] auto punch-out catch-up failed:", error);
+      }
     }
 
-    const network = await evaluateNetworkAccess(req, result.user, {
-      reportedPublicIp: safeReportedIp,
-    });
+    let network = {
+      allowed: true,
+      reason: "restriction_disabled",
+      clientIp: safeReportedIp ?? "",
+    };
+    try {
+      network = await evaluateNetworkAccess(req, result.user, {
+        reportedPublicIp: safeReportedIp,
+      });
+    } catch (error) {
+      // Network evaluation should not fail sign-in on transient dependency issues.
+      console.warn("[auth/login] network check failed, allowing temporary access:", error);
+    }
 
     const token = encodeSession(result.user);
     const res = NextResponse.json({
@@ -74,8 +121,7 @@ export async function POST(req: Request) {
     console.error("[auth/login]", error);
     return NextResponse.json(
       {
-        error:
-          "Sign-in is temporarily unavailable. Verify Google Sheets credentials in server env.",
+        error: "Sign-in is temporarily unavailable. Please try again.",
       },
       { status: 500 },
     );
