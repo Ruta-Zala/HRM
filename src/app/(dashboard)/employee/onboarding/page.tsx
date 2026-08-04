@@ -13,7 +13,9 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { DateInput } from "@/components/ui/date-input";
 import { useAuth } from "@/contexts/auth-provider";
+import { useNotifications } from "@/contexts/notifications-provider";
 import { toUserFacingActionError } from "@/lib/api/user-facing-error";
+import { todayIsoDate } from "@/lib/employee";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   fetchEmployeeList,
@@ -34,12 +36,11 @@ function formatEmployeeOptionLabel(name: string, employeeId: string, role: strin
 
 export default function OnboardingPage() {
   const { user } = useAuth();
+  const { pushToast } = useNotifications();
   const dispatch = useAppDispatch();
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [lastWorkingDay, setLastWorkingDay] = useState("");
   const [reason, setReason] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loading = useAppSelector(selectEmployeeListLoading);
   const offboarding = useAppSelector(selectEmployeeOffboarding);
@@ -59,19 +60,36 @@ export default function OnboardingPage() {
   }, [dispatch]);
 
   const handleOffboard = async () => {
-    setFormError(null);
-    setSuccessMessage(null);
-
     if (!selectedEmployee) {
-      setFormError("Please select an employee.");
+      pushToast({
+        title: "Offboarding Failed",
+        body: "Please select an employee.",
+        variant: "error",
+      });
       return;
     }
     if (!lastWorkingDay.trim()) {
-      setFormError("Last working day is required.");
+      pushToast({
+        title: "Offboarding Failed",
+        body: "Last working day is required.",
+        variant: "error",
+      });
+      return;
+    }
+    if (lastWorkingDay.trim() < todayIsoDate()) {
+      pushToast({
+        title: "Offboarding Failed",
+        body: "Last working day cannot be a past date.",
+        variant: "error",
+      });
       return;
     }
     if (!reason.trim()) {
-      setFormError("Offboarding reason is required.");
+      pushToast({
+        title: "Offboarding Failed",
+        body: "Offboarding reason is required.",
+        variant: "error",
+      });
       return;
     }
 
@@ -84,13 +102,21 @@ export default function OnboardingPage() {
         }),
       ).unwrap();
 
-      setSuccessMessage("Employee offboarded and marked inactive.");
+      pushToast({
+        title: "Employee Offboarded",
+        body: "Employee offboarded and marked inactive.",
+        variant: "success",
+      });
       setSelectedEmployee("");
       setLastWorkingDay("");
       setReason("");
       void dispatch(fetchEmployeeList());
     } catch (err) {
-      setFormError(toUserFacingActionError(err));
+      pushToast({
+        title: "Offboarding Failed",
+        body: toUserFacingActionError(err),
+        variant: "error",
+      });
     }
   };
 
@@ -163,6 +189,7 @@ export default function OnboardingPage() {
               id="last-working-day"
               value={lastWorkingDay}
               onChange={setLastWorkingDay}
+              minDate={todayIsoDate()}
               maxYear={new Date().getFullYear() + 1}
               disabled={isBusy}
               required
@@ -180,10 +207,6 @@ export default function OnboardingPage() {
               required
             />
           </div>
-          {formError ? <p className="text-sm text-red-600 dark:text-red-400">{formError}</p> : null}
-          {successMessage ? (
-            <p className="text-sm text-green-700 dark:text-green-400">{successMessage}</p>
-          ) : null}
           <Button
             type="button"
             className="w-full sm:w-auto"

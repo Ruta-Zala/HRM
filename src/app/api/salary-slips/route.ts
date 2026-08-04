@@ -291,7 +291,9 @@ export const POST = withActiveSession(async (req, user) => {
             "bank_ac_no",
           ]),
         designation: form.position,
-        ifsc: getEmployeeField(row, headers, ["ifsc", "ifsc_code"]),
+        ifsc:
+          form.ifscCode ||
+          getEmployeeField(row, headers, ["ifsc", "ifsc_code", "ifsc_code_number"]),
         netPayableDays,
         aadharNo:
           form.aadharNumber ||

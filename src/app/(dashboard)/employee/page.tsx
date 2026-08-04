@@ -1,7 +1,7 @@
 "use client";
 
 import { readResponseJson } from "@/lib/api/read-response-json";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Eye, Pencil, RefreshCw, Search, User } from "lucide-react";
@@ -126,7 +126,6 @@ export default function EmployeeDirectoryPage() {
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [columns, setColumns] = useState<Column<EmployeeRow>[]>([]);
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [page, setPage] = useState(1);
@@ -138,6 +137,7 @@ export default function EmployeeDirectoryPage() {
 
   const canManage = user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
   const effectiveStatusFilter = !canManage && statusFilter === STATUS.INACTIVE ? "" : statusFilter;
+  const columns = useMemo(() => buildListColumns(canManage), [canManage]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -184,7 +184,6 @@ export default function EmployeeDirectoryPage() {
             ...pickSheetRowFields(headers, row, LIST_FIELD_KEYS),
           })) as EmployeeRow[];
 
-          setColumns(buildListColumns(canManage));
           setRows(formattedData);
           setPagination(pageInfo);
         } else {

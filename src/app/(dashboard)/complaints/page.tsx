@@ -167,6 +167,7 @@ export default function ComplaintsPage() {
         title: "Complaint submitted",
         body: "Your complaint was sent to HR and Super Admin for review.",
         href: "/complaints",
+        variant: "success",
       });
       await Promise.all([loadComplaints(), refreshNotifications()]);
     } catch (submitError) {
@@ -208,6 +209,7 @@ export default function ComplaintsPage() {
         title: `Complaint ${status.toLowerCase()}`,
         body: `${complaint.submitterName}'s complaint has been ${status.toLowerCase()}.`,
         href: "/complaints",
+        variant: "success",
       });
       await Promise.all([loadComplaints(), refreshNotifications()]);
     } catch (reviewError) {

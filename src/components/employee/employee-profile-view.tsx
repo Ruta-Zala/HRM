@@ -217,6 +217,8 @@ export function EmployeeProfileView({
 
             <ReadOnlyField label="PAN" value={maskPan(form.panNumber)} />
             <ReadOnlyField label="Aadhaar" value={maskAadhar(form.aadharNumber)} />
+            <ReadOnlyField label="Bank account" value={form.bankAccountNumber || "—"} />
+            <ReadOnlyField label="IFSC code" value={form.ifscCode || "—"} />
           </CardContent>
         </Card>
 

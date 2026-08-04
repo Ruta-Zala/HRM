@@ -185,6 +185,7 @@ export default function LeaveApprovalsPage() {
         title: status === "Accepted" ? "Leave approved" : "Leave rejected",
         body: `${row.employeeName}'s leave request was ${status.toLowerCase()}. The employee has been notified.${emailNote}`,
         href: "/notifications",
+        variant: "success",
       });
     } catch (err) {
       setError(toUserFacingActionError(err));
