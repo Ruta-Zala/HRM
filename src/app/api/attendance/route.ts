@@ -36,6 +36,7 @@ import {
   applyAbsenceGateCookie,
   invalidateAbsenceExplanationCache,
 } from "@/lib/attendance/absence-gate-sync";
+import { clearMorningPunchGateCookie } from "@/lib/attendance/absence-gate-cookie";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
 import { invalidateUnapprovedAbsenceCache } from "@/lib/attendance/unapproved-absence";
@@ -286,6 +287,7 @@ export const POST = withActiveSession(async (req, user) => {
 
     if (action === "punch-in") {
       invalidateUnapprovedAbsenceCache(notificationDateIso());
+      clearMorningPunchGateCookie(res);
       if (roleRequiresAbsenceExplanationGate(user.role)) {
         invalidateAbsenceExplanationCache(employee.employeeId);
         await applyAbsenceGateCookie(res, user, { forceRefresh: true });

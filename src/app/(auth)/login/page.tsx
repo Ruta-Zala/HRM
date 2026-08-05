@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiResponseErrorMessage, parseJsonResponse } from "@/lib/api/json-response";
 import { setAbsenceGateSessionHint } from "@/lib/attendance/absence-gate-session";
-import { fetchPublicIpv4FromBrowser } from "@/lib/network-access/ip";
+// TEMP DISABLED: office Wi‑Fi / WFH network restriction (public IP for gate).
+// import { fetchPublicIpv4FromBrowser } from "@/lib/network-access/ip";
 
 export default function LoginPage() {
   return (
@@ -42,26 +43,30 @@ function LoginPageContent() {
     setPending(true);
     setError(null);
     try {
+      // TEMP DISABLED: office Wi‑Fi / WFH network restriction.
       // On localhost the server cannot see your public IP; send it from the browser.
       // On Vercel the server ignores this and uses the real forwarded IP.
-      let publicIp = "";
-      try {
-        publicIp = await fetchPublicIpv4FromBrowser();
-      } catch {
-        // Gate still runs with whatever the server can detect.
-      }
+      // let publicIp = "";
+      // try {
+      //   publicIp = await fetchPublicIpv4FromBrowser();
+      // } catch {
+      //   // Gate still runs with whatever the server can detect.
+      // }
 
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ login, password, publicIp: publicIp || undefined }),
+        body: JSON.stringify({ login, password }),
+        // body: JSON.stringify({ login, password, publicIp: publicIp || undefined }),
       });
 
       const parsed = await parseJsonResponse<{
         error?: string;
         ok?: boolean;
         requiresAbsenceExplanation?: boolean;
+        requiresMorningPunch?: boolean;
+        requiresSiteGate?: boolean;
         networkAllowed?: boolean;
       }>(res);
       if (parsed.invalid || parsed.empty) {
@@ -73,11 +78,12 @@ function LoginPageContent() {
         return;
       }
       const data = parsed.data;
-      if (data.networkAllowed === false) {
-        window.location.assign("/network-blocked");
-        return;
-      }
-      if (data.requiresAbsenceExplanation) {
+      // TEMP DISABLED: office Wi‑Fi / WFH network restriction.
+      // if (data.networkAllowed === false) {
+      //   window.location.assign("/network-blocked");
+      //   return;
+      // }
+      if (data.requiresSiteGate || data.requiresAbsenceExplanation || data.requiresMorningPunch) {
         setAbsenceGateSessionHint(true);
         window.location.assign("/employee/punch");
         return;
