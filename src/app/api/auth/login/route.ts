@@ -5,9 +5,10 @@ import { setAbsenceGateCookie } from "@/lib/attendance/absence-gate-cookie";
 import { roleRequiresAbsenceExplanationGate } from "@/lib/attendance/absence-gate";
 import { ensureForgottenPunchOutForUser } from "@/lib/attendance/auto-punch-out";
 import { authenticateFromSheet } from "@/lib/auth/login";
-import { evaluateNetworkAccess } from "@/lib/network-access/gate";
-import { isValidIpv4, normalizeIp } from "@/lib/network-access/ip";
-import { setNetworkGateCookie } from "@/lib/network-access/network-gate-cookie";
+// TEMP DISABLED: office Wi‑Fi / WFH network restriction.
+// import { evaluateNetworkAccess } from "@/lib/network-access/gate";
+// import { isValidIpv4, normalizeIp } from "@/lib/network-access/ip";
+// import { setNetworkGateCookie } from "@/lib/network-access/network-gate-cookie";
 import { COOKIE, encodeSession, SESSION_COOKIE_OPTIONS } from "@/lib/session";
 
 const LOGIN_RETRY_DELAYS_MS = [150, 350];
@@ -51,8 +52,10 @@ export async function POST(req: Request) {
 
     const login = (body.login ?? body.email ?? "").trim();
     const password = body.password ?? "";
-    const reportedPublicIp = normalizeIp(body.publicIp ?? "");
-    const safeReportedIp = isValidIpv4(reportedPublicIp) ? reportedPublicIp : null;
+    // TEMP DISABLED: used when network restriction is re-enabled.
+    // const reportedPublicIp = normalizeIp(body.publicIp ?? "");
+    // const safeReportedIp = isValidIpv4(reportedPublicIp) ? reportedPublicIp : null;
+    void body.publicIp;
 
     const result = await authenticateWithRetry(login, password);
 
@@ -90,32 +93,34 @@ export async function POST(req: Request) {
       }
     }
 
-    let network = {
-      allowed: true,
-      reason: "restriction_disabled",
-      clientIp: safeReportedIp ?? "",
-    };
-    try {
-      network = await evaluateNetworkAccess(req, result.user, {
-        reportedPublicIp: safeReportedIp,
-      });
-    } catch (error) {
-      // Network evaluation should not fail sign-in on transient dependency issues.
-      console.warn("[auth/login] network check failed, allowing temporary access:", error);
-    }
+    // TEMP DISABLED: office Wi‑Fi / WFH network restriction — no gate check / cookie / network-access API.
+    // let network = {
+    //   allowed: true,
+    //   reason: "restriction_disabled" as const,
+    //   clientIp: "",
+    // };
+    // try {
+    //   const reportedPublicIp = normalizeIp(body.publicIp ?? "");
+    //   const safeReportedIp = isValidIpv4(reportedPublicIp) ? reportedPublicIp : null;
+    //   network = await evaluateNetworkAccess(req, result.user, {
+    //     reportedPublicIp: safeReportedIp,
+    //   });
+    // } catch (error) {
+    //   console.warn("[auth/login] network check failed, allowing temporary access:", error);
+    // }
 
     const token = encodeSession(result.user);
     const res = NextResponse.json({
       ok: true,
       user: result.user,
       requiresAbsenceExplanation,
-      networkAllowed: network.allowed,
-      networkReason: network.reason,
-      clientIp: network.clientIp,
+      // networkAllowed: network.allowed,
+      // networkReason: network.reason,
+      // clientIp: network.clientIp,
     });
     res.cookies.set(COOKIE, token, SESSION_COOKIE_OPTIONS);
     setAbsenceGateCookie(res, requiresAbsenceExplanation);
-    setNetworkGateCookie(res, network.allowed, network.clientIp);
+    // setNetworkGateCookie(res, network.allowed, network.clientIp);
     return res;
   } catch (error) {
     console.error("[auth/login]", error);
