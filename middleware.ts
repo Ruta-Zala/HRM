@@ -4,7 +4,8 @@ import { COOKIE, decodeSession } from "@/lib/session";
 import { canAccessPath } from "@/lib/rbac";
 import {
   ABSENCE_GATE_COOKIE,
-  isAbsenceGateCookieActive,
+  PUNCH_TODAY_COOKIE,
+  isSiteAccessGateActive,
 } from "@/lib/attendance/absence-gate-cookie";
 import {
   PUNCH_GATE_ROUTE,
@@ -122,7 +123,10 @@ function enforceNetworkGate(req: NextRequest, role: UserRole): NextResponse | nu
 
 function isGateRequired(req: NextRequest, gateRole: boolean): boolean {
   if (!gateRole) return false;
-  return isAbsenceGateCookieActive(req.cookies.get(ABSENCE_GATE_COOKIE)?.value);
+  return isSiteAccessGateActive(
+    req.cookies.get(ABSENCE_GATE_COOKIE)?.value,
+    req.cookies.get(PUNCH_TODAY_COOKIE)?.value,
+  );
 }
 
 function isGateAllowedPath(pathname: string): boolean {
@@ -259,8 +263,8 @@ export async function middleware(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "Submit your absence explanation on the punch page before accessing the site.",
-          code: "ABSENCE_EXPLANATION_REQUIRED",
+          message: "Complete punch desk requirements before accessing the site.",
+          code: "PUNCH_DESK_REQUIRED",
         },
         { status: 403 },
       );

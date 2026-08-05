@@ -24,6 +24,7 @@ import {
   readLeaveBucketRows,
   type AttendanceRow,
 } from "@/lib/google/attendance-sheets";
+import { isAfterTodayNoPunchExplainCutoff } from "@/lib/attendance/attendance-cutoffs";
 import { formatIsoDateRange } from "@/lib/notifications/format";
 import { notifyLeaveSubmitted } from "@/lib/notifications/leave-events";
 import { localDateIso, leaveDateToIso } from "@/lib/payroll/leave-attendance";
@@ -452,7 +453,12 @@ export async function getPendingAbsenceExplanationGroups(
   const groups: PendingAbsenceGroup[] = [];
   const allPastAbsenceByDate = new Map<string, PastAbsenceEntry>();
 
-  if (isScheduledWorkingDay(todayIso, leaveHolidayDates) && !explainedDates.has(todayIso)) {
+  // Today’s “not punched in” prompt only after 12:30 PM IST — before that, show punch-in UI.
+  if (
+    isAfterTodayNoPunchExplainCutoff() &&
+    isScheduledWorkingDay(todayIso, leaveHolidayDates) &&
+    !explainedDates.has(todayIso)
+  ) {
     const todayLeaves = leavesByDate.get(todayIso) ?? [];
     const todayAttendance = attendanceByDate.get(todayIso) ?? null;
 

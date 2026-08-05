@@ -65,6 +65,8 @@ function LoginPageContent() {
         error?: string;
         ok?: boolean;
         requiresAbsenceExplanation?: boolean;
+        requiresMorningPunch?: boolean;
+        requiresSiteGate?: boolean;
         networkAllowed?: boolean;
       }>(res);
       if (parsed.invalid || parsed.empty) {
@@ -81,7 +83,7 @@ function LoginPageContent() {
       //   window.location.assign("/network-blocked");
       //   return;
       // }
-      if (data.requiresAbsenceExplanation) {
+      if (data.requiresSiteGate || data.requiresAbsenceExplanation || data.requiresMorningPunch) {
         setAbsenceGateSessionHint(true);
         window.location.assign("/employee/punch");
         return;

@@ -144,7 +144,18 @@ export function AbsenceExplanationPanel({
 
   const applyGroups = useCallback((items: PendingAbsenceGroup[]) => {
     setGroups(items);
-    setAbsenceGateSessionHint(items.length > 0);
+    if (items.length > 0) {
+      setAbsenceGateSessionHint(true);
+    } else {
+      void fetch("/api/auth/absence-gate", { credentials: "include", cache: "no-store" })
+        .then((res) => res.json())
+        .then((data: { active?: boolean }) => {
+          setAbsenceGateSessionHint(Boolean(data.active));
+        })
+        .catch(() => {
+          // Keep the existing hint when the gate check fails.
+        });
+    }
     setExplanations((current) => {
       const next = { ...current };
       for (const item of items) {
