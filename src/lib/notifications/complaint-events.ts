@@ -1,6 +1,6 @@
 import type { ComplaintRecord } from "@/lib/complaints";
 import { listHrAndSuperAdminRecipients } from "@/lib/notifications/recipients";
-import { createNotifications } from "@/lib/notifications/sheets";
+import { createNotifications } from "@/lib/notifications/repository";
 import { NOTIFICATION_TYPES } from "@/lib/notifications/types";
 
 function categoryLabel(value: string): string {

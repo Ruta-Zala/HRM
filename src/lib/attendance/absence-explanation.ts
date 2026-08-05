@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 
 import type { LeaveBucketType } from "@/lib/attendance/leave-bucket-layout";
-import { listLeaveApplications, type LeaveApplication } from "@/lib/attendance/leave-approvals";
+import {
+  listLeaveApplicationsFromRows,
+  type LeaveApplication,
+} from "@/lib/attendance/leave-approvals";
 import {
   ABSENCE_EXPLANATION_HEADERS,
   ABSENCE_EXPLANATION_MIN_LENGTH,
@@ -11,6 +14,7 @@ import {
   isPunchOptionalWorkMode,
 } from "@/lib/attendance/constants";
 import type { AttendanceEmployeeContext } from "@/lib/attendance/employee";
+import { getAttendanceRepository } from "@/lib/attendance/repository";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
 import {
   allocateLeaveDates,
@@ -18,12 +22,13 @@ import {
   getLeavePolicyBalances,
   groupAssignmentsByBucket,
 } from "@/lib/attendance/leave-policy";
+import { type AttendanceRow } from "@/lib/google/attendance-sheets";
 import {
-  addGroupedLeaveDatesToBucket,
-  getMonthAttendance,
-  readLeaveBucketRows,
-  type AttendanceRow,
-} from "@/lib/google/attendance-sheets";
+  addGroupedLeaveDatesToBucketForAbsenceExplanation,
+  readLeaveBucketRowsForAbsenceExplanation,
+} from "@/lib/attendance/leave-bucket-mirror";
+import { getAdminFirestore } from "@/lib/firebase/admin";
+import { isFirebaseDailyStorage } from "@/lib/storage/backend";
 import { isAfterTodayNoPunchExplainCutoff } from "@/lib/attendance/attendance-cutoffs";
 import { formatIsoDateRange } from "@/lib/notifications/format";
 import { notifyLeaveSubmitted } from "@/lib/notifications/leave-events";
@@ -190,6 +195,92 @@ async function readAbsenceExplanationRows(spreadsheetId: string): Promise<string
   }
 }
 
+function absenceExplanationsCollection(employeeId: string) {
+  return getAdminFirestore()
+    .collection("attendance")
+    .doc(employeeId)
+    .collection("absence_explanations");
+}
+
+const absenceBootstrapPromises = new Map<string, Promise<void>>();
+
+async function ensureAbsenceExplanationsBootstrapped(
+  employee: AttendanceEmployeeContext,
+): Promise<void> {
+  if (!isFirebaseDailyStorage()) return;
+
+  const key = employee.employeeId;
+  const existing = absenceBootstrapPromises.get(key);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    const collection = absenceExplanationsCollection(employee.employeeId);
+    const snap = await collection.limit(1).get();
+    if (!snap.empty) return;
+
+    const spreadsheetId = employee.attendanceSpreadsheetId.trim();
+    if (!spreadsheetId) return;
+
+    const rows = await readAbsenceExplanationRows(spreadsheetId);
+    if (rows.length < 2) return;
+
+    const batch = getAdminFirestore().batch();
+    for (let i = 1; i < rows.length; i++) {
+      const record = rowToRecord(rows[i] ?? []);
+      if (!record?.id) continue;
+      batch.set(collection.doc(record.id), record);
+    }
+    await batch.commit();
+  })().finally(() => {
+    absenceBootstrapPromises.delete(key);
+  });
+
+  absenceBootstrapPromises.set(key, promise);
+  return promise;
+}
+
+async function listAbsenceExplanationsFirestore(
+  employee: AttendanceEmployeeContext,
+): Promise<AbsenceExplanationRecord[]> {
+  await ensureAbsenceExplanationsBootstrapped(employee);
+  const snap = await absenceExplanationsCollection(employee.employeeId).get();
+  const records: AbsenceExplanationRecord[] = [];
+
+  for (const doc of snap.docs) {
+    const data = doc.data() as AbsenceExplanationRecord;
+    if (data.dateIso && data.explanation) {
+      records.push({ ...data, id: data.id || doc.id });
+    }
+  }
+
+  return records;
+}
+
+async function appendAbsenceExplanationsFirestore(
+  employee: AttendanceEmployeeContext,
+  rowsToAppend: string[][],
+): Promise<void> {
+  const batch = getAdminFirestore().batch();
+  const collection = absenceExplanationsCollection(employee.employeeId);
+
+  for (const row of rowsToAppend) {
+    const id = String(row[COL.id] ?? "").trim() || randomUUID();
+    const record: AbsenceExplanationRecord = {
+      id,
+      dateIso: String(row[COL.date] ?? "").trim(),
+      leaveType: String(row[COL.leaveType] ?? "").trim() as AbsenceLeaveType,
+      leaveRowIndex: Number.parseInt(String(row[COL.leaveRowIndex] ?? ""), 10) || 0,
+      rejectReason: String(row[COL.rejectReason] ?? "").trim(),
+      duration: "",
+      explanation: String(row[COL.explanation] ?? "").trim(),
+      submittedAt: String(row[COL.submittedAt] ?? "").trim(),
+    };
+    batch.set(collection.doc(id), record);
+  }
+
+  await batch.commit();
+}
+
 function rowToRecord(row: string[]): AbsenceExplanationRecord | null {
   const dateIso = String(row[COL.date] ?? "").trim();
   const explanation = String(row[COL.explanation] ?? "").trim();
@@ -211,9 +302,13 @@ function rowToRecord(row: string[]): AbsenceExplanationRecord | null {
 }
 
 export async function listAbsenceExplanations(
-  attendanceSpreadsheetId: string,
+  employee: AttendanceEmployeeContext,
 ): Promise<AbsenceExplanationRecord[]> {
-  const rows = await readAbsenceExplanationRows(attendanceSpreadsheetId);
+  if (isFirebaseDailyStorage()) {
+    return listAbsenceExplanationsFirestore(employee);
+  }
+
+  const rows = await readAbsenceExplanationRows(employee.attendanceSpreadsheetId);
   const records: AbsenceExplanationRecord[] = [];
 
   for (let i = 1; i < rows.length; i++) {
@@ -251,7 +346,7 @@ function resolveLeaveTypeOptions(
 export async function getAbsenceLeaveBalances(
   attendanceSpreadsheetId: string,
 ): Promise<AbsenceLeaveBalances> {
-  const rows = await readLeaveBucketRows(attendanceSpreadsheetId);
+  const rows = await readLeaveBucketRowsForAbsenceExplanation(attendanceSpreadsheetId);
   const balances = getLeavePolicyBalances(rows);
   return {
     sickAvailable: balances.sick.available,
@@ -313,7 +408,7 @@ function listPastWorkingDates(
 }
 
 async function buildAttendanceByDate(
-  spreadsheetId: string,
+  employee: AttendanceEmployeeContext,
   todayIso: string,
 ): Promise<Map<string, AttendanceRow>> {
   const today = new Date(`${todayIso}T12:00:00`);
@@ -324,8 +419,14 @@ async function buildAttendanceByDate(
     monthKeys.push({ year: date.getFullYear(), monthIndex: date.getMonth() });
   }
 
+  const repo = getAttendanceRepository();
+  const ref = {
+    employeeId: employee.employeeId,
+    spreadsheetId: employee.attendanceSpreadsheetId,
+  };
+
   const monthRows = await Promise.all(
-    monthKeys.map(({ year, monthIndex }) => getMonthAttendance(spreadsheetId, year, monthIndex)),
+    monthKeys.map(({ year, monthIndex }) => repo.getMonthAttendance(ref, year, monthIndex)),
   );
 
   const byDate = new Map<string, AttendanceRow>();
@@ -436,16 +537,23 @@ export async function getPendingAbsenceExplanationGroups(
   const quarterStartIso = currentQuarterStartIso(asOfDate);
   const leaveHolidayDates = await getLeaveHolidayDates();
 
-  const [allLeaves, explanations, attendanceByDate, leaveBalances] = await Promise.all([
-    listLeaveApplications({
-      employeeId: employee.employeeId,
-      employeeName: employee.employeeName,
-      attendanceSpreadsheetId: employee.attendanceSpreadsheetId,
-    }),
-    listAbsenceExplanations(employee.attendanceSpreadsheetId),
-    buildAttendanceByDate(employee.attendanceSpreadsheetId, todayIso),
-    getAbsenceLeaveBalances(employee.attendanceSpreadsheetId),
+  const [leaveRows, explanations, attendanceByDate] = await Promise.all([
+    readLeaveBucketRowsForAbsenceExplanation(employee.attendanceSpreadsheetId),
+    listAbsenceExplanations(employee),
+    buildAttendanceByDate(employee, todayIso),
   ]);
+
+  const allLeaves = listLeaveApplicationsFromRows({
+    rows: leaveRows,
+    employeeId: employee.employeeId,
+    employeeName: employee.employeeName,
+    attendanceSpreadsheetId: employee.attendanceSpreadsheetId,
+  });
+
+  const leaveBalances = {
+    sickAvailable: getLeavePolicyBalances(leaveRows).sick.available,
+    casualAvailable: getLeavePolicyBalances(leaveRows).casual.available,
+  };
 
   const leavesByDate = buildLeavesByDate(allLeaves);
   const explainedDates = new Set(explanations.map((record) => record.dateIso));
@@ -568,9 +676,7 @@ export async function submitAbsenceExplanations(params: {
 }): Promise<void> {
   const pendingGroups = await getPendingAbsenceExplanationGroups(params.employee);
   const pendingById = new Map(pendingGroups.map((group) => [group.id, group]));
-  const existingExplanations = await listAbsenceExplanations(
-    params.employee.attendanceSpreadsheetId,
-  );
+  const existingExplanations = await listAbsenceExplanations(params.employee);
   const explainedDates = new Set(existingExplanations.map((record) => record.dateIso));
 
   const rowsToAppend: string[][] = [];
@@ -633,6 +739,11 @@ export async function submitAbsenceExplanations(params: {
 
   if (rowsToAppend.length === 0) {
     // All dates were already explained (e.g. retry after a partial success).
+    return;
+  }
+
+  if (isFirebaseDailyStorage()) {
+    await appendAbsenceExplanationsFirestore(params.employee, rowsToAppend);
     return;
   }
 
@@ -741,14 +852,13 @@ async function createLeaveRequestFromAbsenceGroup(params: {
   reason: string;
 }): Promise<void> {
   const { employee, group, leaveType, reason } = params;
-  const [rows, existingLeaves] = await Promise.all([
-    readLeaveBucketRows(employee.attendanceSpreadsheetId),
-    listLeaveApplications({
-      employeeId: employee.employeeId,
-      employeeName: employee.employeeName,
-      attendanceSpreadsheetId: employee.attendanceSpreadsheetId,
-    }),
-  ]);
+  const rows = await readLeaveBucketRowsForAbsenceExplanation(employee.attendanceSpreadsheetId);
+  const existingLeaves = listLeaveApplicationsFromRows({
+    rows,
+    employeeId: employee.employeeId,
+    employeeName: employee.employeeName,
+    attendanceSpreadsheetId: employee.attendanceSpreadsheetId,
+  });
   const usage = countLeaveBucketUsage(rows);
   const asOfDate = new Date();
   const leavesByDate = buildLeavesByDate(existingLeaves);
@@ -803,7 +913,12 @@ async function createLeaveRequestFromAbsenceGroup(params: {
     return;
   }
 
-  await addGroupedLeaveDatesToBucket(employee.attendanceSpreadsheetId, leaveGroups, "full", reason);
+  await addGroupedLeaveDatesToBucketForAbsenceExplanation(
+    employee.attendanceSpreadsheetId,
+    leaveGroups,
+    "full",
+    reason,
+  );
 
   const dateRange = formatIsoDateRange(group.dateFromIso, group.dateToIso);
   const requestId = `AE-${Date.now()}`;

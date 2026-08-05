@@ -11,7 +11,7 @@ import {
   countUnreadNotifications,
   listNotificationsForRecipient,
   markNotificationRead,
-} from "@/lib/notifications/sheets";
+} from "@/lib/notifications/repository";
 import { NOTIFICATION_TYPES, type NotificationDto } from "@/lib/notifications/types";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
