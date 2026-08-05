@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { syncAbsenceGateForUser } from "@/lib/attendance/absence-gate-sync";
-import { setAbsenceGateCookie } from "@/lib/attendance/absence-gate-cookie";
+import {
+  setAbsenceGateCookie,
+  setMorningPunchGateCookie,
+} from "@/lib/attendance/absence-gate-cookie";
 import { roleRequiresAbsenceExplanationGate } from "@/lib/attendance/absence-gate";
+import { userRequiresMorningPunchGate } from "@/lib/attendance/morning-punch-gate";
 import { ensureForgottenPunchOutForUser } from "@/lib/attendance/auto-punch-out";
 import { authenticateFromSheet } from "@/lib/auth/login";
 // TEMP DISABLED: office Wi‑Fi / WFH network restriction.
@@ -75,6 +79,7 @@ export async function POST(req: Request) {
     }
 
     let requiresAbsenceExplanation = false;
+    let requiresMorningPunch = false;
     if (roleRequiresAbsenceExplanationGate(result.user.role)) {
       try {
         requiresAbsenceExplanation = await syncAbsenceGateForUser(result.user, {
@@ -83,6 +88,12 @@ export async function POST(req: Request) {
       } catch (error) {
         // Absence gate sync is non-critical for successful authentication.
         console.warn("[auth/login] absence gate sync failed:", error);
+      }
+
+      try {
+        requiresMorningPunch = await userRequiresMorningPunchGate(result.user);
+      } catch (error) {
+        console.warn("[auth/login] morning punch gate sync failed:", error);
       }
 
       try {
@@ -110,16 +121,20 @@ export async function POST(req: Request) {
     // }
 
     const token = encodeSession(result.user);
+    const requiresSiteGate = requiresAbsenceExplanation || requiresMorningPunch;
     const res = NextResponse.json({
       ok: true,
       user: result.user,
       requiresAbsenceExplanation,
+      requiresMorningPunch,
+      requiresSiteGate,
       // networkAllowed: network.allowed,
       // networkReason: network.reason,
       // clientIp: network.clientIp,
     });
     res.cookies.set(COOKIE, token, SESSION_COOKIE_OPTIONS);
     setAbsenceGateCookie(res, requiresAbsenceExplanation);
+    setMorningPunchGateCookie(res, requiresMorningPunch);
     // setNetworkGateCookie(res, network.allowed, network.clientIp);
     return res;
   } catch (error) {

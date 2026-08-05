@@ -1,25 +1,35 @@
 import { NextResponse } from "next/server";
 
 import {
-  isAbsenceGateCookieActive,
-  ABSENCE_GATE_COOKIE,
+  setAbsenceGateCookie,
+  setMorningPunchGateCookie,
 } from "@/lib/attendance/absence-gate-cookie";
 import { roleRequiresAbsenceExplanationGate } from "@/lib/attendance/absence-gate";
+import { syncAbsenceGateForUser } from "@/lib/attendance/absence-gate-sync";
+import { userRequiresMorningPunchGate } from "@/lib/attendance/morning-punch-gate";
 import { getSessionFromCookie } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
-/** Fast gate check — reads cookie only, no Google Sheets calls. */
+/** Sync punch-desk gates and return whether site access is blocked. */
 export async function GET() {
   const user = await getSessionFromCookie();
   if (!user || !roleRequiresAbsenceExplanationGate(user.role)) {
     return NextResponse.json({ active: false });
   }
 
-  const cookieValue = (await import("next/headers")).cookies;
-  const gateCookie = (await cookieValue()).get(ABSENCE_GATE_COOKIE)?.value;
+  const [requiresAbsenceExplanation, requiresMorningPunch] = await Promise.all([
+    syncAbsenceGateForUser(user),
+    userRequiresMorningPunchGate(user),
+  ]);
+  const active = requiresAbsenceExplanation || requiresMorningPunch;
 
-  return NextResponse.json({
-    active: isAbsenceGateCookieActive(gateCookie),
+  const res = NextResponse.json({
+    active,
+    absenceExplanation: requiresAbsenceExplanation,
+    morningPunch: requiresMorningPunch,
   });
+  setAbsenceGateCookie(res, requiresAbsenceExplanation);
+  setMorningPunchGateCookie(res, requiresMorningPunch);
+  return res;
 }
