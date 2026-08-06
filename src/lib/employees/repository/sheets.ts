@@ -50,3 +50,20 @@ export async function resolveEmployeeRecordForSessionFromSheets(
 
   return findEmployeeByLoginFromSheets(user.email);
 }
+
+export async function listAllEmployeeRowsFromSheets(): Promise<EmployeeRowRecord[]> {
+  const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
+  if (raw.length < 2) return [];
+  const headers = getSheetHeaders(raw);
+  const records: EmployeeRowRecord[] = [];
+
+  for (let index = 1; index < raw.length; index++) {
+    records.push({
+      sheetRow: index + 1,
+      headers,
+      row: raw[index] ?? [],
+    });
+  }
+
+  return records;
+}

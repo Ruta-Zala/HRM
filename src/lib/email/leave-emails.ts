@@ -183,7 +183,7 @@ function buildLeaveReviewedHtml(params: {
           <tr>
             <td style="padding:4px 32px 28px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#475569;">
               You can review leave updates anytime in
-              <strong style="color:#0f172a;">Exhibyte HRM</strong>.
+              <strong style="color:#0f172a;">ExhiByte HRM</strong>.
               For help, email
               <a href="mailto:${supportEmail}" style="color:#0f766e;text-decoration:none;font-weight:600;">${supportEmail}</a>.
             </td>

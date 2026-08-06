@@ -28,7 +28,7 @@ export default function IntegrationsHubPage() {
     <div className="space-y-8">
       <PageHeader
         title="Integrations"
-        description="Wire Exhibyte HRM to Drive, Slack, and object storage. Keys stay server-side via environment variables."
+        description="Wire ExhiByte HRM to Drive, Slack, and object storage. Keys stay server-side via environment variables."
       />
       <div className="grid gap-4 md:grid-cols-3">
         {links.map((l) => (

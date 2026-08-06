@@ -57,6 +57,29 @@ const DASHBOARD_PANEL_BODY = "h-80";
 //   { id: "3", item: "Complaint — Floor 3 AC", owner: "Facilities", status: "In review" },
 // ];
 
+function DashboardStatCard({
+  label,
+  value,
+  hint,
+  loading,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  loading?: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="border-ex-border bg-ex-elevated rounded-xl border p-4 shadow-sm dark:shadow-none">
+        <p className="text-ex-muted text-xs font-medium tracking-wide uppercase">{label}</p>
+        <div className="bg-ex-surface mt-2 h-8 w-20 animate-pulse rounded-md" aria-hidden />
+        {hint ? <p className="text-ex-muted mt-1 text-xs">{hint}</p> : null}
+      </div>
+    );
+  }
+  return <StatCard label={label} value={value} hint={hint} />;
+}
+
 type OnLeaveEmployee = {
   id: string;
   employeeSheetRow: number;
@@ -312,6 +335,7 @@ export default function DashboardPage() {
   );
   const [unapprovedAbsenceError, setUnapprovedAbsenceError] = useState<string | null>(null);
   const [companyHolidays, setCompanyHolidays] = useState<CompanyHoliday[]>(COMPANY_HOLIDAYS_2026);
+  const [holidaysUsingFallback, setHolidaysUsingFallback] = useState(false);
   const holidayYear = 2026;
   const birthdayLeaveEmployees = onLeave.filter(
     (employee) => employee.leaveType.toLowerCase() === "birthday",
@@ -436,10 +460,14 @@ export default function DashboardPage() {
         return data.holidays ?? [];
       })
       .then((holidays) => {
-        if (!cancelled) setCompanyHolidays(holidays);
+        if (!cancelled) {
+          setCompanyHolidays(holidays);
+          setHolidaysUsingFallback(false);
+        }
       })
       .catch(() => {
         // Keep the seeded holiday list when the remote sheet is temporarily unavailable.
+        if (!cancelled) setHolidaysUsingFallback(true);
       });
 
     return () => {
@@ -451,7 +479,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <PageHeader
         title="Executive Overview"
-        description="Live signals across people, attendance, leave, and service requests. Data shown is sample scaffolding wired for charts and tables."
+        description="Live attendance, leave, and holiday signals for your team."
         // actions={
         //   <>
         //     <Button variant="outline" size="sm">
@@ -464,17 +492,19 @@ export default function DashboardPage() {
         // }
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className={cn("grid gap-4", canManageLeave ? "sm:grid-cols-2" : "max-w-sm")}>
         {/* <StatCard label="Present today" value="94%" hint="vs. 30-day baseline" /> */}
-        <StatCard
+        <DashboardStatCard
           label={canManageLeave && leaveDate !== formatIsoDate() ? "On leave" : "On leave today"}
-          value={onLeaveLoading ? "…" : `${onLeave.length}/${totalEmployees}`}
+          value={`${onLeave.length}/${totalEmployees}`}
+          loading={onLeaveLoading}
           hint={displayDate(canManageLeave ? leaveDate : formatIsoDate())}
         />
         {canManageLeave ? (
-          <StatCard
+          <DashboardStatCard
             label={leaveDate !== formatIsoDate() ? "No punch-in" : "No punch-in today"}
-            value={unapprovedAbsenceLoading ? "…" : String(unapprovedAbsence.length)}
+            value={String(unapprovedAbsence.length)}
+            loading={unapprovedAbsenceLoading}
             hint={displayDate(leaveDate)}
           />
         ) : null}
@@ -491,7 +521,11 @@ export default function DashboardPage() {
               </div>
               <div>
                 <CardTitle>Upcoming Holidays</CardTitle>
-                <p className="text-ex-muted mt-0.5 text-sm">Company leave days and celebrations</p>
+                <p className="text-ex-muted mt-0.5 text-sm">
+                  {holidaysUsingFallback
+                    ? "Showing default holiday list — live holidays could not be loaded"
+                    : "Company leave days and celebrations"}
+                </p>
               </div>
             </div>
             {upcomingHolidays.length > 0 ? (
@@ -733,7 +767,7 @@ export default function DashboardPage() {
         ) : null}
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
+      <section className="max-w-xl">
         <AttendanceWidget />
         {/* <Card className="lg:col-span-2">
           <CardHeader>
