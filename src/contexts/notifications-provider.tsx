@@ -38,7 +38,6 @@ type NotificationsContextValue = {
 
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
 
-const POLL_INTERVAL_MS = 45_000;
 const TOAST_AUTO_DISMISS_MS = 6_000;
 
 async function fetchNotifications(): Promise<{
@@ -188,10 +187,6 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     if (!user?.sheetRow) return;
 
-    const interval = setInterval(() => {
-      void refresh();
-    }, POLL_INTERVAL_MS);
-
     const onVisible = () => {
       if (document.visibilityState === "visible") {
         void refresh();
@@ -199,11 +194,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     };
 
     document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [refresh, user?.sheetRow]);
 
   useEffect(() => {

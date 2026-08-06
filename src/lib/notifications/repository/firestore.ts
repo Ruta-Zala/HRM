@@ -65,10 +65,16 @@ async function ensureNotificationsBootstrapped(): Promise<void> {
   return bootstrapPromise;
 }
 
-async function listAllRecords(): Promise<NotificationRecord[]> {
+async function listRecordsForRecipient(recipientSheetRow: number): Promise<NotificationRecord[]> {
   await ensureNotificationsBootstrapped();
-  const snap = await getAdminFirestore().collection(COLLECTION).get();
-  return snap.docs.map((doc) => doc.data() as NotificationRecord);
+  const snap = await getAdminFirestore()
+    .collection(COLLECTION)
+    .where("recipientSheetRow", "==", recipientSheetRow)
+    .get();
+
+  return snap.docs
+    .filter((doc) => doc.id !== META_DOC)
+    .map((doc) => doc.data() as NotificationRecord);
 }
 
 async function deleteExpiredRecords(records: NotificationRecord[]): Promise<void> {
@@ -76,15 +82,29 @@ async function deleteExpiredRecords(records: NotificationRecord[]): Promise<void
   const expired = records.filter((record) => isNotificationExpired(record, todayIso));
   if (expired.length === 0) return;
 
-  const batch = getAdminFirestore().batch();
+  const db = getAdminFirestore();
+  const batch = db.batch();
   for (const record of expired) {
-    batch.delete(getAdminFirestore().collection(COLLECTION).doc(record.id));
+    batch.delete(db.collection(COLLECTION).doc(record.id));
   }
   await batch.commit();
 }
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+async function hasExistingDedupe(params: {
+  recipientSheetRow: number;
+  dedupeKey: string;
+}): Promise<boolean> {
+  const snap = await getAdminFirestore()
+    .collection(COLLECTION)
+    .where("recipientSheetRow", "==", params.recipientSheetRow)
+    .where("dedupeKey", "==", params.dedupeKey)
+    .limit(1)
+    .get();
+  return !snap.empty;
 }
 
 export async function createNotificationFirestore(
@@ -94,12 +114,11 @@ export async function createNotificationFirestore(
 
   const dedupeKey = String(input.dedupeKey ?? "").trim();
   if (dedupeKey) {
-    const existing = await listAllRecords();
-    for (const record of existing) {
-      if (record.dedupeKey === dedupeKey && record.recipientSheetRow === input.recipientSheetRow) {
-        return null;
-      }
-    }
+    const exists = await hasExistingDedupe({
+      recipientSheetRow: input.recipientSheetRow,
+      dedupeKey,
+    });
+    if (exists) return null;
   }
 
   const record: NotificationRecord = {
@@ -129,10 +148,17 @@ export async function createNotificationsFirestore(
   const existingKeys = new Set<string>();
 
   if (inputs.some((input) => String(input.dedupeKey ?? "").trim())) {
-    const existing = await listAllRecords();
-    for (const record of existing) {
-      if (!record.dedupeKey) continue;
-      existingKeys.add(`${record.recipientSheetRow}:${record.dedupeKey}`);
+    const recipientRows = [
+      ...new Set(
+        inputs.map((input) => input.recipientSheetRow).filter((row) => Number.isFinite(row)),
+      ),
+    ];
+    for (const recipientSheetRow of recipientRows) {
+      const existing = await listRecordsForRecipient(recipientSheetRow);
+      for (const record of existing) {
+        if (!record.dedupeKey) continue;
+        existingKeys.add(`${record.recipientSheetRow}:${record.dedupeKey}`);
+      }
     }
   }
 
@@ -160,9 +186,10 @@ export async function createNotificationsFirestore(
 
   if (records.length === 0) return 0;
 
-  const batch = getAdminFirestore().batch();
+  const db = getAdminFirestore();
+  const batch = db.batch();
   for (const record of records) {
-    batch.set(getAdminFirestore().collection(COLLECTION).doc(record.id), record);
+    batch.set(db.collection(COLLECTION).doc(record.id), record);
   }
   await batch.commit();
 
@@ -172,14 +199,13 @@ export async function createNotificationsFirestore(
 export async function listNotificationsForRecipientFirestore(
   recipientSheetRow: number,
 ): Promise<NotificationDto[]> {
-  const records = await listAllRecords();
+  const records = await listRecordsForRecipient(recipientSheetRow);
   await deleteExpiredRecords(records);
 
-  const fresh = await listAllRecords();
+  const fresh = records.filter((record) => !isNotificationExpired(record, notificationTodayIso()));
   const notifications: NotificationDto[] = [];
 
   for (const record of fresh) {
-    if (record.recipientSheetRow !== recipientSheetRow) continue;
     notifications.push({
       ...record,
       expiresAt: effectiveNotificationExpiresAt(record),
