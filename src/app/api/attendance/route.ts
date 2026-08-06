@@ -12,15 +12,10 @@ import { formatBreakAllowance, parseDurationToMs, parseTimeOnDate } from "@/lib/
 import { resolveAttendanceEmployeeForTarget } from "@/lib/attendance/employee";
 import {
   computeLiveWorkedMs,
-  endBreak,
-  getMonthAttendance,
-  getTodayAttendance,
-  listAttendanceMonthlySheetsAcrossYears,
-  punchIn,
-  punchOut,
-  startBreak,
-  updateDailyUpdate,
-} from "@/lib/google/attendance-sheets";
+  getAttendanceRepository,
+  hasAttendanceStorage,
+  toAttendanceStorageRef,
+} from "@/lib/attendance/repository";
 import {
   formatDuration,
   formatDurationHms,
@@ -54,17 +49,19 @@ export const GET = withActiveSession(async (req, user) => {
     const { searchParams } = new URL(req.url);
     const targetSheetRow = parseTargetSheetRow(searchParams, user.sheetRow);
     const employee = await resolveAttendanceEmployeeForTarget(user, targetSheetRow);
-    if (!employee?.attendanceSpreadsheetId) {
+    if (!hasAttendanceStorage(employee)) {
       return NextResponse.json(
         { success: false, message: "Employee attendance record not found" },
         { status: 404 },
       );
     }
 
+    const storageRef = toAttendanceStorageRef(employee!);
+    const attendanceRepo = getAttendanceRepository();
     const mode = searchParams.get("mode");
 
     if (mode === "periods") {
-      const sheets = await listAttendanceMonthlySheetsAcrossYears(employee.attendanceSpreadsheetId);
+      const sheets = await attendanceRepo.listMonthlySheetsAcrossYears(storageRef);
       const years = new Set<number>();
       const monthsByYear = new Map<number, number[]>();
 
@@ -106,7 +103,7 @@ export const GET = withActiveSession(async (req, user) => {
         );
       }
 
-      const records = await getMonthAttendance(employee.attendanceSpreadsheetId, year, month);
+      const records = await attendanceRepo.getMonthAttendance(storageRef, year, month);
 
       return NextResponse.json({
         success: true,
@@ -129,7 +126,7 @@ export const GET = withActiveSession(async (req, user) => {
       });
     }
 
-    const today = await getTodayAttendance(employee.attendanceSpreadsheetId);
+    const today = await attendanceRepo.getTodayAttendance(storageRef);
     const workedMs = today ? computeLiveWorkedMs(today) : 0;
     const idealHours = isHalfDayUnpaidWorkMode(today?.workMode) ? 4 : IDEAL_WORKING_HOURS;
     const idealBreakHours = isHalfDayUnpaidWorkMode(today?.workMode) ? 0 : IDEAL_BREAK_HOURS;
@@ -186,13 +183,15 @@ export const GET = withActiveSession(async (req, user) => {
 export const POST = withActiveSession(async (req, user) => {
   try {
     const employee = await resolveAttendanceEmployeeForTarget(user, user.sheetRow);
-    if (!employee?.attendanceSpreadsheetId) {
+    if (!hasAttendanceStorage(employee)) {
       return NextResponse.json(
         { success: false, message: "Employee attendance record not found" },
         { status: 404 },
       );
     }
 
+    const storageRef = toAttendanceStorageRef(employee!);
+    const attendanceRepo = getAttendanceRepository();
     const body = await req.json();
     const action = String(body.action ?? "");
     const punchActions = new Set(["punch-in", "punch-out", "break-start", "break-end"]);
@@ -239,19 +238,19 @@ export const POST = withActiveSession(async (req, user) => {
             { status: 400 },
           );
         }
-        record = await punchIn(employee.attendanceSpreadsheetId, new Date(), { workMode });
+        record = await attendanceRepo.punchIn(storageRef, new Date(), { workMode });
         break;
       case "punch-out":
-        record = await punchOut(employee.attendanceSpreadsheetId, new Date(), {
+        record = await attendanceRepo.punchOut(storageRef, new Date(), {
           earlyLeaveReason: earlyLeaveReason || undefined,
           dailyUpdate,
         });
         break;
       case "break-start":
-        record = await startBreak(employee.attendanceSpreadsheetId);
+        record = await attendanceRepo.startBreak(storageRef);
         break;
       case "break-end":
-        record = await endBreak(employee.attendanceSpreadsheetId);
+        record = await attendanceRepo.endBreak(storageRef);
         break;
       default:
         return NextResponse.json({ success: false, message: "Invalid action" }, { status: 400 });
@@ -289,7 +288,7 @@ export const POST = withActiveSession(async (req, user) => {
       invalidateUnapprovedAbsenceCache(notificationDateIso());
       clearMorningPunchGateCookie(res);
       if (roleRequiresAbsenceExplanationGate(user.role)) {
-        invalidateAbsenceExplanationCache(employee.employeeId);
+        invalidateAbsenceExplanationCache(employee!.employeeId);
         await applyAbsenceGateCookie(res, user, { forceRefresh: true });
       }
     }
@@ -314,13 +313,15 @@ export const POST = withActiveSession(async (req, user) => {
 export const PATCH = withActiveSession(async (req, user) => {
   try {
     const employee = await resolveAttendanceEmployeeForTarget(user, user.sheetRow);
-    if (!employee?.attendanceSpreadsheetId) {
+    if (!hasAttendanceStorage(employee)) {
       return NextResponse.json(
         { success: false, message: "Employee attendance record not found" },
         { status: 404 },
       );
     }
 
+    const storageRef = toAttendanceStorageRef(employee!);
+    const attendanceRepo = getAttendanceRepository();
     const body = await req.json();
     const date = typeof body.date === "string" ? body.date.trim() : "";
     const dailyUpdate = typeof body.dailyUpdate === "string" ? body.dailyUpdate.trim() : "";
@@ -337,7 +338,7 @@ export const PATCH = withActiveSession(async (req, user) => {
       );
     }
 
-    const record = await updateDailyUpdate(employee.attendanceSpreadsheetId, date, dailyUpdate);
+    const record = await attendanceRepo.updateDailyUpdate(storageRef, date, dailyUpdate);
     const workedMs = computeLiveWorkedMs(record);
 
     return NextResponse.json({

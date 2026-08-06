@@ -1,7 +1,7 @@
 import { ROLES } from "@/app/consts/common";
 import { addDaysToDateIso, notificationDateIso } from "@/lib/notifications/automation-date";
 import { listActiveEmployees } from "@/lib/notifications/recipients";
-import { createNotifications } from "@/lib/notifications/sheets";
+import { createNotifications } from "@/lib/notifications/repository";
 import { NOTIFICATION_TYPES } from "@/lib/notifications/types";
 
 function birthdayMonthDay(value: string): string {

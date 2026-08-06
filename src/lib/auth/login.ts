@@ -1,12 +1,11 @@
 import { ROLES } from "@/app/consts/common";
 import {
-  getSheetHeaders,
   headerToFormKey,
   isEmployeeStatusActive,
   sheetRowToForm,
   sheetRowToRange,
 } from "@/lib/employee";
-import { EMPLOYEE_SHEET_RANGE, readSheet, updateSheetRow } from "@/lib/google/sheets";
+import { findEmployeeByLogin, updateEmployeeRow } from "@/lib/employees/repository";
 import type { SessionUser, UserRole } from "@/types/auth";
 
 import { upgradePlainPasswordInSheet } from "./credentials-setup";
@@ -25,7 +24,7 @@ function normalizeUserRole(value: string): UserRole | null {
 }
 
 /**
- * Authenticate against employee rows in Google Sheets.
+ * Authenticate against employee records (Firebase when configured, else Google Sheets).
  * Login identifier may be work email or username (case-insensitive).
  */
 export async function authenticateFromSheet(
@@ -37,71 +36,71 @@ export async function authenticateFromSheet(
     return { ok: false, reason: "invalid_credentials" };
   }
 
-  const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
-  const headers = getSheetHeaders(raw);
-
-  let inactiveMatch = false;
-
-  for (let index = 1; index < raw.length; index++) {
-    const row = raw[index] ?? [];
-    const form = sheetRowToForm(headers, row);
-
-    const email = form.email.trim().toLowerCase();
-    const username = form.username.trim().toLowerCase();
-    const matchesLogin = (email && email === loginNorm) || (username && username === loginNorm);
-    if (!matchesLogin) continue;
-
-    const storedPassword = form.password.trim();
-    if (!storedPassword) continue;
-
-    const valid = await verifyPassword(password, storedPassword);
-    if (!valid) continue;
-
-    const statusIndex = headers.findIndex((h) => headerToFormKey(h) === "status");
-    const rawStatus = statusIndex >= 0 ? String(row[statusIndex] ?? "") : "";
-    if (!isEmployeeStatusActive(rawStatus)) {
-      inactiveMatch = true;
-      continue;
-    }
-
-    const sheetRow = index + 1;
-    if (!isBcryptHash(storedPassword)) {
-      try {
-        await upgradePlainPasswordInSheet(
-          headers,
-          row,
-          sheetRow,
-          password,
-          updateSheetRow,
-          sheetRowToRange,
-        );
-      } catch (error) {
-        console.error("Failed to upgrade plain password to bcrypt:", error);
-      }
-    }
-
-    const role = normalizeUserRole(form.role);
-    if (!role) continue;
-
-    const name = form.name.trim() || username || email;
-    const id = form.employeeId.trim() || (email ? email : username) || `row-${index + 1}`;
-
-    return {
-      ok: true,
-      user: {
-        id,
-        email: form.email.trim() || email || username,
-        name,
-        role,
-        department: form.position.trim() || undefined,
-        sheetRow,
-      },
-    };
+  const record = await findEmployeeByLogin(login);
+  if (!record) {
+    return { ok: false, reason: "invalid_credentials" };
   }
 
-  if (inactiveMatch) {
+  const { headers, row, sheetRow } = record;
+  const form = sheetRowToForm(headers, row);
+
+  const email = form.email.trim().toLowerCase();
+  const username = form.username.trim().toLowerCase();
+  const matchesLogin = (email && email === loginNorm) || (username && username === loginNorm);
+  if (!matchesLogin) {
+    return { ok: false, reason: "invalid_credentials" };
+  }
+
+  const storedPassword = form.password.trim();
+  if (!storedPassword) {
+    return { ok: false, reason: "invalid_credentials" };
+  }
+
+  const valid = await verifyPassword(password, storedPassword);
+  if (!valid) {
+    return { ok: false, reason: "invalid_credentials" };
+  }
+
+  const statusIndex = headers.findIndex((h) => headerToFormKey(h) === "status");
+  const rawStatus = statusIndex >= 0 ? String(row[statusIndex] ?? "") : "";
+  if (!isEmployeeStatusActive(rawStatus)) {
     return { ok: false, reason: "account_inactive" };
   }
 
-  return { ok: false, reason: "invalid_credentials" };
+  if (!isBcryptHash(storedPassword)) {
+    try {
+      await upgradePlainPasswordInSheet(
+        headers,
+        row,
+        sheetRow,
+        password,
+        async (range, values) => {
+          await updateEmployeeRow(sheetRow, values[0] ?? row);
+        },
+        sheetRowToRange,
+      );
+    } catch (error) {
+      console.error("Failed to upgrade plain password to bcrypt:", error);
+    }
+  }
+
+  const role = normalizeUserRole(form.role);
+  if (!role) {
+    return { ok: false, reason: "invalid_credentials" };
+  }
+
+  const name = form.name.trim() || username || email;
+  const id = form.employeeId.trim() || (email ? email : username) || `row-${sheetRow}`;
+
+  return {
+    ok: true,
+    user: {
+      id,
+      email: form.email.trim() || email || username,
+      name,
+      role,
+      department: form.position.trim() || undefined,
+      sheetRow,
+    },
+  };
 }

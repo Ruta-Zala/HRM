@@ -1,3 +1,4 @@
+import { roleCanPunchInOut } from "@/lib/attendance/absence-gate";
 import { getAttendanceSpreadsheetIdFromRow } from "@/lib/attendance/employee";
 import { listLeaveApplications, type LeaveApplication } from "@/lib/attendance/leave-approvals";
 import { parseLeaveDisplayDate } from "@/lib/attendance/leave-range-display";
@@ -10,6 +11,7 @@ import {
   sheetRowToForm,
 } from "@/lib/employee";
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
+import type { UserRole } from "@/types/auth";
 
 export type OnLeaveEmployee = {
   id: string;
@@ -43,6 +45,9 @@ async function listActiveEmployeesForLeaveTracking() {
   return raw.slice(1).flatMap((row, index) => {
     const form = sheetRowToForm(headers, row);
     if (!isEmployeeStatusActive(form.status)) return [];
+
+    const role = form.role.trim().toLowerCase();
+    if (!roleCanPunchInOut(role as UserRole)) return [];
 
     const attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(headers, row);
     if (!attendanceSpreadsheetId) return [];

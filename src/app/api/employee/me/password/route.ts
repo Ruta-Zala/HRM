@@ -4,13 +4,8 @@ import { withActiveSession } from "@/lib/auth/api-guard";
 import { resolveEmployeeRecordForSession } from "@/lib/auth/employee-record";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { passwordStrengthError } from "@/lib/auth/password-rules";
-import {
-  headerToFormKey,
-  sheetRowToForm,
-  sheetRowToRange,
-  withSheetRowUpdatedAt,
-} from "@/lib/employee";
-import { updateSheetRow } from "@/lib/google/sheets";
+import { headerToFormKey, sheetRowToForm, withSheetRowUpdatedAt } from "@/lib/employee";
+import { updateEmployeeRow } from "@/lib/employees/repository";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 export const PATCH = withActiveSession(async (req, user) => {
@@ -88,8 +83,7 @@ export const PATCH = withActiveSession(async (req, user) => {
     const updatedRow = [...row];
     updatedRow[passwordIndex] = hashed;
 
-    const range = sheetRowToRange(sheetRow, headers.length);
-    await updateSheetRow(range, [withSheetRowUpdatedAt(headers, updatedRow)]);
+    await updateEmployeeRow(sheetRow, withSheetRowUpdatedAt(headers, updatedRow));
 
     return NextResponse.json({
       success: true,

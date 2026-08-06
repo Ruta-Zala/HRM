@@ -21,6 +21,7 @@ import {
 } from "@/lib/google/sheets";
 import { ROLES } from "@/app/consts/common";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { isAttendanceOnFirebase } from "@/lib/attendance/repository";
 import type { SessionUser } from "@/types/auth";
 
 export type AttendanceEmployeeContext = {
@@ -75,6 +76,17 @@ export async function resolveAttendanceEmployee(
   const form = sheetRowToForm(record.headers, record.row);
   const employeeId = form.employeeId.trim();
   const employeeName = form.name.trim() || user.name;
+
+  if (isAttendanceOnFirebase()) {
+    if (!employeeId) return null;
+    return {
+      employeeId,
+      employeeName,
+      attendanceSpreadsheetId: getAttendanceSpreadsheetIdFromRow(record.headers, record.row),
+      sheetRow: record.sheetRow,
+      birthdayDate: form.birthdayDate.trim(),
+    };
+  }
 
   const attendanceSpreadsheetId = await resolveAttendanceSpreadsheetIdForRow({
     headers: record.headers,
@@ -138,6 +150,17 @@ export async function resolveAttendanceEmployeeForTarget(
   const employeeId = form.employeeId.trim();
   const employeeName = form.name.trim() || "Employee";
 
+  if (isAttendanceOnFirebase()) {
+    if (!employeeId) return null;
+    return {
+      employeeId,
+      employeeName,
+      attendanceSpreadsheetId: getAttendanceSpreadsheetIdFromRow(headers, row),
+      sheetRow: targetSheetRow,
+      birthdayDate: form.birthdayDate.trim(),
+    };
+  }
+
   const attendanceSpreadsheetId = await resolveAttendanceSpreadsheetIdForRow({
     headers,
     row,
@@ -171,6 +194,17 @@ export async function resolveAttendanceEmployeeBySheetRow(
   const form = sheetRowToForm(headers, row);
   const employeeId = form.employeeId.trim();
   const employeeName = form.name.trim() || "Employee";
+
+  if (isAttendanceOnFirebase()) {
+    if (!employeeId) return null;
+    return {
+      employeeId: form.employeeId,
+      employeeName,
+      attendanceSpreadsheetId: getAttendanceSpreadsheetIdFromRow(headers, row),
+      sheetRow,
+      birthdayDate: form.birthdayDate.trim(),
+    };
+  }
 
   const attendanceSpreadsheetId = await resolveAttendanceSpreadsheetIdForRow({
     headers,

@@ -1,5 +1,5 @@
 import { addDaysToDateIso, notificationDateIso } from "@/lib/notifications/automation-date";
-import { createNotifications } from "@/lib/notifications/sheets";
+import { createNotifications } from "@/lib/notifications/repository";
 import { NOTIFICATION_TYPES } from "@/lib/notifications/types";
 
 const PUNCH_HREF = "/employee/punch";
