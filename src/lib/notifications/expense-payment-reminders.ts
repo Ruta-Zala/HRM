@@ -7,7 +7,7 @@ import {
 } from "@/lib/expenses/types";
 import { addDaysToDateIso, notificationDateIso } from "@/lib/notifications/automation-date";
 import { listHrAndSuperAdminRecipients } from "@/lib/notifications/recipients";
-import { createNotifications } from "@/lib/notifications/sheets";
+import { createNotifications } from "@/lib/notifications/repository";
 import { NOTIFICATION_TYPES } from "@/lib/notifications/types";
 
 const MONTHS = [

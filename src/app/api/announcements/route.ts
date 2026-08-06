@@ -9,7 +9,7 @@ import {
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { listActiveEmployees } from "@/lib/notifications/recipients";
-import { createNotifications } from "@/lib/notifications/sheets";
+import { createNotifications } from "@/lib/notifications/repository";
 import { NOTIFICATION_TYPES } from "@/lib/notifications/types";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 

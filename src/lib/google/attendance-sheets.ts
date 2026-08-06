@@ -1909,6 +1909,59 @@ export async function upsertManualAttendanceRecord(params: {
   return rowFromValues(rowValues, targetRow);
 }
 
+/**
+ * Sync attendance day from Firebase to the employee's monthly Sheets.
+ * This is meant for idempotent "backup" runs after the day ends.
+ */
+export async function upsertAttendanceDayFromFirestoreRow(params: {
+  spreadsheetId: string;
+  dateIso: string;
+  row: AttendanceRow;
+}): Promise<AttendanceRow> {
+  const dateIso = normalizeSheetDate(params.dateIso);
+  if (!dateIso) {
+    throw new Error("Invalid attendance date");
+  }
+
+  const baseDate = new Date(`${dateIso}T12:00:00`);
+  const targetSpreadsheetId = await resolveSpreadsheetForDate(params.spreadsheetId, baseDate);
+  const sheetTitle = await ensureMonthlySheet(targetSpreadsheetId, baseDate);
+  const rows = await withQuotaRetry(() => readMonthlyRows(targetSpreadsheetId, sheetTitle));
+  const found = findTodayRow(rows, dateIso);
+  const targetRow = found?.sheetRow ?? Math.max(rows.length + 1, 2);
+
+  const rowValues = buildRowValues(found?.row, baseDate);
+  rowValues[ATTENDANCE_COL.date] = formatSheetDateLiteral(baseDate);
+
+  const workMode = canonicalizeWorkMode(
+    params.row.workMode?.trim() || rowValues[ATTENDANCE_COL.workMode] || WORK_MODE.FULL_DAY_ONSITE,
+  );
+  rowValues[ATTENDANCE_COL.workMode] = workMode;
+
+  rowValues[ATTENDANCE_COL.punchIn] = params.row.punchIn ?? "";
+  rowValues[ATTENDANCE_COL.punchOut] = params.row.punchOut ?? "";
+  rowValues[ATTENDANCE_COL.breakStart] = params.row.breakStart ?? "";
+  rowValues[ATTENDANCE_COL.breakEnd] = params.row.breakEnd ?? "";
+  rowValues[ATTENDANCE_COL.totalBreakTime] = params.row.totalBreakTime ?? "";
+  rowValues[ATTENDANCE_COL.workingHours] = params.row.workingHours ?? "";
+
+  // Keep these columns exactly as stored in Firebase so HR backups
+  // match the daily computed values.
+  rowValues[ATTENDANCE_COL.overtime] = params.row.overtime ?? "—";
+  rowValues[ATTENDANCE_COL.status] = params.row.status ?? WORKING_STATUS.IN_PROGRESS;
+  rowValues[ATTENDANCE_COL.earlyLeaveReason] = params.row.earlyLeaveReason ?? "";
+  rowValues[ATTENDANCE_COL.dailyUpdate] = params.row.dailyUpdate ?? "";
+  rowValues[ATTENDANCE_COL.isOvertimeApproved] =
+    params.row.isOvertimeApproved ?? OVERTIME_APPROVAL.NOT_CONSIDERED;
+
+  await ensureSheetHasRows(targetSpreadsheetId, sheetTitle, targetRow);
+  await withQuotaRetry(() =>
+    updateAttendanceRow(targetSpreadsheetId, sheetTitle, targetRow, rowValues),
+  );
+
+  return rowFromValues(rowValues, targetRow);
+}
+
 export async function updateAttendanceField(
   spreadsheetId: string,
   dateIso: string,

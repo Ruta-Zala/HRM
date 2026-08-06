@@ -1,17 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { withActiveSession } from "@/lib/auth/api-guard";
-import { canManageEmployees } from "@/lib/auth/roles";
 import { addDaysToDateIso, notificationDateIso } from "@/lib/notifications/automation-date";
-import { ensureEmployeeBirthdayNotifications } from "@/lib/notifications/birthday-reminders";
-import { processExpensePaymentRemindersOncePerDay } from "@/lib/notifications/expense-payment-reminders";
-import { ensureIncrementReminders } from "@/lib/notifications/increment-reminders";
-import { processLeaveUpcomingRemindersOncePerDay } from "@/lib/notifications/leave-reminders";
 import {
   countUnreadNotifications,
   listNotificationsForRecipient,
   markNotificationRead,
-} from "@/lib/notifications/sheets";
+} from "@/lib/notifications/repository";
 import { NOTIFICATION_TYPES, type NotificationDto } from "@/lib/notifications/types";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
@@ -61,19 +56,8 @@ export const GET = withActiveSession(async (_req, user) => {
       );
     }
 
-    if (canManageEmployees(user.role)) {
-      try {
-        await Promise.all([
-          processLeaveUpcomingRemindersOncePerDay(),
-          ensureEmployeeBirthdayNotifications(),
-          ensureIncrementReminders(),
-          processExpensePaymentRemindersOncePerDay(),
-        ]);
-      } catch (reminderError) {
-        console.error("On-demand notification automation error:", reminderError);
-      }
-    }
-
+    // Reminder automation (birthday/leave/increment/expense) runs via
+    // /api/cron/leave-reminders — not on every notifications GET.
     const allNotifications = await listNotificationsForRecipient(recipientSheetRow);
     const birthdayReminders = allNotifications.filter(
       (notification) => notification.type === NOTIFICATION_TYPES.EMPLOYEE_BIRTHDAY,

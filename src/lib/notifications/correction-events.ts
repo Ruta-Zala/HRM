@@ -3,7 +3,7 @@ import type { CorrectionField } from "@/lib/attendance/constants";
 import { CORRECTION_STATUS } from "@/lib/attendance/constants";
 import { findEmployeeByAttendanceSpreadsheetId } from "@/lib/notifications/employee-lookup";
 import { listHrAndSuperAdminRecipients } from "@/lib/notifications/recipients";
-import { createNotifications } from "@/lib/notifications/sheets";
+import { createNotifications } from "@/lib/notifications/repository";
 import { NOTIFICATION_TYPES, type NotificationType } from "@/lib/notifications/types";
 
 const PUNCH_HREF = "/employee/punch";

@@ -409,13 +409,16 @@ export default function DashboardPage() {
 
     load();
 
-    // Keep today's no-punch list fresh as people punch in during the day.
-    const shouldPoll = leaveDate === formatIsoDate();
-    const intervalId = shouldPoll ? window.setInterval(load, 20_000) : undefined;
+    // Refresh when the tab becomes visible again (no continuous polling —
+    // a 20s interval was repeatedly hitting this API and burning quotas).
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       cancelled = true;
-      if (intervalId != null) window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [canFetchUnapprovedAbsence, leaveDate]);
 

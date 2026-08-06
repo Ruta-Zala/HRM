@@ -3,7 +3,7 @@ import { sendLeaveReviewedEmail } from "@/lib/email/leave-emails";
 import type { EmailDeliveryResult } from "@/lib/email/types";
 import { addDaysToDateIso, notificationDateIso } from "@/lib/notifications/automation-date";
 import { getEmployeeEmailBySheetRow } from "@/lib/notifications/employee-lookup";
-import { createNotifications } from "@/lib/notifications/sheets";
+import { createNotifications } from "@/lib/notifications/repository";
 import { NOTIFICATION_TYPES, type NotificationType } from "@/lib/notifications/types";
 import { listHrAndSuperAdminRecipients } from "@/lib/notifications/recipients";
 
