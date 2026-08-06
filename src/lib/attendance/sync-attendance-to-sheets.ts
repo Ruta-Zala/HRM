@@ -87,103 +87,118 @@ export async function syncAttendanceToSheets(params?: {
   const lockDocRef = db.collection("sync_locks").doc("attendance_to_sheets");
   const now = Date.now();
   const lockTtlMs = 20 * 60 * 1000; // 20 minutes
+
+  // Clear orphaned locks left by the previous buggy writer (set lockedUntil but never released).
+  const existingLockSnap = await lockDocRef.get();
+  const existingLockedUntil = (existingLockSnap.data()?.lockedUntil as number | undefined) ?? 0;
+  const existingLockedAt = (existingLockSnap.data()?.lockedAt as number | undefined) ?? 0;
+  const lockStillHeld = existingLockedUntil > now;
+  const lockExpiredByAge = existingLockedAt > 0 && now - existingLockedAt >= lockTtlMs;
+  const orphanedLock = lockStillHeld && existingLockedAt === 0;
+  if (lockStillHeld && (lockExpiredByAge || orphanedLock)) {
+    await lockDocRef.set({ lockedUntil: 0, lockedAt: 0 }, { merge: true });
+  }
+
   const lockedUntil = now + lockTtlMs;
 
-  await db
-    .runTransaction(async (tx) => {
+  try {
+    await db.runTransaction(async (tx) => {
       const snap = await tx.get(lockDocRef);
-      const existingLockedUntil = (snap.data()?.lockedUntil as number | undefined) ?? 0;
-      if (existingLockedUntil > now) {
-        // Throw a special error to stop the sync cleanly.
+      const heldUntil = (snap.data()?.lockedUntil as number | undefined) ?? 0;
+      const heldAt = (snap.data()?.lockedAt as number | undefined) ?? 0;
+      if (heldUntil > now && heldAt > 0 && now - heldAt < lockTtlMs) {
         throw new Error("SYNC_LOCKED");
       }
-      tx.set(lockDocRef, { lockedUntil }, { merge: true });
-    })
-    .catch(async (err) => {
-      if (String(err?.message) !== "SYNC_LOCKED") throw err;
-      return;
+      tx.set(lockDocRef, { lockedUntil, lockedAt: now }, { merge: true });
     });
-
-  // If we failed to acquire the lock, exit early.
-  const lockSnap = await lockDocRef.get();
-  const currentLockedUntil = (lockSnap.data()?.lockedUntil as number | undefined) ?? 0;
-  if (currentLockedUntil > now) {
-    return { fromIso, toIso, updatedCount: 0, skippedCount: 0, locked: true };
-  }
-
-  // Map employeeId -> attendance spreadsheetId (all in Firebase, no Sheets calls).
-  const employeeRows = await listAllEmployeeRows();
-  const attendanceSpreadsheetByEmployeeId = new Map<string, string>();
-  for (const record of employeeRows) {
-    const form = sheetRowToForm(record.headers, record.row);
-    const employeeId = String(form.employeeId ?? "").trim();
-    const attendanceSpreadsheetId = String(form.attendanceSpreadsheetId ?? "").trim();
-    if (!employeeId || !attendanceSpreadsheetId) continue;
-    attendanceSpreadsheetByEmployeeId.set(employeeId, attendanceSpreadsheetId);
-  }
-
-  // Only sync employees that already have a Firebase attendance doc.
-  const attendanceEmployeeIds = (await db.collection("attendance").get()).docs.map((d) => d.id);
-
-  let updatedCount = 0;
-  let skippedCount = 0;
-  let failedCount = 0;
-
-  for (const dateIso of dateIsos) {
-    for (const employeeId of attendanceEmployeeIds) {
-      const attendanceSpreadsheetId = attendanceSpreadsheetByEmployeeId.get(employeeId);
-      if (!attendanceSpreadsheetId) {
-        skippedCount += 1;
-        continue;
-      }
-
-      const daySnap = await db
-        .collection("attendance")
-        .doc(employeeId)
-        .collection("days")
-        .doc(dateIso)
-        .get();
-
-      if (!daySnap.exists) {
-        skippedCount += 1;
-        continue;
-      }
-
-      const data = daySnap.data() as Partial<AttendanceRow>;
-      const row: AttendanceRow = {
-        sheetRow: 0,
-        date: String(data.date ?? dateIso).trim(),
-        workMode: String(data.workMode ?? "").trim(),
-        punchIn: String(data.punchIn ?? "").trim(),
-        punchOut: String(data.punchOut ?? "").trim(),
-        breakStart: String(data.breakStart ?? "").trim(),
-        breakEnd: String(data.breakEnd ?? "").trim(),
-        totalBreakTime: String(data.totalBreakTime ?? "").trim(),
-        workingHours: String(data.workingHours ?? "").trim(),
-        status: String(data.status ?? "").trim(),
-        overtime: String(data.overtime ?? "").trim(),
-        earlyLeaveReason: String(data.earlyLeaveReason ?? "").trim(),
-        dailyUpdate: String(data.dailyUpdate ?? "").trim(),
-        isOvertimeApproved: String(data.isOvertimeApproved ?? "").trim(),
-      };
-
-      try {
-        await upsertAttendanceDayFromFirestoreRow({
-          spreadsheetId: attendanceSpreadsheetId,
-          dateIso,
-          row,
-        });
-        updatedCount += 1;
-      } catch (error) {
-        failedCount += 1;
-        console.error(
-          `[sync-attendance-to-sheets] failed (employeeId=${employeeId}, dateIso=${dateIso})`,
-          error,
-        );
-      }
-      await sleep(THROTTLE_MS);
+  } catch (err) {
+    if (String((err as Error)?.message) === "SYNC_LOCKED") {
+      return { fromIso, toIso, updatedCount: 0, skippedCount: 0, locked: true };
     }
+    throw err;
   }
 
-  return { fromIso, toIso, updatedCount, skippedCount, failedCount };
+  try {
+    // Map employeeId -> attendance spreadsheetId (all in Firebase, no Sheets calls).
+    const employeeRows = await listAllEmployeeRows();
+    const attendanceSpreadsheetByEmployeeId = new Map<string, string>();
+    for (const record of employeeRows) {
+      const form = sheetRowToForm(record.headers, record.row);
+      const employeeId = String(form.employeeId ?? "").trim();
+      const attendanceSpreadsheetId = String(form.attendanceSpreadsheetId ?? "").trim();
+      if (!employeeId || !attendanceSpreadsheetId) continue;
+      attendanceSpreadsheetByEmployeeId.set(employeeId, attendanceSpreadsheetId);
+    }
+
+    // Sync every employee with an attendance spreadsheet configured.
+    // Do not list `attendance` collection docs — parent docs like attendance/EMP003
+    // often don't exist (only the `days` subcollection does), so that query returns empty.
+    const attendanceEmployeeIds = [...attendanceSpreadsheetByEmployeeId.keys()];
+
+    let updatedCount = 0;
+    let skippedCount = 0;
+    let failedCount = 0;
+
+    for (const dateIso of dateIsos) {
+      for (const employeeId of attendanceEmployeeIds) {
+        const attendanceSpreadsheetId = attendanceSpreadsheetByEmployeeId.get(employeeId);
+        if (!attendanceSpreadsheetId) {
+          skippedCount += 1;
+          continue;
+        }
+
+        const daySnap = await db
+          .collection("attendance")
+          .doc(employeeId)
+          .collection("days")
+          .doc(dateIso)
+          .get();
+
+        if (!daySnap.exists) {
+          skippedCount += 1;
+          continue;
+        }
+
+        const data = daySnap.data() as Partial<AttendanceRow>;
+        const row: AttendanceRow = {
+          sheetRow: 0,
+          date: String(data.date ?? dateIso).trim(),
+          workMode: String(data.workMode ?? "").trim(),
+          punchIn: String(data.punchIn ?? "").trim(),
+          punchOut: String(data.punchOut ?? "").trim(),
+          breakStart: String(data.breakStart ?? "").trim(),
+          breakEnd: String(data.breakEnd ?? "").trim(),
+          totalBreakTime: String(data.totalBreakTime ?? "").trim(),
+          workingHours: String(data.workingHours ?? "").trim(),
+          status: String(data.status ?? "").trim(),
+          overtime: String(data.overtime ?? "").trim(),
+          earlyLeaveReason: String(data.earlyLeaveReason ?? "").trim(),
+          dailyUpdate: String(data.dailyUpdate ?? "").trim(),
+          isOvertimeApproved: String(data.isOvertimeApproved ?? "").trim(),
+        };
+
+        try {
+          await upsertAttendanceDayFromFirestoreRow({
+            spreadsheetId: attendanceSpreadsheetId,
+            dateIso,
+            row,
+          });
+          updatedCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          console.error(
+            `[sync-attendance-to-sheets] failed (employeeId=${employeeId}, dateIso=${dateIso})`,
+            error,
+          );
+        }
+        await sleep(THROTTLE_MS);
+      }
+    }
+
+    return { fromIso, toIso, updatedCount, skippedCount, failedCount };
+  } finally {
+    await lockDocRef.set({ lockedUntil: 0, lockedAt: 0 }, { merge: true }).catch((error) => {
+      console.error("[sync-attendance-to-sheets] failed to release lock", error);
+    });
+  }
 }
