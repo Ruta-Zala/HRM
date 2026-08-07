@@ -14,6 +14,7 @@ export const initialEmployeeForm = {
   marksheet: "",
   parentName: "",
   parentContact: "",
+  /** Stores relationship: father | mother | spouse | husband | brother | sister */
   parentDetails: "",
   experience: "",
   joiningDate: "",
@@ -40,6 +41,23 @@ export const initialEmployeeForm = {
 export type EmployeeFormState = {
   [K in keyof typeof initialEmployeeForm]: string;
 };
+
+export const PARENT_RELATIONSHIP_OPTIONS = [
+  "father",
+  "mother",
+  "spouse",
+  "husband",
+  "brother",
+  "sister",
+] as const;
+
+export type ParentRelationship = (typeof PARENT_RELATIONSHIP_OPTIONS)[number];
+
+export function formatParentRelationshipLabel(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return "";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
 
 /** Maps normalized sheet header → form field key */
 const SHEET_KEY_TO_FORM: Record<string, keyof EmployeeFormState> = {

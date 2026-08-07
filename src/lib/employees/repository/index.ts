@@ -4,12 +4,14 @@ import type { SessionUser } from "@/types/auth";
 import {
   findEmployeeByLogin as findEmployeeByLoginFirestore,
   getEmployeeBySheetRow as getEmployeeBySheetRowFirestore,
+  listAllEmployeeRows as listAllEmployeeRowsFirestore,
   updateEmployeeRow as updateEmployeeRowFirestore,
   type EmployeeRowRecord,
 } from "./firestore";
 import {
   findEmployeeByLoginFromSheets,
   getEmployeeBySheetRowFromSheets,
+  listAllEmployeeRowsFromSheets,
   resolveEmployeeRecordForSessionFromSheets,
 } from "./sheets";
 
@@ -40,6 +42,13 @@ export async function resolveEmployeeRecordForSession(
     return findEmployeeByLoginFirestore(user.email);
   }
   return resolveEmployeeRecordForSessionFromSheets(user);
+}
+
+export async function listAllEmployeeRows(): Promise<EmployeeRowRecord[]> {
+  if (isFirebaseDailyStorage()) {
+    return listAllEmployeeRowsFirestore();
+  }
+  return listAllEmployeeRowsFromSheets();
 }
 
 export async function updateEmployeeRow(sheetRow: number, row: string[]): Promise<void> {

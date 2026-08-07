@@ -52,6 +52,7 @@ export async function processLeaveUpcomingReminders(): Promise<{
       if (startIso !== reminderDateIso) continue;
 
       const applicationId = buildLeaveApplicationId({
+        employeeId,
         attendanceSpreadsheetId,
         rowIndex: application.rowIndex ?? 0,
         leaveType: application.leaveType as "paid",

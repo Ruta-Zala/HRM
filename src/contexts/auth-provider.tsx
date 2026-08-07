@@ -6,6 +6,7 @@ import {
   finalizePendingSessionLogout,
   SessionTabGuard,
 } from "@/components/auth/session-tab-guard";
+import { SessionTimeoutGuard } from "@/components/auth/session-timeout-guard";
 import {
   isAccountInactiveRedirectError,
   redirectToAccountInactive,
@@ -17,7 +18,7 @@ type AuthContextValue = {
   user: SessionUser | null;
   loading: boolean;
   refresh: () => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (options?: { redirectTo?: string }) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -87,11 +88,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (options?: { redirectTo?: string }) => {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     clearSessionTabState();
     setUser(null);
-    window.location.href = "/login";
+    window.location.href = options?.redirectTo ?? "/login";
+  }, []);
+
+  const sessionTimeoutLogout = useCallback(async () => {
+    await logout({ redirectTo: "/login" });
+  }, [logout]);
+
+  const extendSession = useCallback(async (): Promise<SessionUser | null> => {
+    const res = await fetch("/api/auth/extend", {
+      method: "POST",
+      credentials: "include",
+    });
+    const parsed = await parseJsonResponse<{
+      ok?: boolean;
+      user?: SessionUser;
+      inactive?: boolean;
+    }>(res);
+
+    if (parsed.data?.inactive) {
+      setUser(null);
+      redirectToAccountInactive();
+      return null;
+    }
+
+    if (!res.ok || !parsed.data?.ok || !parsed.data.user) {
+      return null;
+    }
+
+    setUser(parsed.data.user);
+    return parsed.data.user;
   }, []);
 
   const value = useMemo(
@@ -102,6 +132,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={value}>
       <SessionTabGuard />
+      <SessionTimeoutGuard
+        user={user}
+        enabled={Boolean(user) && !loading}
+        onLogout={sessionTimeoutLogout}
+        onContinue={extendSession}
+      />
       {children}
     </AuthContext.Provider>
   );

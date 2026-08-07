@@ -228,7 +228,7 @@ function SidebarBrand({ compact, onNavigate }: { compact?: boolean; onNavigate?:
     >
       <BrandLogo size="sm" priority />
       <div className="min-w-0">
-        <p className="text-ex-primary truncate text-sm font-semibold">Exhibyte Solutions</p>
+        <p className="text-ex-primary truncate text-sm font-semibold">ExhiByte Solutions</p>
         <p className="text-ex-muted truncate text-xs">HRM Admin</p>
       </div>
     </Link>

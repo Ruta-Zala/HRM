@@ -6,6 +6,7 @@ const variants = {
   warning: "border border-ex-chip-warning-border bg-ex-chip-warning-bg text-ex-chip-warning-fg",
   danger: "border border-ex-chip-danger-border bg-ex-chip-danger-bg text-ex-chip-danger-fg",
   accent: "border border-ex-chip-accent-border bg-ex-chip-accent-bg text-ex-chip-accent-fg",
+  info: "border border-ex-chip-info-border bg-ex-chip-info-bg text-ex-chip-info-fg",
 };
 
 export function Badge({

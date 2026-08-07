@@ -9,7 +9,10 @@ import {
 } from "@/lib/attendance/leave-approvals";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
 import type { LeaveBucketType } from "@/lib/attendance/leave-bucket-layout";
-import { findEmployeeByAttendanceSpreadsheetId } from "@/lib/notifications/employee-lookup";
+import {
+  findEmployeeByAttendanceSpreadsheetId,
+  findEmployeeByEmployeeId,
+} from "@/lib/notifications/employee-lookup";
 import { notifyLeaveReviewed } from "@/lib/notifications/leave-events";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
@@ -38,6 +41,7 @@ export const PATCH = withActiveSession(async (req, user) => {
 
   try {
     const body = await req.json();
+    const employeeId = String(body.employeeId ?? "").trim();
     const attendanceSpreadsheetId = String(body.attendanceSpreadsheetId ?? "").trim();
     const rowIndex = Number(body.rowIndex);
     const leaveType = String(body.leaveType ?? "")
@@ -46,7 +50,7 @@ export const PATCH = withActiveSession(async (req, user) => {
     const status = normalizeReviewStatus(body.status);
     const rejectReason = String(body.rejectReason ?? "").trim();
 
-    if (!attendanceSpreadsheetId || !Number.isInteger(rowIndex) || rowIndex < 1) {
+    if ((!employeeId && !attendanceSpreadsheetId) || !Number.isInteger(rowIndex) || rowIndex < 1) {
       return NextResponse.json(
         { success: false, message: "Invalid leave application reference" },
         { status: 400 },
@@ -60,62 +64,68 @@ export const PATCH = withActiveSession(async (req, user) => {
       );
     }
 
-    const employee = await findEmployeeByAttendanceSpreadsheetId(attendanceSpreadsheetId);
-    const matchingApplication =
-      employee != null
-        ? await getLeaveApplicationAtRow({
-            attendanceSpreadsheetId,
-            rowIndex,
-            leaveType,
-            employeeId: employee.employeeId,
-            employeeName: employee.employeeName,
-          })
-        : null;
+    const employee =
+      (employeeId ? await findEmployeeByEmployeeId(employeeId) : null) ??
+      (attendanceSpreadsheetId
+        ? await findEmployeeByAttendanceSpreadsheetId(attendanceSpreadsheetId)
+        : null);
+
+    if (!employee) {
+      return NextResponse.json(
+        { success: false, message: "Employee not found for leave application" },
+        { status: 404 },
+      );
+    }
+
+    const resolvedSpreadsheetId = attendanceSpreadsheetId || employee.attendanceSpreadsheetId || "";
+
+    const matchingApplication = await getLeaveApplicationAtRow({
+      attendanceSpreadsheetId: resolvedSpreadsheetId,
+      rowIndex,
+      leaveType,
+      employeeId: employee.employeeId,
+      employeeName: employee.employeeName,
+    });
 
     await reviewLeaveApplication({
-      attendanceSpreadsheetId,
+      employeeId: employee.employeeId,
+      attendanceSpreadsheetId: resolvedSpreadsheetId,
       rowIndex,
       leaveType,
       status,
       rejectReason,
     });
 
-    if (employee) {
-      let emailResult: { sent: boolean; reason?: string; to?: string } | undefined;
+    let emailResult: { sent: boolean; reason?: string; to?: string } | undefined;
 
-      try {
-        const notifyResult = await notifyLeaveReviewed({
-          context: {
-            employeeSheetRow: employee.sheetRow,
+    try {
+      const notifyResult = await notifyLeaveReviewed({
+        context: {
+          employeeSheetRow: employee.sheetRow,
+          employeeId: employee.employeeId,
+          employeeName: employee.employeeName,
+          leaveType,
+          dateRange: matchingApplication?.date ?? "your selected dates",
+          reason: matchingApplication?.reason,
+          applicationId: buildLeaveApplicationId({
             employeeId: employee.employeeId,
-            employeeName: employee.employeeName,
+            attendanceSpreadsheetId: resolvedSpreadsheetId,
+            rowIndex,
             leaveType,
-            dateRange: matchingApplication?.date ?? "your selected dates",
-            reason: matchingApplication?.reason,
-            applicationId: buildLeaveApplicationId({
-              attendanceSpreadsheetId,
-              rowIndex,
-              leaveType,
-            }),
-          },
-          status,
-          rejectReason,
-        });
-        emailResult = notifyResult.email;
-      } catch (notifyError) {
-        console.error("Leave review notification error:", notifyError);
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: `Leave request ${status.toLowerCase()}`,
-        email: emailResult,
+          }),
+        },
+        status,
+        rejectReason,
       });
+      emailResult = notifyResult.email;
+    } catch (notifyError) {
+      console.error("Leave review notification error:", notifyError);
     }
 
     return NextResponse.json({
       success: true,
       message: `Leave request ${status.toLowerCase()}`,
+      email: emailResult,
     });
   } catch (error) {
     console.error("PATCH Leave Review Error:", error);

@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 // import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ROLES } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { parseLeaveDisplayDate } from "@/lib/attendance/leave-range-display";
@@ -56,6 +57,29 @@ const DASHBOARD_PANEL_BODY = "h-80";
 //   { id: "2", item: "Leave — Rahul Mehta", owner: "Manager", status: "Pending" },
 //   { id: "3", item: "Complaint — Floor 3 AC", owner: "Facilities", status: "In review" },
 // ];
+
+function DashboardStatCard({
+  label,
+  value,
+  hint,
+  loading,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  loading?: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="border-ex-border bg-ex-elevated rounded-xl border p-4 shadow-sm dark:shadow-none">
+        <p className="text-ex-muted text-xs font-medium tracking-wide uppercase">{label}</p>
+        <div className="bg-ex-surface mt-2 h-8 w-20 animate-pulse rounded-md" aria-hidden />
+        {hint ? <p className="text-ex-muted mt-1 text-xs">{hint}</p> : null}
+      </div>
+    );
+  }
+  return <StatCard label={label} value={value} hint={hint} />;
+}
 
 type OnLeaveEmployee = {
   id: string;
@@ -301,6 +325,7 @@ function UpcomingHolidayItem({
 export default function DashboardPage() {
   const { user } = useAuth();
   const canManageLeave = user ? canManageEmployees(user.role) : false;
+  const isEmployeeDashboard = user?.role === ROLES.EMPLOYEE;
   const [leaveDate, setLeaveDate] = useState(formatIsoDate());
   const [onLeave, setOnLeave] = useState<OnLeaveEmployee[]>([]);
   const [totalEmployees, setTotalEmployees] = useState(0);
@@ -312,6 +337,7 @@ export default function DashboardPage() {
   );
   const [unapprovedAbsenceError, setUnapprovedAbsenceError] = useState<string | null>(null);
   const [companyHolidays, setCompanyHolidays] = useState<CompanyHoliday[]>(COMPANY_HOLIDAYS_2026);
+  const [holidaysUsingFallback, setHolidaysUsingFallback] = useState(false);
   const holidayYear = 2026;
   const birthdayLeaveEmployees = onLeave.filter(
     (employee) => employee.leaveType.toLowerCase() === "birthday",
@@ -436,10 +462,14 @@ export default function DashboardPage() {
         return data.holidays ?? [];
       })
       .then((holidays) => {
-        if (!cancelled) setCompanyHolidays(holidays);
+        if (!cancelled) {
+          setCompanyHolidays(holidays);
+          setHolidaysUsingFallback(false);
+        }
       })
       .catch(() => {
         // Keep the seeded holiday list when the remote sheet is temporarily unavailable.
+        if (!cancelled) setHolidaysUsingFallback(true);
       });
 
     return () => {
@@ -451,7 +481,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <PageHeader
         title="Executive Overview"
-        description="Live signals across people, attendance, leave, and service requests. Data shown is sample scaffolding wired for charts and tables."
+        description="Live attendance, leave, and holiday signals for your team."
         // actions={
         //   <>
         //     <Button variant="outline" size="sm">
@@ -464,17 +494,19 @@ export default function DashboardPage() {
         // }
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className={cn("grid gap-4", canManageLeave ? "sm:grid-cols-2" : "max-w-sm")}>
         {/* <StatCard label="Present today" value="94%" hint="vs. 30-day baseline" /> */}
-        <StatCard
+        <DashboardStatCard
           label={canManageLeave && leaveDate !== formatIsoDate() ? "On leave" : "On leave today"}
-          value={onLeaveLoading ? "…" : `${onLeave.length}/${totalEmployees}`}
+          value={`${onLeave.length}/${totalEmployees}`}
+          loading={onLeaveLoading}
           hint={displayDate(canManageLeave ? leaveDate : formatIsoDate())}
         />
         {canManageLeave ? (
-          <StatCard
+          <DashboardStatCard
             label={leaveDate !== formatIsoDate() ? "No punch-in" : "No punch-in today"}
-            value={unapprovedAbsenceLoading ? "…" : String(unapprovedAbsence.length)}
+            value={String(unapprovedAbsence.length)}
+            loading={unapprovedAbsenceLoading}
             hint={displayDate(leaveDate)}
           />
         ) : null}
@@ -491,7 +523,11 @@ export default function DashboardPage() {
               </div>
               <div>
                 <CardTitle>Upcoming Holidays</CardTitle>
-                <p className="text-ex-muted mt-0.5 text-sm">Company leave days and celebrations</p>
+                <p className="text-ex-muted mt-0.5 text-sm">
+                  {holidaysUsingFallback
+                    ? "Showing default holiday list — live holidays could not be loaded"
+                    : "Company leave days and celebrations"}
+                </p>
               </div>
             </div>
             {upcomingHolidays.length > 0 ? (
@@ -524,17 +560,46 @@ export default function DashboardPage() {
         </Card>
 
         <Card
-          className={cn("flex h-full flex-col overflow-hidden", !canManageLeave && "lg:col-span-2")}
+          className={cn(
+            "flex h-full flex-col overflow-hidden",
+            // Employees share the third column with Today's attendance; HR keeps absence there.
+            !canManageLeave && !isEmployeeDashboard && "lg:col-span-2",
+          )}
         >
-          <CardHeader className="bg-ex-surface/40 flex flex-col gap-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="bg-ex-chip-warning-bg text-ex-chip-warning-fg flex size-11 shrink-0 items-center justify-center rounded-xl">
+          <CardHeader
+            className={cn(
+              "bg-ex-surface/40",
+              isEmployeeDashboard
+                ? "flex flex-row items-center justify-between gap-4"
+                : "flex flex-col gap-4",
+            )}
+          >
+            <div
+              className={cn(
+                isEmployeeDashboard
+                  ? "flex min-w-0 items-center gap-3"
+                  : "flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex min-w-0 gap-3",
+                  isEmployeeDashboard ? "items-center" : "items-start",
+                )}
+              >
+                <div
+                  className={cn(
+                    "bg-ex-chip-warning-bg text-ex-chip-warning-fg flex shrink-0 items-center justify-center rounded-xl",
+                    isEmployeeDashboard ? "size-10" : "size-11",
+                  )}
+                >
                   <Users className="size-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <CardTitle className="text-balance">Employees On Leave</CardTitle>
-                  <p className="text-ex-muted mt-1 text-sm">
+                  <p
+                    className={cn("text-ex-muted text-sm", isEmployeeDashboard ? "mt-0.5" : "mt-1")}
+                  >
                     Approved leave for {displayDate(canManageLeave ? leaveDate : formatIsoDate())}
                   </p>
                 </div>
@@ -553,27 +618,40 @@ export default function DashboardPage() {
                 />
               ) : null}
             </div>
-            <div className="flex min-h-7 flex-wrap items-center gap-2">
-              {onLeaveLoading ? (
-                <>
-                  <div className="bg-ex-surface h-6 w-20 animate-pulse rounded-full" />
-                  {canManageLeave ? (
-                    <div className="bg-ex-surface h-6 w-20 animate-pulse rounded-full" />
-                  ) : null}
-                </>
+            {isEmployeeDashboard ? (
+              onLeaveLoading ? (
+                <div className="bg-ex-surface h-6 w-20 shrink-0 animate-pulse rounded-full" />
               ) : (
-                <>
-                  <Badge variant={onLeave.length > 0 ? "warning" : "default"}>
-                    {onLeave.length} on leave
-                  </Badge>
-                  {canManageLeave ? (
-                    <Badge variant={birthdayLeaveEmployees.length > 0 ? "accent" : "default"}>
-                      {birthdayLeaveEmployees.length} birthday
+                <Badge
+                  variant={onLeave.length > 0 ? "warning" : "default"}
+                  className="shrink-0 whitespace-nowrap"
+                >
+                  {onLeave.length} on leave
+                </Badge>
+              )
+            ) : (
+              <div className="flex min-h-7 flex-wrap items-center gap-2">
+                {onLeaveLoading ? (
+                  <>
+                    <div className="bg-ex-surface h-6 w-20 animate-pulse rounded-full" />
+                    {canManageLeave ? (
+                      <div className="bg-ex-surface h-6 w-20 animate-pulse rounded-full" />
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <Badge variant={onLeave.length > 0 ? "warning" : "default"}>
+                      {onLeave.length} on leave
                     </Badge>
-                  ) : null}
-                </>
-              )}
-            </div>
+                    {canManageLeave ? (
+                      <Badge variant={birthdayLeaveEmployees.length > 0 ? "accent" : "default"}>
+                        {birthdayLeaveEmployees.length} birthday
+                      </Badge>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            )}
           </CardHeader>
           <CardContent className="flex flex-1 flex-col p-5">
             {onLeaveError ? (
@@ -731,11 +809,15 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         ) : null}
+        {isEmployeeDashboard ? (
+          <AttendanceWidget className="flex h-full flex-col overflow-hidden" />
+        ) : null}
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <AttendanceWidget />
-        {/* <Card className="lg:col-span-2">
+      {!isEmployeeDashboard ? (
+        <section className="max-w-xl">
+          <AttendanceWidget />
+          {/* <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Onboarding vs attrition</CardTitle>
           </CardHeader>
@@ -781,7 +863,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card> */}
 
-        {/* <Card>
+          {/* <Card>
           <CardHeader>
             <CardTitle>Leave mix (MTD)</CardTitle>
           </CardHeader>
@@ -806,8 +888,8 @@ export default function DashboardPage() {
             </p>
           </CardContent>
         </Card> */}
-      </section>
-
+        </section>
+      ) : null}
       {/* <section>
         <Card>
           <CardHeader>

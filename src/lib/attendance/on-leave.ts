@@ -4,13 +4,9 @@ import { listLeaveApplications, type LeaveApplication } from "@/lib/attendance/l
 import { parseLeaveDisplayDate } from "@/lib/attendance/leave-range-display";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
 import { formatIsoDate } from "@/lib/attendance/time";
-import {
-  getEmployeeIdFromRow,
-  getSheetHeaders,
-  isEmployeeStatusActive,
-  sheetRowToForm,
-} from "@/lib/employee";
-import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
+import { getEmployeeIdFromRow, isEmployeeStatusActive, sheetRowToForm } from "@/lib/employee";
+import { listAllEmployeeRows } from "@/lib/employees/repository";
+import { isFirebaseDailyStorage } from "@/lib/storage/backend";
 import type { UserRole } from "@/types/auth";
 
 export type OnLeaveEmployee = {
@@ -38,27 +34,39 @@ const CACHE_TTL_MS = 60_000;
 const onLeaveCache = new Map<string, CachedOnLeave>();
 const onLeaveRequests = new Map<string, Promise<OnLeaveDashboardData>>();
 
-async function listActiveEmployeesForLeaveTracking() {
-  const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
-  const headers = getSheetHeaders(raw);
+export function invalidateOnLeaveCache(dateIso?: string): void {
+  if (dateIso) {
+    onLeaveCache.delete(dateIso);
+    onLeaveRequests.delete(dateIso);
+    return;
+  }
+  onLeaveCache.clear();
+  onLeaveRequests.clear();
+}
 
-  return raw.slice(1).flatMap((row, index) => {
-    const form = sheetRowToForm(headers, row);
+async function listActiveEmployeesForLeaveTracking() {
+  const records = await listAllEmployeeRows();
+
+  return records.flatMap((record) => {
+    const form = sheetRowToForm(record.headers, record.row);
     if (!isEmployeeStatusActive(form.status)) return [];
 
     const role = form.role.trim().toLowerCase();
     if (!roleCanPunchInOut(role as UserRole)) return [];
 
-    const attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(headers, row);
-    if (!attendanceSpreadsheetId) return [];
+    const attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(record.headers, record.row);
+    const employeeId = getEmployeeIdFromRow(record.headers, record.row, record.sheetRow);
 
-    const employeeSheetRow = index + 2;
+    // Leave bucket is Firebase-keyed by employeeId when daily storage is on.
+    if (!employeeId) return [];
+    if (!attendanceSpreadsheetId && !isFirebaseDailyStorage()) return [];
+
     return [
       {
-        employeeSheetRow,
-        employeeId: getEmployeeIdFromRow(headers, row, employeeSheetRow),
+        employeeSheetRow: record.sheetRow,
+        employeeId,
         employeeName: form.name.trim() || "Employee",
-        attendanceSpreadsheetId,
+        attendanceSpreadsheetId: attendanceSpreadsheetId || "",
       },
     ];
   });

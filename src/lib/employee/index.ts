@@ -5,6 +5,9 @@ export { generateEmployeeId, parseEmployeeIdNumber } from "./id";
 export {
   initialEmployeeForm,
   type EmployeeFormState,
+  PARENT_RELATIONSHIP_OPTIONS,
+  type ParentRelationship,
+  formatParentRelationshipLabel,
   headerToFormKey,
   formToSheetRow,
   sheetRowToForm,

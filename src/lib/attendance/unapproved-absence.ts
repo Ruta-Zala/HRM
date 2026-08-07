@@ -7,15 +7,11 @@ import {
   canonicalizeWorkMode,
   isPunchOptionalWorkMode,
 } from "@/lib/attendance/constants";
+import { getAttendanceRepository } from "@/lib/attendance/repository";
 import { listCompanyHolidays } from "@/lib/company-holiday-sheets";
-import {
-  getEmployeeIdFromRow,
-  getSheetHeaders,
-  isEmployeeStatusActive,
-  sheetRowToForm,
-} from "@/lib/employee";
-import { getMonthAttendance, type AttendanceRow } from "@/lib/google/attendance-sheets";
-import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
+import { getEmployeeIdFromRow, isEmployeeStatusActive, sheetRowToForm } from "@/lib/employee";
+import { listAllEmployeeRows } from "@/lib/employees/repository";
+import type { AttendanceRow } from "@/lib/google/attendance-sheets";
 import { leaveDateToIso } from "@/lib/payroll/leave-attendance";
 import { isWeekend } from "@/lib/payroll/working-days";
 import { getAppTimeZone } from "@/lib/attendance/time";
@@ -119,14 +115,11 @@ function shouldEvaluateNoPunch(dateIso: string): boolean {
 }
 
 async function getAttendanceForDate(
+  employeeId: string,
   spreadsheetId: string,
   dateIso: string,
 ): Promise<AttendanceRow | null> {
-  const [year, month, day] = dateIso.split("-").map(Number);
-  if (!year || !month || !day) return null;
-
-  const rows = await getMonthAttendance(spreadsheetId, year, month - 1);
-  return rows.find((row) => row.date === dateIso) ?? null;
+  return getAttendanceRepository().getAttendanceForDate({ employeeId, spreadsheetId }, dateIso);
 }
 
 function leavesForDate(applications: LeaveApplication[], dateIso: string): LeaveApplication[] {
@@ -149,24 +142,23 @@ async function loadUnapprovedAbsenceEmployees(
   const leaveHolidayDates = await getLeaveHolidayDates();
   if (!isScheduledWorkingDay(dateIso, leaveHolidayDates)) return [];
 
-  const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
-  const headers = getSheetHeaders(raw);
+  const records = await listAllEmployeeRows();
 
-  const employees = raw.slice(1).flatMap((row, index) => {
-    const form = sheetRowToForm(headers, row);
+  const employees = records.flatMap((record) => {
+    const form = sheetRowToForm(record.headers, record.row);
     if (!isEmployeeStatusActive(form.status)) return [];
 
     const role = form.role.trim().toLowerCase();
     if (!roleCanPunchInOut(role as Parameters<typeof roleCanPunchInOut>[0])) return [];
 
-    const attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(headers, row);
-    if (!attendanceSpreadsheetId) return [];
+    const attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(record.headers, record.row);
+    const employeeId = getEmployeeIdFromRow(record.headers, record.row, record.sheetRow);
+    if (!attendanceSpreadsheetId || !employeeId) return [];
 
-    const employeeSheetRow = index + 2;
     return [
       {
-        employeeSheetRow,
-        employeeId: getEmployeeIdFromRow(headers, row, employeeSheetRow),
+        employeeSheetRow: record.sheetRow,
+        employeeId,
         employeeName: form.name.trim() || "Employee",
         profileImage: form.profileImage.trim(),
         attendanceSpreadsheetId,
@@ -177,7 +169,7 @@ async function loadUnapprovedAbsenceEmployees(
   const results = await Promise.allSettled(
     employees.map(async (employee) => {
       const [attendance, applications] = await Promise.all([
-        getAttendanceForDate(employee.attendanceSpreadsheetId, dateIso),
+        getAttendanceForDate(employee.employeeId, employee.attendanceSpreadsheetId, dateIso),
         listLeaveApplications({
           employeeId: employee.employeeId,
           employeeName: employee.employeeName,

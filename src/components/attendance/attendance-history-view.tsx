@@ -20,7 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
-import { Pagination } from "@/components/ui/pagination";
+import { DEFAULT_PAGE_SIZE, Pagination } from "@/components/ui/pagination";
 import { Select } from "@/components/ui/select";
 import { StatCard } from "@/components/ui/stat-card";
 import { IDEAL_WORKING_HOURS } from "@/lib/attendance/constants";
@@ -29,8 +29,6 @@ import { formatDuration, parseDurationToMs } from "@/lib/attendance/time";
 import type { Employee } from "@/types/employee";
 import type { SortOrder } from "@/types/table";
 import { cn } from "@/lib/utils";
-
-const PAGE_SIZE = 15;
 
 type StatusFilter = "all" | string;
 
@@ -215,8 +213,11 @@ export function AttendanceHistoryView({
 
   const summary = useMemo(() => computeSummary(rows), [rows]);
 
-  const paginatedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const paginatedRows = filteredRows.slice(
+    (page - 1) * DEFAULT_PAGE_SIZE,
+    page * DEFAULT_PAGE_SIZE,
+  );
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / DEFAULT_PAGE_SIZE));
 
   const selectedEmployee = employees.find((e) => Number(e.sheetRow) === selectedSheetRow);
 
@@ -644,13 +645,13 @@ export function AttendanceHistoryView({
           ]}
         />
 
-        {!loading && filteredRows.length > PAGE_SIZE ? (
+        {!loading && filteredRows.length > DEFAULT_PAGE_SIZE ? (
           <Pagination
             pagination={{
               page,
               totalPages,
               total: filteredRows.length,
-              pageSize: PAGE_SIZE,
+              pageSize: DEFAULT_PAGE_SIZE,
             }}
             onPageChange={setPage}
           />

@@ -123,7 +123,7 @@ function LoginPageContent() {
                 value={login}
                 required
                 onChange={(e) => setLogin(e.target.value)}
-                placeholder="Enter your username"
+                placeholder="Enter username or email"
               />
             </div>
             <div className="space-y-2 text-left">
