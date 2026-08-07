@@ -35,6 +35,10 @@ import { clearMorningPunchGateCookie } from "@/lib/attendance/absence-gate-cooki
 import { canManageEmployees } from "@/lib/auth/roles";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
 import { invalidateUnapprovedAbsenceCache } from "@/lib/attendance/unapproved-absence";
+import {
+  assertPunchAllowedWhileOnLeave,
+  getLeavePunchBlock,
+} from "@/lib/attendance/leave-punch-gate";
 import { notificationDateIso } from "@/lib/notifications/automation-date";
 
 function parseTargetSheetRow(searchParams: URLSearchParams, userSheetRow?: number) {
@@ -141,8 +145,15 @@ export const GET = withActiveSession(async (req, user) => {
       }
     }
 
+    const leavePunchBlock = await getLeavePunchBlock({
+      employeeId: employee!.employeeId,
+      employeeName: employee!.employeeName,
+      attendanceSpreadsheetId: employee!.attendanceSpreadsheetId,
+    });
+
     return NextResponse.json({
       success: true,
+      leavePunchBlock,
       today: today
         ? {
             date: today.date,
@@ -169,8 +180,37 @@ export const GET = withActiveSession(async (req, user) => {
             breakAllowanceFormatted: formatBreakAllowance(breakUsedMs),
             earlyLeaveReason: today.earlyLeaveReason ?? "",
             dailyUpdate: today.dailyUpdate ?? "",
+            leavePunchBlocked: leavePunchBlock.blocked,
+            leavePunchBlockMessage: leavePunchBlock.message,
           }
-        : null,
+        : {
+            date: notificationDateIso(),
+            punchIn: "",
+            punchOut: "",
+            workMode: "",
+            breakStart: "",
+            breakEnd: "",
+            totalBreakTime: "",
+            workingHours: "",
+            overtime: "—",
+            status: "",
+            onBreak: false,
+            hasPunchedIn: false,
+            hasPunchedOut: false,
+            workedMs: 0,
+            workedFormatted: "0h 0m 0s",
+            workedShort: "0h",
+            idealHours: IDEAL_WORKING_HOURS,
+            idealBreakHours: IDEAL_BREAK_HOURS,
+            idealShiftHours: IDEAL_SHIFT_HOURS,
+            remainingMs: IDEAL_WORKING_HOURS * 60 * 60 * 1000,
+            remainingFormatted: formatDuration(IDEAL_WORKING_HOURS * 60 * 60 * 1000),
+            breakAllowanceFormatted: formatBreakAllowance(0),
+            earlyLeaveReason: "",
+            dailyUpdate: "",
+            leavePunchBlocked: leavePunchBlock.blocked,
+            leavePunchBlockMessage: leavePunchBlock.message,
+          },
     });
   } catch (error: unknown) {
     const message = formatGoogleApiClientMessage(error, {
@@ -201,6 +241,27 @@ export const POST = withActiveSession(async (req, user) => {
         { success: false, message: "Punch in/out is not available for your role" },
         { status: 403 },
       );
+    }
+
+    if (punchActions.has(action)) {
+      try {
+        await assertPunchAllowedWhileOnLeave({
+          employeeId: employee!.employeeId,
+          employeeName: employee!.employeeName,
+          attendanceSpreadsheetId: employee!.attendanceSpreadsheetId,
+        });
+      } catch (leaveError) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              leaveError instanceof Error
+                ? leaveError.message
+                : "Punch is not available while you are on leave",
+          },
+          { status: 400 },
+        );
+      }
     }
 
     const earlyLeaveReason =

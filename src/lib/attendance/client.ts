@@ -26,6 +26,8 @@ export type TodayAttendance = {
   breakAllowanceFormatted: string;
   earlyLeaveReason?: string;
   dailyUpdate?: string;
+  leavePunchBlocked?: boolean;
+  leavePunchBlockMessage?: string;
 };
 
 export type AttendanceHistoryRow = {

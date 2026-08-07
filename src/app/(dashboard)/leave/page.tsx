@@ -573,7 +573,7 @@ export default function LeaveDeskPage() {
                 <ul className="max-h-56 space-y-2 overflow-y-auto">
                   {applications.map((application) => (
                     <li
-                      key={application.id}
+                      key={`${application.id}:${application.date}:${application.status}`}
                       className="bg-ex-surface rounded-md border p-2 text-xs"
                     >
                       <div className="flex items-center justify-between gap-2">

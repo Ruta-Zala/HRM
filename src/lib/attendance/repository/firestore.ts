@@ -3,7 +3,9 @@ import {
   OVERTIME_APPROVAL,
   WORK_MODE,
   WORKING_STATUS,
+  canonicalizeWorkMode,
   isHalfDayUnpaidWorkMode,
+  isPunchOptionalWorkMode,
 } from "@/lib/attendance/constants";
 import {
   computeAttendanceMetrics,
@@ -130,6 +132,76 @@ async function saveDayFields(ref: AttendanceStorageRef, fields: DayFields): Prom
   const dateIso = normalizeSheetDate(fields.date);
   await daysCollection(ref.employeeId).doc(dateIso).set(fields, { merge: true });
   return toAttendanceRow({ ...fields, date: dateIso });
+}
+
+/** HR manual create/update of punch and break times for a specific date (Firebase). */
+export async function upsertManualAttendanceInFirestore(params: {
+  employeeId: string;
+  dateIso: string;
+  punchIn?: string;
+  punchOut?: string;
+  breakStart?: string;
+  breakEnd?: string;
+  totalBreakTime?: string;
+  workMode?: string;
+}): Promise<AttendanceRow> {
+  const dateIso = normalizeSheetDate(params.dateIso);
+  if (!dateIso) {
+    throw new Error("Invalid attendance date");
+  }
+
+  const ref: AttendanceStorageRef = {
+    employeeId: params.employeeId,
+    spreadsheetId: "",
+  };
+  const baseDate = new Date(`${dateIso}T12:00:00`);
+  const fields = (await getDayFields(ref, dateIso)) ?? emptyDay(baseDate);
+  fields.date = dateIso;
+
+  const workMode = canonicalizeWorkMode(
+    params.workMode?.trim() || fields.workMode || WORK_MODE.FULL_DAY_ONSITE,
+  );
+  fields.workMode = workMode;
+
+  const punchOptional = isPunchOptionalWorkMode(workMode);
+
+  if (punchOptional && !params.punchIn?.trim() && !params.punchOut?.trim()) {
+    fields.punchIn = "";
+    fields.punchOut = "";
+    fields.breakStart = "";
+    fields.breakEnd = "";
+    fields.totalBreakTime = "";
+    fields.workingHours = "";
+    fields.overtime = "—";
+    fields.earlyLeaveReason = "";
+    fields.status = WORKING_STATUS.ON_LEAVE;
+  } else {
+    if (params.punchIn !== undefined) {
+      fields.punchIn = params.punchIn;
+    }
+    if (params.punchOut !== undefined) {
+      fields.punchOut = params.punchOut;
+    }
+    if (
+      params.breakStart !== undefined ||
+      params.breakEnd !== undefined ||
+      params.totalBreakTime !== undefined
+    ) {
+      fields.breakStart = params.breakStart ?? "";
+      fields.breakEnd = params.breakEnd ?? "";
+      fields.totalBreakTime = params.totalBreakTime ?? "";
+    }
+
+    if (fields.punchOut.trim()) {
+      applyPunchOutMetrics(fields, baseDate);
+    } else if (fields.punchIn.trim()) {
+      fields.status = WORKING_STATUS.IN_PROGRESS;
+      fields.overtime = "—";
+      fields.workingHours = "";
+    }
+  }
+
+  return saveDayFields(ref, fields);
 }
 
 async function getOrCreateDayFields(ref: AttendanceStorageRef, date: Date): Promise<DayFields> {

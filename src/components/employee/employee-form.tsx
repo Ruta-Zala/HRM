@@ -652,19 +652,30 @@ export function EmployeeForm({
                   />
                 </FormField>
               </div>
-              <FormField
-                label="Parent / Guardian Details"
-                id="parentDetails"
-                error={fieldErrors.parentDetails}
-              >
-                <Textarea
+              <FormField label="Relationship" id="parentDetails" error={fieldErrors.parentDetails}>
+                <Select
                   id="parentDetails"
-                  value={form.parentDetails}
-                  onChange={update("parentDetails")}
-                  placeholder="Relationship, address, or other guardian details"
+                  value={
+                    ["father", "mother", "spouse", "husband", "brother", "sister"].includes(
+                      form.parentDetails.trim().toLowerCase(),
+                    )
+                      ? form.parentDetails.trim().toLowerCase()
+                      : ""
+                  }
+                  onChange={(e) =>
+                    updateField("parentDetails", e.target.value.trim().toLowerCase())
+                  }
                   required
                   aria-invalid={Boolean(fieldErrors.parentDetails)}
-                />
+                >
+                  <option value="">Select relationship</option>
+                  <option value="father">Father</option>
+                  <option value="mother">Mother</option>
+                  <option value="spouse">Spouse</option>
+                  <option value="husband">Husband</option>
+                  <option value="brother">Brother</option>
+                  <option value="sister">Sister</option>
+                </Select>
               </FormField>
             </CardContent>
           </Card>

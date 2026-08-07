@@ -3,8 +3,19 @@ import { NextResponse } from "next/server";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { resolveAttendanceEmployeeForTarget } from "@/lib/attendance/employee";
-import { normalizeManualAttendanceInput } from "@/lib/attendance/manual-entry";
+import {
+  leaveBucketFromWorkMode,
+  normalizeManualAttendanceInput,
+  shouldClearLeaveOnManualAttendance,
+} from "@/lib/attendance/manual-entry";
 import { WORK_MODE } from "@/lib/attendance/constants";
+import {
+  cancelLeaveApplicationsForDate,
+  ensureAcceptedLeaveForDate,
+} from "@/lib/attendance/leave-approvals";
+import { invalidateOnLeaveCache } from "@/lib/attendance/on-leave";
+import { hasAttendanceStorage, isAttendanceOnFirebase } from "@/lib/attendance/repository";
+import { upsertManualAttendanceInFirestore } from "@/lib/attendance/repository/firestore";
 import { upsertManualAttendanceRecord } from "@/lib/google/attendance-sheets";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
@@ -27,9 +38,9 @@ export const POST = withActiveSession(async (req, user) => {
     }
 
     const employee = await resolveAttendanceEmployeeForTarget(user, employeeSheetRow);
-    if (!employee?.attendanceSpreadsheetId) {
+    if (!hasAttendanceStorage(employee)) {
       return NextResponse.json(
-        { success: false, message: "Employee attendance spreadsheet not found" },
+        { success: false, message: "Employee attendance storage not found" },
         { status: 404 },
       );
     }
@@ -43,20 +54,59 @@ export const POST = withActiveSession(async (req, user) => {
       workMode: body.workMode != null ? String(body.workMode) : undefined,
     });
 
-    const record = await upsertManualAttendanceRecord({
-      spreadsheetId: employee.attendanceSpreadsheetId,
-      dateIso: normalized.dateIso,
-      punchIn: normalized.punchIn,
-      punchOut: normalized.punchOut,
-      breakStart: normalized.breakStart,
-      breakEnd: normalized.breakEnd,
-      totalBreakTime: normalized.totalBreakTime,
-      workMode: normalized.workMode || WORK_MODE.FULL_DAY_ONSITE,
-    });
+    const workMode = normalized.workMode || WORK_MODE.FULL_DAY_ONSITE;
+
+    const record = isAttendanceOnFirebase()
+      ? await upsertManualAttendanceInFirestore({
+          employeeId: employee!.employeeId,
+          dateIso: normalized.dateIso,
+          punchIn: normalized.punchIn,
+          punchOut: normalized.punchOut,
+          breakStart: normalized.breakStart,
+          breakEnd: normalized.breakEnd,
+          totalBreakTime: normalized.totalBreakTime,
+          workMode,
+        })
+      : await upsertManualAttendanceRecord({
+          spreadsheetId: employee!.attendanceSpreadsheetId,
+          dateIso: normalized.dateIso,
+          punchIn: normalized.punchIn,
+          punchOut: normalized.punchOut,
+          breakStart: normalized.breakStart,
+          breakEnd: normalized.breakEnd,
+          totalBreakTime: normalized.totalBreakTime,
+          workMode,
+        });
+
+    let leaveCleared = 0;
+    let leaveEnsured = false;
+
+    if (shouldClearLeaveOnManualAttendance(workMode)) {
+      leaveCleared = await cancelLeaveApplicationsForDate({
+        employeeId: employee!.employeeId,
+        attendanceSpreadsheetId: employee!.attendanceSpreadsheetId ?? "",
+        dateIso: normalized.dateIso,
+      });
+      invalidateOnLeaveCache(normalized.dateIso);
+    } else {
+      const leaveMapping = leaveBucketFromWorkMode(workMode);
+      if (leaveMapping) {
+        leaveEnsured = await ensureAcceptedLeaveForDate({
+          employeeId: employee!.employeeId,
+          attendanceSpreadsheetId: employee!.attendanceSpreadsheetId ?? "",
+          dateIso: normalized.dateIso,
+          leaveType: leaveMapping.leaveType,
+          duration: leaveMapping.duration,
+        });
+        invalidateOnLeaveCache(normalized.dateIso);
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      message: `Attendance saved for ${employee.employeeName} on ${normalized.dateIso}`,
+      message: `Attendance saved for ${employee!.employeeName} on ${normalized.dateIso}`,
+      leaveCleared,
+      leaveEnsured,
       record: {
         id: record.date,
         date: record.date,
@@ -71,9 +121,9 @@ export const POST = withActiveSession(async (req, user) => {
         status: record.status,
       },
       employee: {
-        employeeId: employee.employeeId,
-        employeeName: employee.employeeName,
-        sheetRow: employee.sheetRow,
+        employeeId: employee!.employeeId,
+        employeeName: employee!.employeeName,
+        sheetRow: employee!.sheetRow,
       },
     });
   } catch (error) {

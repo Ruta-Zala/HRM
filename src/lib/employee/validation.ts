@@ -1,6 +1,7 @@
 import { POSITIONS, ROLES } from "@/app/consts/common";
 import { passwordStrengthError } from "@/lib/auth/password-rules";
 import type { EmployeeFormState } from "./form";
+import { PARENT_RELATIONSHIP_OPTIONS } from "./form";
 
 export const EMPLOYEE_MIN_AGE = 18;
 export const EMPLOYEE_MAX_EXPERIENCE_YEARS = 35;
@@ -38,9 +39,6 @@ export const INDIAN_MOBILE_PATTERN = /^[6-9]\d{9}$/;
 
 export const PERSON_NAME_PATTERN = /^[A-Za-z]+(?:[ .'-][A-Za-z]+)*$/;
 
-export const ADDRESS_MIN_LENGTH = 15;
-export const PARENT_DETAILS_MIN_LENGTH = 10;
-
 const PLACEHOLDER_WORDS = new Set([
   "test",
   "testing",
@@ -76,63 +74,7 @@ const PLACEHOLDER_WORDS = new Set([
   "none",
   "null",
   "unknown",
-  "address",
-  "home",
-  "here",
-  "there",
-  "aaaa",
-  "bbbb",
-  "xxxx",
-  "details",
-  "parent",
-  "guardian",
 ]);
-
-/** Common short address tokens / abbreviations that are allowed. */
-const COMMON_SHORT_WORDS = new Set([
-  "st",
-  "rd",
-  "dr",
-  "nr",
-  "opp",
-  "old",
-  "new",
-  "plot",
-  "flat",
-  "wing",
-  "lane",
-  "road",
-  "area",
-  "city",
-  "dist",
-  "near",
-  "block",
-  "house",
-  "floor",
-  "gate",
-  "apt",
-  "soc",
-  "chs",
-  "ngo",
-  "sec",
-  "sector",
-  "phase",
-  "row",
-  "bldg",
-  "building",
-  "nagar",
-  "pura",
-  "park",
-  "cross",
-  "main",
-  "east",
-  "west",
-  "north",
-  "south",
-]);
-
-/** English clusters allowed at the start of a word (street, spring, …). */
-const ALLOWED_START_CLUSTERS = /^(str|spr|spl|scr|sch|shr|thr|chr|phr|sph|ntr|dhr|ksh)/;
 
 export type EmployeeFieldErrors = Partial<Record<keyof EmployeeFormState, string>>;
 
@@ -190,49 +132,6 @@ function looksLikeRealNamePart(word: string): boolean {
   return true;
 }
 
-function tokenizeText(value: string): string[] {
-  return value
-    .split(/[^A-Za-z0-9]+/)
-    .map((token) => token.trim())
-    .filter(Boolean);
-}
-
-/**
- * Free-text tokens for address / parent details — stricter than person names
- * so keyboard smash like "evv,fbfue.bfgwef,effuw" is rejected.
- */
-function isGibberishProseToken(word: string): boolean {
-  const letters = lettersOnly(word);
-  if (letters.length < 3) return false;
-  if (COMMON_SHORT_WORDS.has(letters)) return false;
-  if (PLACEHOLDER_WORDS.has(letters)) return true;
-  if (!/[aeiouy]/i.test(letters)) return true;
-  if (/(.)\1{2,}/i.test(letters)) return true;
-  // Short nonsense with repeated letters: "evv", "eff"
-  if (letters.length <= 4 && /(.)\1/i.test(letters)) return true;
-  if (vowelRatio(letters) < 0.28) return true;
-
-  // Odd triple-consonant starts (fbf…, bfg…) unless a normal English cluster
-  if (/^[bcdfghjklmnpqrstvwxz]{3}/i.test(letters) && !ALLOWED_START_CLUSTERS.test(letters)) {
-    return true;
-  }
-
-  // Extreme consonant runs after Indic digraph collapse (allows words like "complex")
-  if (maxConsonantRun(letters) >= 4 && !ALLOWED_START_CLUSTERS.test(letters)) {
-    return true;
-  }
-
-  return false;
-}
-
-function isPlausibleProseToken(word: string): boolean {
-  const letters = lettersOnly(word);
-  if (letters.length < 3) return false;
-  if (COMMON_SHORT_WORDS.has(letters)) return true;
-  if (isGibberishProseToken(word)) return false;
-  return true;
-}
-
 export function isValidPersonName(value: string): boolean {
   const trimmed = value.trim();
   if (trimmed.length < 3) return false;
@@ -259,50 +158,26 @@ export function personNameError(value: string, label = "Name"): string | null {
   return null;
 }
 
-function validateProseText(
-  value: string,
-  options: { minLength: number; minPlausibleWords: number; fieldLabel: string },
-): string | null {
-  const trimmed = value.trim().replace(/\s+/g, " ");
-  if (!trimmed) return `${options.fieldLabel} is required.`;
-  if (trimmed.length < options.minLength) {
-    return `Enter at least ${options.minLength} characters for ${options.fieldLabel.toLowerCase()}.`;
-  }
-
-  const tokens = tokenizeText(trimmed);
-  const letterTokens = tokens.filter((token) => lettersOnly(token).length >= 3);
-  if (letterTokens.length < options.minPlausibleWords) {
-    return `Enter meaningful ${options.fieldLabel.toLowerCase()} with clear words (not random text).`;
-  }
-
-  const gibberish = letterTokens.filter((token) => isGibberishProseToken(token));
-  const plausible = letterTokens.filter((token) => isPlausibleProseToken(token));
-
-  if (gibberish.length > 0 || plausible.length < options.minPlausibleWords) {
-    return `Enter meaningful ${options.fieldLabel.toLowerCase()}. Random or placeholder text is not allowed.`;
-  }
-
-  return null;
-}
-
 export function isValidAddress(value: string): boolean {
   return addressError(value) == null;
 }
 
 export function addressError(value: string): string | null {
-  return validateProseText(value, {
-    minLength: ADDRESS_MIN_LENGTH,
-    minPlausibleWords: 2,
-    fieldLabel: "Address",
-  });
+  if (!value.trim()) {
+    return "Address is required.";
+  }
+  return null;
 }
 
 export function parentDetailsError(value: string): string | null {
-  return validateProseText(value, {
-    minLength: PARENT_DETAILS_MIN_LENGTH,
-    minPlausibleWords: 2,
-    fieldLabel: "Parent / guardian details",
-  });
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return "Please select a parent / guardian relationship.";
+  }
+  if (!(PARENT_RELATIONSHIP_OPTIONS as readonly string[]).includes(normalized)) {
+    return "Please select a valid relationship.";
+  }
+  return null;
 }
 
 function pad2(value: number): string {

@@ -63,17 +63,17 @@ function isPendingStatus(status: string): boolean {
   return status.trim().toLowerCase() === LEAVE_STATUS.APPLIED.toLowerCase();
 }
 
-/** Ascending by leave date: 1/7/2026, 2/7/2026, 3/7/2026, … */
+/** Descending by leave date: newest requests first. */
 function sortApprovalsByDate(applications: LeaveApprovalRow[]): LeaveApprovalRow[] {
   return [...applications].sort((a, b) => {
-    const aTime = parseLeaveDisplayDate(a.date)?.getTime() ?? Number.POSITIVE_INFINITY;
-    const bTime = parseLeaveDisplayDate(b.date)?.getTime() ?? Number.POSITIVE_INFINITY;
-    if (aTime !== bTime) return aTime - bTime;
+    const aTime = parseLeaveDisplayDate(a.date)?.getTime() ?? Number.NEGATIVE_INFINITY;
+    const bTime = parseLeaveDisplayDate(b.date)?.getTime() ?? Number.NEGATIVE_INFINITY;
+    if (aTime !== bTime) return bTime - aTime;
 
-    const nameCompare = a.employeeName.localeCompare(b.employeeName);
-    if (nameCompare !== 0) return nameCompare;
+    const rowCompare = b.rowIndex - a.rowIndex;
+    if (rowCompare !== 0) return rowCompare;
 
-    return a.id.localeCompare(b.id);
+    return b.id.localeCompare(a.id);
   });
 }
 
@@ -177,6 +177,7 @@ export default function LeaveApprovalsPage() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          employeeId: row.employeeId,
           attendanceSpreadsheetId: row.attendanceSpreadsheetId,
           rowIndex: row.rowIndex,
           leaveType: row.leaveType,
