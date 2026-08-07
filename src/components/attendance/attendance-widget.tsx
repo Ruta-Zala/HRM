@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Clock } from "lucide-react";
 
 import { PunchInBanner } from "@/components/attendance/punch-in-status-flag";
 import { WorkTimer } from "@/components/attendance/work-timer";
@@ -15,8 +16,9 @@ import {
 } from "@/lib/attendance/constants";
 import { formatDuration } from "@/lib/attendance/time";
 import { useTodayAttendance } from "@/hooks/use-today-attendance";
+import { cn } from "@/lib/utils";
 
-export function AttendanceWidget() {
+export function AttendanceWidget({ className }: { className?: string }) {
   const { user } = useAuth();
   const { today, loading, liveWorkedMs } = useTodayAttendance();
 
@@ -27,22 +29,30 @@ export function AttendanceWidget() {
   const remainingMs = Math.max(0, IDEAL_WORKING_HOURS * 60 * 60 * 1000 - liveWorkedMs);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2">
-        <CardTitle>Today&apos;s attendance</CardTitle>
-        <Link href="/employee/punch">
+    <Card className={cn("flex flex-col overflow-hidden", className)}>
+      <CardHeader className="bg-ex-surface/40 flex flex-row items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="bg-ex-secondary/15 text-ex-secondary flex size-10 shrink-0 items-center justify-center rounded-xl">
+            <Clock className="size-5" />
+          </div>
+          <div className="min-w-0">
+            <CardTitle>Today&apos;s attendance</CardTitle>
+            <p className="text-ex-muted mt-0.5 text-sm">Punch status and worked hours</p>
+          </div>
+        </div>
+        <Link href="/employee/punch" className="shrink-0">
           <Button variant="outline" size="sm" type="button">
             Punch
           </Button>
         </Link>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="flex flex-1 flex-col p-5">
         {loading ? (
           <p className="text-ex-muted text-sm">Loading attendance…</p>
         ) : !today?.hasPunchedIn ? (
           <PunchInBanner />
         ) : (
-          <>
+          <div className="space-y-3">
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-ex-muted">Punch In</dt>
@@ -77,7 +87,7 @@ export function AttendanceWidget() {
             </dl>
             <WorkTimer workedMs={liveWorkedMs} />
             {today.status ? <p className="text-ex-muted text-xs">Status: {today.status}</p> : null}
-          </>
+          </div>
         )}
       </CardContent>
     </Card>

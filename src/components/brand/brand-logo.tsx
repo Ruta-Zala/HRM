@@ -30,7 +30,7 @@ export function BrandLogo({ size = "md", priority = false, className }: BrandLog
     >
       <Image
         src={BRAND_LOGO_SRC}
-        alt="Exhibyte Solutions"
+        alt="ExhiByte Solutions"
         fill
         className={cn("object-contain", config.padding)}
         sizes={config.sizes}

@@ -53,7 +53,7 @@ export function FormSkeleton({
       </Card>
 
       {showActions ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <Skeleton className="h-10 w-32 rounded-lg" />
           <Skeleton className="h-10 w-24 rounded-lg" />
         </div>

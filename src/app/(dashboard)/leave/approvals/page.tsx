@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pagination } from "@/components/ui/pagination";
+import { DEFAULT_PAGE_SIZE, Pagination } from "@/components/ui/pagination";
 import { RefreshCw } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -32,8 +32,6 @@ type LeaveApprovalRow = {
 };
 
 type StatusFilter = "Applied" | "Accepted" | "Rejected" | "all";
-
-const PAGE_SIZE = 15;
 
 const STATUS_FILTERS: Array<{ id: StatusFilter; label: string }> = [
   { id: LEAVE_STATUS.APPLIED, label: "Pending" },
@@ -154,11 +152,11 @@ export default function LeaveApprovalsPage() {
     [rows],
   );
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(rows.length / DEFAULT_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
 
   const paginatedRows = useMemo(
-    () => rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    () => rows.slice((currentPage - 1) * DEFAULT_PAGE_SIZE, currentPage * DEFAULT_PAGE_SIZE),
     [rows, currentPage],
   );
 
@@ -406,13 +404,13 @@ export default function LeaveApprovalsPage() {
           ]}
         />
 
-        {!loading && rows.length > PAGE_SIZE ? (
+        {!loading && rows.length > DEFAULT_PAGE_SIZE ? (
           <Pagination
             pagination={{
               page: currentPage,
               totalPages,
               total: rows.length,
-              pageSize: PAGE_SIZE,
+              pageSize: DEFAULT_PAGE_SIZE,
             }}
             onPageChange={setPage}
             itemLabel="requests"
