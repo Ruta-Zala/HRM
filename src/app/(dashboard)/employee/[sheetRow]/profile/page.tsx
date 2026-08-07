@@ -78,7 +78,7 @@ export default function EmployeeProfileByRowPage() {
   if (loading) {
     return (
       <div className="space-y-8">
-        <PageHeader title="Employee profile" description="Loading employee record…" />
+        <PageHeader title="Employee Profile" description="Loading employee record…" />
         <FormSkeleton label="Loading profile…" fields={8} />
       </div>
     );
@@ -87,7 +87,7 @@ export default function EmployeeProfileByRowPage() {
   if (error || !form) {
     return (
       <div className="space-y-8">
-        <PageHeader title="Employee profile" />
+        <PageHeader title="Employee Profile" />
         <AccessDenied
           title="Profile unavailable"
           description={error ?? "Employee not found."}
@@ -107,7 +107,7 @@ export default function EmployeeProfileByRowPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Employee profile"
+        title="Employee Profile"
         description={`Viewing ${form.name || "employee"} (${form.employeeId || sheetRow}).`}
         actions={
           <>
