@@ -13,7 +13,7 @@ import { authenticateFromSheet } from "@/lib/auth/login";
 // import { evaluateNetworkAccess } from "@/lib/network-access/gate";
 // import { isValidIpv4, normalizeIp } from "@/lib/network-access/ip";
 // import { setNetworkGateCookie } from "@/lib/network-access/network-gate-cookie";
-import { COOKIE, encodeSession, SESSION_COOKIE_OPTIONS } from "@/lib/session";
+import { COOKIE, encodeSession, sessionCookieOptionsForRole } from "@/lib/session";
 
 const LOGIN_RETRY_DELAYS_MS = [150, 350];
 
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
     //   console.warn("[auth/login] network check failed, allowing temporary access:", error);
     // }
 
-    const token = encodeSession(result.user);
+    const token = encodeSession({ ...result.user, loggedInAt: Date.now() });
     const requiresSiteGate = requiresAbsenceExplanation || requiresMorningPunch;
     const res = NextResponse.json({
       ok: true,
@@ -132,7 +132,7 @@ export async function POST(req: Request) {
       // networkReason: network.reason,
       // clientIp: network.clientIp,
     });
-    res.cookies.set(COOKIE, token, SESSION_COOKIE_OPTIONS);
+    res.cookies.set(COOKIE, token, sessionCookieOptionsForRole(result.user.role));
     setAbsenceGateCookie(res, requiresAbsenceExplanation);
     setMorningPunchGateCookie(res, requiresMorningPunch);
     // setNetworkGateCookie(res, network.allowed, network.clientIp);

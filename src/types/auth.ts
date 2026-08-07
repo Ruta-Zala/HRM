@@ -10,4 +10,6 @@ export type SessionUser = {
   department?: string;
   /** 1-based row index in the employee Google Sheet */
   sheetRow?: number;
+  /** Epoch ms when this login session started (role-based absolute timeout). */
+  loggedInAt?: number;
 };
