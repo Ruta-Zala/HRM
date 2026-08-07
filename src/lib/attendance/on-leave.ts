@@ -4,13 +4,9 @@ import { listLeaveApplications, type LeaveApplication } from "@/lib/attendance/l
 import { parseLeaveDisplayDate } from "@/lib/attendance/leave-range-display";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
 import { formatIsoDate } from "@/lib/attendance/time";
-import {
-  getEmployeeIdFromRow,
-  getSheetHeaders,
-  isEmployeeStatusActive,
-  sheetRowToForm,
-} from "@/lib/employee";
-import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
+import { getEmployeeIdFromRow, isEmployeeStatusActive, sheetRowToForm } from "@/lib/employee";
+import { listAllEmployeeRows } from "@/lib/employees/repository";
+import { isFirebaseDailyStorage } from "@/lib/storage/backend";
 import type { UserRole } from "@/types/auth";
 
 export type OnLeaveEmployee = {
@@ -39,24 +35,26 @@ const onLeaveCache = new Map<string, CachedOnLeave>();
 const onLeaveRequests = new Map<string, Promise<OnLeaveDashboardData>>();
 
 async function listActiveEmployeesForLeaveTracking() {
-  const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
-  const headers = getSheetHeaders(raw);
+  const records = await listAllEmployeeRows();
 
-  return raw.slice(1).flatMap((row, index) => {
-    const form = sheetRowToForm(headers, row);
+  return records.flatMap((record) => {
+    const form = sheetRowToForm(record.headers, record.row);
     if (!isEmployeeStatusActive(form.status)) return [];
 
     const role = form.role.trim().toLowerCase();
     if (!roleCanPunchInOut(role as UserRole)) return [];
 
-    const attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(headers, row);
-    if (!attendanceSpreadsheetId) return [];
+    const attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(record.headers, record.row);
+    const employeeId = getEmployeeIdFromRow(record.headers, record.row, record.sheetRow);
 
-    const employeeSheetRow = index + 2;
+    // Leave bucket is still spreadsheet-keyed; Firebase punch storage only needs employeeId.
+    if (!attendanceSpreadsheetId && !isFirebaseDailyStorage()) return [];
+    if (!attendanceSpreadsheetId || !employeeId) return [];
+
     return [
       {
-        employeeSheetRow,
-        employeeId: getEmployeeIdFromRow(headers, row, employeeSheetRow),
+        employeeSheetRow: record.sheetRow,
+        employeeId,
         employeeName: form.name.trim() || "Employee",
         attendanceSpreadsheetId,
       },

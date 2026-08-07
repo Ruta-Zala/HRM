@@ -11,11 +11,11 @@ const dmSans = DM_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: "Exhibyte Solutions — HRM Admin",
+    default: "ExhiByte Solutions — HRM Admin",
     template: "%s · Exhibyte HRM",
   },
   description:
-    "Internal HRM admin for Exhibyte Solutions — people, leave, attendance, and notifications.",
+    "Internal HRM admin for ExhiByte Solutions — people, leave, attendance, and notifications.",
   icons: {
     icon: [
       {

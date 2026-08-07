@@ -11,8 +11,10 @@ import {
   type LeaveStatus,
 } from "@/lib/attendance/leave-status";
 import { applyLeaveBucketRowFormat } from "@/lib/attendance/leave-bucket-format";
+import { readLeaveBucketRowsCached } from "@/lib/attendance/leave-bucket-mirror";
 import { readLeaveBucketRows, upsertApprovedLeaveAttendance } from "@/lib/google/attendance-sheets";
 import { leaveDateToIso, workModeForApprovedLeave } from "@/lib/payroll/leave-attendance";
+import { isFirebaseDailyStorage } from "@/lib/storage/backend";
 
 export type LeaveApplication = {
   id: string;
@@ -98,7 +100,9 @@ export async function listLeaveApplications(params: {
   attendanceSpreadsheetId: string;
   statusFilter?: LeaveStatus;
 }): Promise<LeaveApplication[]> {
-  const rows = await readLeaveBucketRows(params.attendanceSpreadsheetId);
+  const rows = isFirebaseDailyStorage()
+    ? await readLeaveBucketRowsCached(params.attendanceSpreadsheetId)
+    : await readLeaveBucketRows(params.attendanceSpreadsheetId);
   return listLeaveApplicationsFromRows({
     rows,
     employeeId: params.employeeId,

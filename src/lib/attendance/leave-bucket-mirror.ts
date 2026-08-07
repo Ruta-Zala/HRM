@@ -43,6 +43,10 @@ async function refreshMirrorFromSheets(spreadsheetId: string): Promise<string[][
   return rows;
 }
 
+export async function readLeaveBucketRowsCached(spreadsheetId: string): Promise<string[][]> {
+  return readLeaveBucketRowsForAbsenceExplanation(spreadsheetId);
+}
+
 export async function readLeaveBucketRowsForAbsenceExplanation(
   spreadsheetId: string,
 ): Promise<string[][]> {

@@ -16,6 +16,12 @@ export const sheetsAttendanceRepository: AttendanceRepository = {
   getTodayAttendance(ref, date) {
     return getTodayAttendance(ref.spreadsheetId, date);
   },
+  async getAttendanceForDate(ref, dateIso) {
+    const [year, month] = dateIso.split("-").map(Number);
+    if (!year || !month) return null;
+    const rows = await getMonthAttendance(ref.spreadsheetId, year, month - 1);
+    return rows.find((row) => row.date === dateIso) ?? null;
+  },
   getMonthAttendance(ref, year, monthIndex) {
     return getMonthAttendance(ref.spreadsheetId, year, monthIndex);
   },

@@ -145,6 +145,14 @@ export const firestoreAttendanceRepository: AttendanceRepository = {
     return toAttendanceRow(fields);
   },
 
+  async getAttendanceForDate(ref, dateIso) {
+    const normalized = normalizeSheetDate(dateIso);
+    if (!normalized) return null;
+    const fields = await getDayFields(ref, normalized);
+    if (!fields) return null;
+    return toAttendanceRow(fields);
+  },
+
   async getMonthAttendance(ref, year, monthIndex) {
     const start = formatIsoDate(new Date(year, monthIndex, 1));
     const end = formatIsoDate(new Date(year, monthIndex + 1, 0));

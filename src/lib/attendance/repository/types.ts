@@ -8,6 +8,8 @@ export type AttendanceStorageRef = {
 
 export type AttendanceRepository = {
   getTodayAttendance(ref: AttendanceStorageRef, date?: Date): Promise<AttendanceRow | null>;
+  /** Day row for a date, even when punch-in is empty (used by dashboard absence checks). */
+  getAttendanceForDate(ref: AttendanceStorageRef, dateIso: string): Promise<AttendanceRow | null>;
   getMonthAttendance(
     ref: AttendanceStorageRef,
     year: number,
