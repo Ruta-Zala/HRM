@@ -7,10 +7,18 @@ import {
   isAttendanceSpreadsheetAccessible,
 } from "@/lib/attendance/employee";
 import { listLeaveApplications, type LeaveApplication } from "@/lib/attendance/leave-approvals";
+import { isLeaveBucketOnFirebase } from "@/lib/attendance/leave-bucket/repository";
+import { parseLeaveDisplayDate } from "@/lib/attendance/leave-range-display";
 import { LEAVE_STATUS, type LeaveStatus } from "@/lib/attendance/leave-status";
-import { getSheetHeaders, sheetRowToForm } from "@/lib/employee";
-import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
+import { sheetRowToForm } from "@/lib/employee";
+import { listAllEmployeeRows } from "@/lib/employees/repository";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
+
+type ApprovalEmployee = {
+  employeeId: string;
+  employeeName: string;
+  attendanceSpreadsheetId: string;
+};
 
 function parseStatusFilter(value: string | null): LeaveStatus | undefined {
   const normalized = String(value ?? LEAVE_STATUS.APPLIED)
@@ -26,12 +34,80 @@ function parseStatusFilter(value: string | null): LeaveStatus | undefined {
   return LEAVE_STATUS.APPLIED;
 }
 
+function leaveSortKey(application: LeaveApplication): number {
+  return parseLeaveDisplayDate(application.date)?.getTime() ?? Number.NEGATIVE_INFINITY;
+}
+
+/** Newest leave dates first. */
 function sortLeaveApplications(applications: LeaveApplication[]): LeaveApplication[] {
   return [...applications].sort((a, b) => {
-    const nameCompare = a.employeeName.localeCompare(b.employeeName);
-    if (nameCompare !== 0) return nameCompare;
-    return a.date.localeCompare(b.date);
+    const dateCompare = leaveSortKey(b) - leaveSortKey(a);
+    if (dateCompare !== 0) return dateCompare;
+
+    const rowCompare = b.rowIndex - a.rowIndex;
+    if (rowCompare !== 0) return rowCompare;
+
+    return b.id.localeCompare(a.id);
   });
+}
+
+async function listApprovalEmployees(): Promise<{
+  employees: ApprovalEmployee[];
+  skippedCount: number;
+}> {
+  const records = await listAllEmployeeRows();
+  const candidates: ApprovalEmployee[] = [];
+
+  for (const record of records) {
+    const form = sheetRowToForm(record.headers, record.row);
+    const employeeId = form.employeeId.trim();
+    if (!employeeId) continue;
+
+    candidates.push({
+      employeeId,
+      employeeName: form.name.trim() || "Employee",
+      attendanceSpreadsheetId: getAttendanceSpreadsheetIdFromRow(record.headers, record.row),
+    });
+  }
+
+  if (isLeaveBucketOnFirebase()) {
+    return {
+      employees: dedupeEmployeesById(candidates),
+      skippedCount: 0,
+    };
+  }
+
+  const accessible = (
+    await Promise.all(
+      candidates.map(async (employee) => ({
+        employee,
+        accessible: Boolean(employee.attendanceSpreadsheetId)
+          ? await isAttendanceSpreadsheetAccessible(employee.attendanceSpreadsheetId)
+          : false,
+      })),
+    )
+  )
+    .filter((entry) => entry.accessible)
+    .map((entry) => entry.employee);
+
+  const employees = dedupeEmployeesById(accessible);
+
+  return {
+    employees,
+    skippedCount: candidates.length - accessible.length,
+  };
+}
+
+function dedupeEmployeesById(employees: ApprovalEmployee[]): ApprovalEmployee[] {
+  const seen = new Set<string>();
+  const unique: ApprovalEmployee[] = [];
+  for (const employee of employees) {
+    const key = employee.employeeId.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(employee);
+  }
+  return unique;
 }
 
 export const GET = withActiveSession(async (req, user) => {
@@ -42,38 +118,10 @@ export const GET = withActiveSession(async (req, user) => {
   try {
     const { searchParams } = new URL(req.url);
     const statusFilter = parseStatusFilter(searchParams.get("status"));
-    const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
-    const headers = getSheetHeaders(raw);
-    const employees = [];
-
-    for (let i = 1; i < raw.length; i++) {
-      const row = raw[i] ?? [];
-      const form = sheetRowToForm(headers, row);
-      const attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(headers, row);
-      if (!attendanceSpreadsheetId) continue;
-
-      employees.push({
-        employeeId: form.employeeId.trim(),
-        employeeName: form.name.trim() || "Employee",
-        attendanceSpreadsheetId,
-      });
-    }
-
-    const accessibleEmployees = (
-      await Promise.all(
-        employees.map(async (employee) => ({
-          employee,
-          accessible: await isAttendanceSpreadsheetAccessible(employee.attendanceSpreadsheetId),
-        })),
-      )
-    )
-      .filter((entry) => entry.accessible)
-      .map((entry) => entry.employee);
-
-    const skippedCount = employees.length - accessibleEmployees.length;
+    const { employees, skippedCount } = await listApprovalEmployees();
 
     const batches = await Promise.allSettled(
-      accessibleEmployees.map((employee) =>
+      employees.map((employee) =>
         listLeaveApplications({
           employeeId: employee.employeeId,
           employeeName: employee.employeeName,
@@ -94,7 +142,7 @@ export const GET = withActiveSession(async (req, user) => {
 
     for (let i = 0; i < batches.length; i++) {
       const result = batches[i];
-      const employee = accessibleEmployees[i];
+      const employee = employees[i];
       if (result.status === "fulfilled") {
         applications.push(...result.value);
         continue;
@@ -104,16 +152,18 @@ export const GET = withActiveSession(async (req, user) => {
         result.reason instanceof Error ? result.reason.message : "Failed to read leave bucket";
       warnings.push(`${employee.employeeName} (${employee.employeeId}): ${reason}`);
       console.warn(
-        `Leave approvals: skipped ${employee.employeeId} (${employee.attendanceSpreadsheetId})`,
+        `Leave approvals: skipped ${employee.employeeId} (${employee.attendanceSpreadsheetId || "firebase"})`,
         result.reason,
       );
     }
 
-    const sortedApplications = sortLeaveApplications(applications);
+    const uniqueApplications = Array.from(
+      new Map(applications.map((application) => [application.id, application])).values(),
+    );
 
     return NextResponse.json({
       success: true,
-      applications: sortedApplications,
+      applications: sortLeaveApplications(uniqueApplications),
       warnings,
     });
   } catch (error) {

@@ -27,6 +27,7 @@ import {
   addGroupedLeaveDatesToBucketForAbsenceExplanation,
   readLeaveBucketRowsForAbsenceExplanation,
 } from "@/lib/attendance/leave-bucket-mirror";
+import { toLeaveBucketStorageRef } from "@/lib/attendance/leave-bucket/repository";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { isFirebaseDailyStorage } from "@/lib/storage/backend";
 import { isAfterTodayNoPunchExplainCutoff } from "@/lib/attendance/attendance-cutoffs";
@@ -344,9 +345,9 @@ function resolveLeaveTypeOptions(
 }
 
 export async function getAbsenceLeaveBalances(
-  attendanceSpreadsheetId: string,
+  employee: AttendanceEmployeeContext,
 ): Promise<AbsenceLeaveBalances> {
-  const rows = await readLeaveBucketRowsForAbsenceExplanation(attendanceSpreadsheetId);
+  const rows = await readLeaveBucketRowsForAbsenceExplanation(toLeaveBucketStorageRef(employee));
   const balances = getLeavePolicyBalances(rows);
   return {
     sickAvailable: balances.sick.available,
@@ -538,7 +539,7 @@ export async function getPendingAbsenceExplanationGroups(
   const leaveHolidayDates = await getLeaveHolidayDates();
 
   const [leaveRows, explanations, attendanceByDate] = await Promise.all([
-    readLeaveBucketRowsForAbsenceExplanation(employee.attendanceSpreadsheetId),
+    readLeaveBucketRowsForAbsenceExplanation(toLeaveBucketStorageRef(employee)),
     listAbsenceExplanations(employee),
     buildAttendanceByDate(employee, todayIso),
   ]);
@@ -693,7 +694,7 @@ export async function submitAbsenceExplanations(params: {
       throw new Error("No pending absence explanation for the selected period");
     }
 
-    const balances = await getAbsenceLeaveBalances(params.employee.attendanceSpreadsheetId);
+    const balances = await getAbsenceLeaveBalances(params.employee);
     const leaveTypeOptions = group.leaveTypeOptions ?? resolveLeaveTypeOptions(group, balances);
     const requestedLeaveType = submission.leaveType;
 
@@ -852,7 +853,7 @@ async function createLeaveRequestFromAbsenceGroup(params: {
   reason: string;
 }): Promise<void> {
   const { employee, group, leaveType, reason } = params;
-  const rows = await readLeaveBucketRowsForAbsenceExplanation(employee.attendanceSpreadsheetId);
+  const rows = await readLeaveBucketRowsForAbsenceExplanation(toLeaveBucketStorageRef(employee));
   const existingLeaves = listLeaveApplicationsFromRows({
     rows,
     employeeId: employee.employeeId,
@@ -914,7 +915,7 @@ async function createLeaveRequestFromAbsenceGroup(params: {
   }
 
   await addGroupedLeaveDatesToBucketForAbsenceExplanation(
-    employee.attendanceSpreadsheetId,
+    toLeaveBucketStorageRef(employee),
     leaveGroups,
     "full",
     reason,

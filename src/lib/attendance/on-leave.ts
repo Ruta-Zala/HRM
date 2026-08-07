@@ -34,6 +34,16 @@ const CACHE_TTL_MS = 60_000;
 const onLeaveCache = new Map<string, CachedOnLeave>();
 const onLeaveRequests = new Map<string, Promise<OnLeaveDashboardData>>();
 
+export function invalidateOnLeaveCache(dateIso?: string): void {
+  if (dateIso) {
+    onLeaveCache.delete(dateIso);
+    onLeaveRequests.delete(dateIso);
+    return;
+  }
+  onLeaveCache.clear();
+  onLeaveRequests.clear();
+}
+
 async function listActiveEmployeesForLeaveTracking() {
   const records = await listAllEmployeeRows();
 
@@ -47,16 +57,16 @@ async function listActiveEmployeesForLeaveTracking() {
     const attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(record.headers, record.row);
     const employeeId = getEmployeeIdFromRow(record.headers, record.row, record.sheetRow);
 
-    // Leave bucket is still spreadsheet-keyed; Firebase punch storage only needs employeeId.
+    // Leave bucket is Firebase-keyed by employeeId when daily storage is on.
+    if (!employeeId) return [];
     if (!attendanceSpreadsheetId && !isFirebaseDailyStorage()) return [];
-    if (!attendanceSpreadsheetId || !employeeId) return [];
 
     return [
       {
         employeeSheetRow: record.sheetRow,
         employeeId,
         employeeName: form.name.trim() || "Employee",
-        attendanceSpreadsheetId,
+        attendanceSpreadsheetId: attendanceSpreadsheetId || "",
       },
     ];
   });

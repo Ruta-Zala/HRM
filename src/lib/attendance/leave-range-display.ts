@@ -72,7 +72,7 @@ function recordDays(record: LeaveRangeGroupable): number {
   });
 }
 
-function groupLeaveRecordsIntoRanges<T extends LeaveRangeGroupable>(
+function groupLeaveRecordsIntoRanges<T extends LeaveRangeGroupable & { id?: string }>(
   records: T[],
   groupBy: (record: T) => string,
 ): Array<T & { date: string; days: number }> {
@@ -103,10 +103,17 @@ function groupLeaveRecordsIntoRanges<T extends LeaveRangeGroupable>(
     const flushRange = () => {
       const startDate = parseLeaveDisplayDate(rangeStart.date);
       const endDate = parseLeaveDisplayDate(rangeEnd.date);
+      const date =
+        startDate && endDate ? formatLeaveDateRange(startDate, endDate) : rangeStart.date;
+
+      // Keep React keys unique when one leave type splits into multiple ranges.
+      const baseId = typeof rangeStart.id === "string" ? rangeStart.id : "";
+      const uniqueId = baseId ? `${baseId}:${date}` : undefined;
 
       grouped.push({
         ...rangeStart,
-        date: startDate && endDate ? formatLeaveDateRange(startDate, endDate) : rangeStart.date,
+        ...(uniqueId ? { id: uniqueId } : {}),
+        date,
         days: rangeDays,
       });
     };

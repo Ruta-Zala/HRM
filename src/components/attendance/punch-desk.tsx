@@ -154,18 +154,18 @@ function StatPill({
   label: string;
   value: string;
   highlight?: boolean;
-  tone?: "default" | "warning" | "success";
+  tone?: "default" | "warning" | "success" | "pending" | "info";
 }) {
   return (
     <div
       className={cn(
         "rounded-xl border px-3 py-2.5 text-center transition",
-        tone === "warning" &&
-          "border-amber-300/60 bg-amber-50/80 dark:border-amber-700/50 dark:bg-amber-950/40",
-        tone === "success" &&
-          "border-emerald-300/50 bg-emerald-50/70 dark:border-emerald-700/40 dark:bg-emerald-950/35",
-        tone !== "warning" &&
-          tone !== "success" &&
+        tone === "warning" && "border-ex-chip-warning-border bg-ex-chip-warning-bg",
+        tone === "success" && "border-ex-chip-success-border bg-ex-chip-success-bg",
+        tone === "pending" &&
+          "border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800/60",
+        tone === "info" && "border-ex-chip-info-border bg-ex-chip-info-bg",
+        (!tone || tone === "default") &&
           (highlight
             ? "border-ex-secondary/30 bg-ex-secondary/10"
             : "border-ex-border bg-ex-elevated/80"),
@@ -175,8 +175,10 @@ function StatPill({
       <p
         className={cn(
           "mt-0.5 text-sm font-semibold tabular-nums",
-          tone === "warning" && "text-amber-900 dark:text-amber-100",
-          tone === "success" && "text-emerald-800 dark:text-emerald-200",
+          tone === "warning" && "text-ex-chip-warning-fg",
+          tone === "success" && "text-ex-chip-success-fg",
+          tone === "pending" && "text-slate-700 dark:text-slate-200",
+          tone === "info" && "text-ex-chip-info-fg",
           !tone || tone === "default" ? "text-ex-primary" : "",
         )}
       >
@@ -215,6 +217,8 @@ export function PunchDesk({
   const hasPunchedOut = today?.hasPunchedOut ?? false;
   const onBreak = today?.onBreak ?? false;
   const isHalfDayLeave = isHalfDayUnpaidWorkMode(today?.workMode);
+  const leavePunchBlocked = Boolean(today?.leavePunchBlocked);
+  const leavePunchBlockMessage = today?.leavePunchBlockMessage?.trim() ?? "";
   const phase = getPhase(today, hasPunchedIn, hasPunchedOut, onBreak);
   const dayOutcome = getDayOutcome(today);
   const shortfallAmount = parseShortfallAmount(today?.overtime);
@@ -270,14 +274,18 @@ export function PunchDesk({
                 </p>
               </div>
             </div>
-            {today?.status && hasPunchedIn ? (
+            {today?.leavePunchBlocked ? (
+              <Badge variant="info" className="w-fit gap-1.5">
+                On leave — punch blocked
+              </Badge>
+            ) : today?.status && hasPunchedIn ? (
               <Badge variant={statusBadgeVariant(today.status)} className="w-fit">
                 {today.status}
                 {hasPunchedOut && today.punchOut ? ` · Out ${today.punchOut}` : ""}
                 {!hasPunchedOut && today.punchIn ? ` · In ${today.punchIn}` : ""}
               </Badge>
             ) : !hasPunchedIn ? (
-              <Badge variant="warning" className="w-fit gap-1.5">
+              <Badge variant="info" className="w-fit gap-1.5">
                 <LogIn className="size-3.5" aria-hidden />
                 Punch in not done
               </Badge>
@@ -335,9 +343,11 @@ export function PunchDesk({
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <StatPill
             label="Punch in"
-            value={hasPunchedIn ? (today?.punchIn ?? "") : "Not done"}
+            value={
+              hasPunchedIn ? (today?.punchIn ?? "") : leavePunchBlocked ? "On leave" : "Not done"
+            }
             highlight={hasPunchedIn}
-            tone={hasPunchedIn ? "default" : "warning"}
+            tone={hasPunchedIn ? "default" : leavePunchBlocked ? "info" : "pending"}
           />
           <StatPill label="Punch out" value={today?.punchOut ?? ""} />
           <StatPill
@@ -352,6 +362,23 @@ export function PunchDesk({
           />
           <StatPill label={fourthStat.label} value={fourthStat.value} tone={fourthStat.tone} />
         </div>
+
+        {leavePunchBlocked && leavePunchBlockMessage ? (
+          <div
+            role="status"
+            className="border-ex-chip-info-border bg-ex-chip-info-bg flex items-start gap-3 rounded-xl border px-4 py-3"
+          >
+            <div className="bg-ex-elevated/80 flex size-9 shrink-0 items-center justify-center rounded-full">
+              <Sun className="text-ex-chip-info-fg size-4" aria-hidden />
+            </div>
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-ex-chip-info-fg text-sm font-semibold">Punch unavailable</p>
+              <p className="text-ex-chip-info-fg/90 text-sm leading-relaxed">
+                {leavePunchBlockMessage}
+              </p>
+            </div>
+          </div>
+        ) : null}
 
         {dayOutcome === "short" && shortfallAmount ? (
           <div
@@ -391,7 +418,7 @@ export function PunchDesk({
             <Button
               size="lg"
               className="shadow-ex-secondary/20 min-h-12 min-w-[200px] flex-1 gap-2 text-base font-semibold shadow-md sm:flex-none"
-              disabled={acting || loading}
+              disabled={acting || loading || leavePunchBlocked}
               onClick={onPunchIn}
             >
               {actingAction === "punch-in" ? (
@@ -409,7 +436,7 @@ export function PunchDesk({
                 size="lg"
                 variant="outline"
                 className="h-12 gap-2 border-amber-300/60 bg-amber-50/80 text-amber-900 hover:bg-amber-100 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-950/60 dark:hover:text-amber-50"
-                disabled={acting || loading || isHalfDayLeave}
+                disabled={acting || loading || isHalfDayLeave || leavePunchBlocked}
                 onClick={onBreakStart}
               >
                 {actingAction === "break-start" ? (
@@ -423,7 +450,7 @@ export function PunchDesk({
                 size="lg"
                 variant="secondary"
                 className="h-12 min-w-[160px] gap-2 font-semibold"
-                disabled={acting || loading}
+                disabled={acting || loading || leavePunchBlocked}
                 onClick={onPunchOut}
               >
                 {actingAction === "punch-out" ? (
@@ -440,7 +467,7 @@ export function PunchDesk({
             <Button
               size="lg"
               className="h-12 min-w-[200px] flex-1 gap-2 text-base font-semibold sm:flex-none"
-              disabled={acting || loading}
+              disabled={acting || loading || leavePunchBlocked}
               onClick={onBreakEnd}
             >
               {actingAction === "break-end" ? (

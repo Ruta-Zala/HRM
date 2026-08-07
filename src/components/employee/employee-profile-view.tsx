@@ -22,6 +22,7 @@ import {
   maskPan,
   isEmployeeStatusActive,
   resolveProfileImageSrc,
+  formatParentRelationshipLabel,
   type EmployeeDocumentField,
   type EmployeeFormState,
 } from "@/lib/employee";
@@ -239,16 +240,10 @@ export function EmployeeProfileView({
           <CardContent className="space-y-4">
             <ReadOnlyField label="Parent / guardian" value={form.parentName || "—"} />
             <ReadOnlyField label="Guardian contact" value={formatPhone(form.parentContact)} />
-            <div className="space-y-2">
-              <Label>Guardian details</Label>
-              <Textarea
-                value={form.parentDetails || "—"}
-                readOnly
-                disabled
-                rows={3}
-                className="disabled:opacity-100"
-              />
-            </div>
+            <ReadOnlyField
+              label="Relationship"
+              value={formatParentRelationshipLabel(form.parentDetails) || "—"}
+            />
           </CardContent>
         </Card>
 

@@ -1,4 +1,9 @@
-import { canonicalizeWorkMode, isPunchOptionalWorkMode } from "@/lib/attendance/constants";
+import {
+  canonicalizeWorkMode,
+  isPunchOptionalWorkMode,
+  WORK_MODE,
+} from "@/lib/attendance/constants";
+import type { LeaveBucketType } from "@/lib/attendance/leave-bucket-layout";
 import {
   formatIsoDate,
   getAppZonedParts,
@@ -16,9 +21,45 @@ export type ManualAttendanceInput = {
   workMode?: string;
 };
 
+export type ManualLeaveBucketMapping = {
+  leaveType: LeaveBucketType;
+  duration: "full" | "half_am" | "half_pm";
+};
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export { isPunchOptionalWorkMode };
+
+/** True when HR marks a normal working day (clears leave bucket for that date). */
+export function shouldClearLeaveOnManualAttendance(workMode: string): boolean {
+  const mode = canonicalizeWorkMode(workMode);
+  if (isPunchOptionalWorkMode(mode)) return false;
+  if (mode === WORK_MODE.HALF_DAY_PAID_LEAVE || mode === WORK_MODE.HALF_DAY_UNPAID_LEAVE) {
+    return false;
+  }
+  return true;
+}
+
+/** Map leave work modes to leave-bucket type (holidays return null). */
+export function leaveBucketFromWorkMode(workMode: string): ManualLeaveBucketMapping | null {
+  const mode = canonicalizeWorkMode(workMode);
+  switch (mode) {
+    case WORK_MODE.PAID_LEAVE:
+      return { leaveType: "paid", duration: "full" };
+    case WORK_MODE.HALF_DAY_PAID_LEAVE:
+      return { leaveType: "paid", duration: "half_am" };
+    case WORK_MODE.SICK_LEAVE:
+      return { leaveType: "sick", duration: "full" };
+    case WORK_MODE.CASUAL_LEAVE:
+      return { leaveType: "casual", duration: "full" };
+    case WORK_MODE.UNPAID_LEAVE:
+      return { leaveType: "unpaid", duration: "full" };
+    case WORK_MODE.HALF_DAY_UNPAID_LEAVE:
+      return { leaveType: "unpaid", duration: "half_am" };
+    default:
+      return null;
+  }
+}
 
 /** App-timezone calendar date as YYYY-MM-DD. */
 export function localTodayIso(date: Date = new Date()): string {

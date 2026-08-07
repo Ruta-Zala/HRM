@@ -5,8 +5,13 @@ const COOKIE = "exhibyte_session";
 
 /** Employee (and default) absolute session lifetime from login. */
 export const SESSION_MAX_AGE_EMPLOYEE_MS = 30 * 60 * 1000;
-/** HR Manager + Super Admin absolute session lifetime from login. */
+/** HR Manager + Super Admin absolute session lifetime from login (or last Continue). */
 export const SESSION_MAX_AGE_ADMIN_MS = 2 * 60 * 60 * 1000;
+/**
+ * HR / Super Admin idle limit: no interaction for this long ends the session
+ * even if the 2-hour absolute window has not ended.
+ */
+export const SESSION_IDLE_MAX_AGE_ADMIN_MS = 30 * 60 * 1000;
 
 function encodeBase64Url(json: string): string {
   if (typeof Buffer !== "undefined") {
@@ -38,15 +43,25 @@ export function canExtendSession(role: UserRole | string | undefined): boolean {
   return role === ROLES.SUPER_ADMIN || role === ROLES.HR_MANAGER;
 }
 
+/** HR / Super Admin also have a 30-minute idle logout while the absolute window is 2 hours. */
+export function hasAdminIdleTimeout(role: UserRole | string | undefined): boolean {
+  return canExtendSession(role);
+}
+
 /** Warn this long before the session ends (scales with role window). */
 export function sessionWarningMsForRole(role: UserRole | string | undefined): number {
   const maxAge = sessionMaxAgeMsForRole(role);
-  const isAdmin = role === ROLES.SUPER_ADMIN || role === ROLES.HR_MANAGER;
-  // ~last 2 min (employee) / ~last 5 min (admin) at production lengths; shorter for test windows.
+  const isAdmin = canExtendSession(role);
+  // Employees: last 2 minutes; admins (absolute): last 5 minutes.
   const fraction = isAdmin ? maxAge / 24 : maxAge / 15;
   const cap = isAdmin ? 5 * 60 * 1000 : 2 * 60 * 1000;
   const floor = isAdmin ? 60 * 1000 : 30 * 1000;
   return Math.min(cap, Math.max(floor, Math.floor(fraction)));
+}
+
+/** Warn this long before an admin idle logout. */
+export function sessionIdleWarningMs(): number {
+  return 2 * 60 * 1000;
 }
 
 export function formatSessionDuration(ms: number): string {
