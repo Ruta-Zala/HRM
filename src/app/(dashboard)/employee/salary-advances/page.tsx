@@ -495,7 +495,7 @@ export default function SalaryAdvancesPage() {
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
-              size="sm"
+              size="md"
               onClick={() => void refresh()}
               disabled={loading || saving}
             >
@@ -503,7 +503,7 @@ export default function SalaryAdvancesPage() {
               Refresh
             </Button>
             <Button
-              size="sm"
+              size="md"
               onClick={() => {
                 if (showForm) {
                   setShowForm(false);
