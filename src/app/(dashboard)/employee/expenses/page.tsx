@@ -12,6 +12,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MonthYearPicker } from "@/components/ui/month-year-picker";
 import { PageHeader } from "@/components/ui/page-header";
 import { Select } from "@/components/ui/select";
 import { StatCard } from "@/components/ui/stat-card";
@@ -20,6 +21,10 @@ import { useAuth } from "@/contexts/auth-provider";
 import { readResponseJson } from "@/lib/api/read-response-json";
 import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { canManageEmployees } from "@/lib/auth/roles";
+import {
+  ATTENDANCE_HISTORY_START_YEAR,
+  buildFullMonthYearPeriodOptions,
+} from "@/lib/attendance/period-options";
 import {
   DEFAULT_EXPENSE_CATEGORIES,
   EXPENSE_PAYMENT_MODE_OPTIONS,
@@ -117,8 +122,14 @@ export default function ExpensesPage() {
 
   const now = useMemo(() => new Date(), []);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
-  const [month, setMonth] = useState(() => String(now.getMonth() + 1));
-  const [year, setYear] = useState(() => String(now.getFullYear()));
+  const [month, setMonth] = useState<number | null>(() => now.getMonth());
+  const [year, setYear] = useState(() => now.getFullYear());
+
+  const periods = useMemo(
+    () =>
+      buildFullMonthYearPeriodOptions(now, ATTENDANCE_HISTORY_START_YEAR, now.getFullYear() + 1),
+    [now],
+  );
 
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [summary, setSummary] = useState<ExpenseSummary>(EMPTY_SUMMARY);
@@ -172,6 +183,12 @@ export default function ExpensesPage() {
     setDueDate(suggested);
   }
 
+  function handleFilterPeriodChange(nextYear: number | null, nextMonth: number | null) {
+    if (nextYear == null) return;
+    setYear(nextYear);
+    setMonth(nextMonth);
+  }
+
   const loadExpenses = useCallback(async () => {
     if (!canManage) return;
     setLoading(true);
@@ -179,8 +196,8 @@ export default function ExpensesPage() {
     try {
       const params = new URLSearchParams({
         type: typeFilter,
-        year,
-        month,
+        year: String(year),
+        month: month == null ? "all" : String(month + 1),
       });
       const res = await fetch(`/api/expenses?${params.toString()}`, {
         credentials: "include",
@@ -460,8 +477,7 @@ export default function ExpensesPage() {
   const categoryOptions =
     formType === EXPENSE_TYPES.DEFAULT ? DEFAULT_EXPENSE_CATEGORIES : RECURRING_EXPENSE_CATEGORIES;
 
-  const periodLabel =
-    month === "all" ? `All months · ${year}` : `${MONTHS[Number(month) - 1]} · ${year}`;
+  const periodLabel = month == null ? `All months · ${year}` : `${MONTHS[month]} · ${year}`;
 
   if (authLoading) return null;
 
@@ -496,7 +512,7 @@ export default function ExpensesPage() {
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
-              size="sm"
+              size="md"
               onClick={() => void loadExpenses()}
               disabled={loading || saving}
             >
@@ -504,7 +520,7 @@ export default function ExpensesPage() {
               Refresh
             </Button>
             <Button
-              size="sm"
+              size="md"
               onClick={() => {
                 if (showForm) {
                   setShowForm(false);
@@ -540,39 +556,25 @@ export default function ExpensesPage() {
           <Button
             key={tab.value}
             type="button"
-            size="sm"
+            size="md"
             variant={typeFilter === tab.value ? "primary" : "outline"}
             onClick={() => setTypeFilter(tab.value)}
             disabled={loading || saving}
+            className="h-10 w-36"
           >
             {tab.label}
           </Button>
         ))}
-        <Select
-          aria-label="Month"
-          className="w-[140px]"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-        >
-          <option value="all">All months</option>
-          {MONTHS.map((name, index) => (
-            <option key={name} value={String(index + 1)}>
-              {name}
-            </option>
-          ))}
-        </Select>
-        <Select
-          aria-label="Year"
-          className="w-[110px]"
-          value={year}
-          onChange={(e) => setYear(e.target.value)}
-        >
-          {yearOptions.map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </Select>
+        <MonthYearPicker
+          year={year}
+          month={month}
+          periods={periods}
+          allowAllMonths
+          hideLabel
+          label="Period"
+          className="w-36"
+          onChange={handleFilterPeriodChange}
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

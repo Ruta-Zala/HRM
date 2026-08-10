@@ -10,12 +10,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
-import { Select } from "@/components/ui/select";
+import { MonthYearPicker } from "@/components/ui/month-year-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/auth-provider";
 import { readResponseJson } from "@/lib/api/read-response-json";
 import { toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { canManageEmployees } from "@/lib/auth/roles";
+import {
+  ATTENDANCE_HISTORY_START_YEAR,
+  buildFullMonthYearPeriodOptions,
+  clampMonthForYear,
+  PAYROLL_FUTURE_YEARS,
+} from "@/lib/attendance/period-options";
 import { PAYROLL_DAY_CODE_LEGEND } from "@/lib/payroll/constants";
 import type { Column } from "@/types/table";
 
@@ -169,28 +175,37 @@ export default function PayrollPage() {
   const { user, loading: authLoading } = useAuth();
   const canManage = user ? canManageEmployees(user.role) : false;
 
-  const [month, setMonth] = useState(() => String(new Date().getMonth() + 1));
-  const [year, setYear] = useState(() => String(new Date().getFullYear()));
+  const [month, setMonth] = useState(() => new Date().getMonth());
+  const [year, setYear] = useState(() => new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<PayrollApiResponse | null>(null);
 
-  const yearOptions = useMemo(() => {
-    const current = new Date().getFullYear();
-    // Past decade through a few future years (advance schedules / planning).
-    const start = current - 10;
-    const end = current + 5;
-    const years: string[] = [];
-    for (let y = end; y >= start; y -= 1) years.push(String(y));
-    return years;
+  const periods = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    return buildFullMonthYearPeriodOptions(
+      now,
+      ATTENDANCE_HISTORY_START_YEAR,
+      currentYear + PAYROLL_FUTURE_YEARS,
+    );
   }, []);
+
+  const handlePeriodChange = (nextYear: number | null, nextMonth: number | null) => {
+    if (nextYear == null || nextMonth == null) return;
+    setYear(nextYear);
+    setMonth(clampMonthForYear(nextYear, nextMonth, periods) ?? nextMonth);
+  };
 
   const loadPayroll = useCallback(async () => {
     if (!canManage) return;
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ year, month });
+      const params = new URLSearchParams({
+        year: String(year),
+        month: String(month + 1),
+      });
       const res = await fetch(`/api/payroll?${params.toString()}`, {
         credentials: "include",
         cache: "no-store",
@@ -316,7 +331,7 @@ export default function PayrollPage() {
     );
   }
 
-  const periodLabel = `${MONTHS[Number(month) - 1]} - ${year}`;
+  const periodLabel = `${MONTHS[month]} - ${year}`;
   const workingDays = data?.period?.workingDays ?? 0;
   const totalNetPayable = data?.summary?.totalNetPayable ?? 0;
   const employeeCount = data?.summary?.employeeCount ?? 0;
@@ -328,34 +343,18 @@ export default function PayrollPage() {
         title="Payroll"
         description="Final pay = monthly salary − unpaid leave − salary advance − 10% loyalty − PT (Rs. 200) − LWF (Rs. 6). Paid / Sick / Casual leave do not deduct. Per-day rate uses Mon–Fri working days excluding leave-type holidays."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              aria-label="Month"
-              className="w-[140px]"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-            >
-              {MONTHS.map((name, index) => (
-                <option key={name} value={String(index + 1)}>
-                  {name}
-                </option>
-              ))}
-            </Select>
-            <Select
-              aria-label="Year"
-              className="w-[110px]"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-            >
-              {yearOptions.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </Select>
+          <div className="flex flex-wrap items-end gap-2">
+            <MonthYearPicker
+              year={year}
+              month={month}
+              periods={periods}
+              label="Period"
+              className="w-45"
+              onChange={handlePeriodChange}
+            />
             <Button
               variant="outline"
-              size="sm"
+              size="md"
               onClick={() => void loadPayroll()}
               disabled={loading}
             >

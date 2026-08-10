@@ -18,6 +18,22 @@ const MONTH_LABELS = [
 /** Earliest selectable attendance year in history filters. */
 export const ATTENDANCE_HISTORY_START_YEAR = 2020;
 
+/** Payroll period picker includes this many years beyond the current year. */
+export const PAYROLL_FUTURE_YEARS = 10;
+
+/**
+ * Build year/month options with every month enabled for each year in range.
+ * Defaults to ATTENDANCE_HISTORY_START_YEAR through the current year.
+ */
+export function buildFullMonthYearPeriodOptions(
+  now: Date = new Date(),
+  startYear: number = ATTENDANCE_HISTORY_START_YEAR,
+  endYear?: number,
+): AttendancePeriod[] {
+  const currentYear = now.getFullYear();
+  return buildAttendancePeriodOptions(now, startYear, false, endYear ?? currentYear);
+}
+
 /**
  * Build year/month options for attendance history.
  * - Years: startYear..currentYear (newest first)
@@ -29,14 +45,17 @@ export const ATTENDANCE_HISTORY_START_YEAR = 2020;
 export function buildAttendancePeriodOptions(
   now: Date = new Date(),
   startYear: number = ATTENDANCE_HISTORY_START_YEAR,
+  limitCurrentYearMonths: boolean = true,
+  endYear?: number,
 ): AttendancePeriod[] {
   const currentYear = now.getFullYear();
   const currentMonthIndex = now.getMonth(); // 0-11
   const fromYear = Math.min(startYear, currentYear);
+  const toYear = endYear ?? currentYear;
 
   const periods: AttendancePeriod[] = [];
-  for (let year = currentYear; year >= fromYear; year -= 1) {
-    const lastMonthIndex = year === currentYear ? currentMonthIndex : 11;
+  for (let year = toYear; year >= fromYear; year -= 1) {
+    const lastMonthIndex = limitCurrentYearMonths && year === currentYear ? currentMonthIndex : 11;
     const months = Array.from({ length: lastMonthIndex + 1 }, (_, month) => ({
       month,
       label: MONTH_LABELS[month],

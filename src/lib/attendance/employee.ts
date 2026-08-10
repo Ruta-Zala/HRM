@@ -30,6 +30,8 @@ export type AttendanceEmployeeContext = {
   attendanceSpreadsheetId: string;
   sheetRow: number;
   birthdayDate: string;
+  /** ISO timestamp or date when the employee record was created in HRM. */
+  createdAt: string;
 };
 
 export function getAttendanceSpreadsheetIdFromRow(headers: string[], row: string[]): string {
@@ -85,6 +87,7 @@ export async function resolveAttendanceEmployee(
       attendanceSpreadsheetId: getAttendanceSpreadsheetIdFromRow(record.headers, record.row),
       sheetRow: record.sheetRow,
       birthdayDate: form.birthdayDate.trim(),
+      createdAt: form.createdAt.trim(),
     };
   }
 
@@ -107,6 +110,7 @@ export async function resolveAttendanceEmployee(
     attendanceSpreadsheetId,
     sheetRow: record.sheetRow,
     birthdayDate: form.birthdayDate.trim(),
+    createdAt: form.createdAt.trim(),
   };
 }
 
@@ -158,6 +162,7 @@ export async function resolveAttendanceEmployeeForTarget(
       attendanceSpreadsheetId: getAttendanceSpreadsheetIdFromRow(headers, row),
       sheetRow: targetSheetRow,
       birthdayDate: form.birthdayDate.trim(),
+      createdAt: form.createdAt.trim(),
     };
   }
 
@@ -180,6 +185,7 @@ export async function resolveAttendanceEmployeeForTarget(
     attendanceSpreadsheetId,
     sheetRow: targetSheetRow,
     birthdayDate: form.birthdayDate.trim(),
+    createdAt: form.createdAt.trim(),
   };
 }
 
@@ -203,6 +209,7 @@ export async function resolveAttendanceEmployeeBySheetRow(
       attendanceSpreadsheetId: getAttendanceSpreadsheetIdFromRow(headers, row),
       sheetRow,
       birthdayDate: form.birthdayDate.trim(),
+      createdAt: form.createdAt.trim(),
     };
   }
 
@@ -222,6 +229,7 @@ export async function resolveAttendanceEmployeeBySheetRow(
     attendanceSpreadsheetId,
     sheetRow,
     birthdayDate: form.birthdayDate.trim(),
+    createdAt: form.createdAt.trim(),
   };
 }
 

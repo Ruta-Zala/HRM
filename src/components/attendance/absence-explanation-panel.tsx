@@ -331,7 +331,7 @@ export function AbsenceExplanationPanel({
           {groups.map((group) => {
             const value = explanations[group.id] ?? "";
             const trimmed = value.trim();
-            const tooShort = trimmed.length > 0 && trimmed.length < ABSENCE_EXPLANATION_MIN_LENGTH;
+            const missingRequired = trimmed.length < ABSENCE_EXPLANATION_MIN_LENGTH;
             const rejectedEntry = group.entries[0];
             const leaveOptions = group.leaveTypeOptions ?? [];
 
@@ -425,10 +425,9 @@ export function AbsenceExplanationPanel({
                     rows={4}
                     disabled={submitting}
                   />
-                  {tooShort ? (
+                  {missingRequired && value.length > 0 ? (
                     <p className="text-xs text-amber-700 dark:text-amber-300">
-                      At least {ABSENCE_EXPLANATION_MIN_LENGTH} characters required (
-                      {trimmed.length}/{ABSENCE_EXPLANATION_MIN_LENGTH}).
+                      Explanation is required.
                     </p>
                   ) : null}
                 </div>

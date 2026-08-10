@@ -20,6 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import { MonthYearPicker } from "@/components/ui/month-year-picker";
 import { DEFAULT_PAGE_SIZE, Pagination } from "@/components/ui/pagination";
 import { Select } from "@/components/ui/select";
 import { StatCard } from "@/components/ui/stat-card";
@@ -140,6 +141,7 @@ export function AttendanceHistoryView({
   month,
   onYearChange,
   onMonthChange,
+  onPeriodChange,
   rows,
   loading,
   importing,
@@ -168,6 +170,7 @@ export function AttendanceHistoryView({
   month: number | null;
   onYearChange: (year: number) => void;
   onMonthChange: (month: number) => void;
+  onPeriodChange?: (year: number, month: number) => void;
   rows: AttendanceHistoryRow[];
   loading: boolean;
   importing: boolean;
@@ -274,7 +277,7 @@ export function AttendanceHistoryView({
 
   return (
     <div className="space-y-6">
-      <div className="border-ex-border via-ex-elevated to-ex-elevated overflow-hidden rounded-2xl border bg-gradient-to-br from-teal-500/10 p-5 sm:p-6">
+      <div className="border-ex-border via-ex-elevated to-ex-elevated relative z-10 overflow-visible rounded-2xl border bg-gradient-to-br from-teal-500/10 p-5 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="text-ex-muted flex items-center gap-2">
@@ -382,42 +385,22 @@ export function AttendanceHistoryView({
               </Select>
             </div>
           ) : null}
-          <div className="flex flex-wrap gap-3">
-            <div className="min-w-[120px]">
-              <label className="text-ex-muted mb-1 block text-xs font-medium">Year</label>
-              <Select
-                value={year ?? ""}
-                onChange={(e) => {
-                  onYearChange(parseInt(e.target.value, 10));
-                  setPage(1);
-                }}
-                disabled={periods.length === 0}
-              >
-                {periods.map((p) => (
-                  <option key={p.year} value={p.year}>
-                    {p.year}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="min-w-[120px]">
-              <label className="text-ex-muted mb-1 block text-xs font-medium">Month</label>
-              <Select
-                value={month ?? ""}
-                onChange={(e) => {
-                  onMonthChange(parseInt(e.target.value, 10));
-                  setPage(1);
-                }}
-                disabled={!availableMonths.length}
-              >
-                {availableMonths.map((m) => (
-                  <option key={m.month} value={m.month}>
-                    {m.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
+          <MonthYearPicker
+            year={year}
+            month={month}
+            periods={periods}
+            disabled={periods.length === 0}
+            onChange={(nextYear, nextMonth) => {
+              if (nextYear == null || nextMonth == null) return;
+              if (onPeriodChange) {
+                onPeriodChange(nextYear, nextMonth);
+              } else {
+                onYearChange(nextYear);
+                onMonthChange(nextMonth);
+              }
+              setPage(1);
+            }}
+          />
         </div>
       </div>
 

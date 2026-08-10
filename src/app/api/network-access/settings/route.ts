@@ -9,7 +9,7 @@ import {
   listRemoteAccessEmployees,
   removeRemoteAccessEmployee,
   setNetworkRestrictionEnabled,
-} from "@/lib/network-access/settings-sheets";
+} from "@/lib/network-access/repository";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 export const dynamic = "force-dynamic";

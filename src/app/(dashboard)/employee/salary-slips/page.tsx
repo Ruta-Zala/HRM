@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
+import { MonthYearPicker } from "@/components/ui/month-year-picker";
 import { Select } from "@/components/ui/select";
 import { ROLES } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
 import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { buildFullMonthYearPeriodOptions } from "@/lib/attendance/period-options";
 import { parseEmployeeListApiResponse } from "@/lib/employee";
 import type { Column } from "@/types/table";
 
@@ -89,10 +91,12 @@ export default function SalarySlipsPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(String(currentYear));
-  const [month, setMonth] = useState("");
+  const [year, setYear] = useState<number | null>(currentYear);
+  const [month, setMonth] = useState<number | null>(null);
   const [targetEmployee, setTargetEmployee] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const periods = useMemo(() => buildFullMonthYearPeriodOptions(), []);
 
   const [historyEmployeeSheetRow, setHistoryEmployeeSheetRow] = useState("");
   const [effectiveFrom, setEffectiveFrom] = useState("");
@@ -108,8 +112,8 @@ export default function SalarySlipsPage() {
       const params = new URLSearchParams({ mode: "list" });
       if (canManage) {
         if (targetEmployee) params.set("employeeSheetRow", targetEmployee);
-        if (year.trim()) params.set("year", year.trim());
-        if (month.trim()) params.set("month", month.trim());
+        if (year != null) params.set("year", String(year));
+        if (month != null) params.set("month", String(month + 1));
       }
 
       const res = await fetch(`/api/salary-slips?${params.toString()}`, { credentials: "include" });
@@ -203,14 +207,10 @@ export default function SalarySlipsPage() {
     void loadHistory();
   }, [loadSlips, loadEmployees, loadHistory]);
 
-  const monthOptions = useMemo(
-    () =>
-      Array.from({ length: 12 }).map((_, i) => ({
-        value: String(i + 1),
-        label: new Date(2026, i, 1).toLocaleString("en-IN", { month: "short" }),
-      })),
-    [],
-  );
+  const handlePeriodChange = (nextYear: number | null, nextMonth: number | null) => {
+    setYear(nextYear);
+    setMonth(nextMonth);
+  };
 
   const filteredHistoryRecords = useMemo(() => {
     const selected = Number(historyEmployeeSheetRow);
@@ -271,7 +271,7 @@ export default function SalarySlipsPage() {
   );
 
   const generateSlips = async () => {
-    if (!year.trim() || !month.trim()) {
+    if (year == null || month == null) {
       setSuccessMessage(null);
       setError("Select year and month before generating slips.");
       return;
@@ -282,8 +282,8 @@ export default function SalarySlipsPage() {
     setSuccessMessage(null);
     try {
       const payload: Record<string, unknown> = {
-        year: Number(year),
-        month: Number(month),
+        year,
+        month: month + 1,
       };
       if (targetEmployee) payload.employeeSheetRow = Number(targetEmployee);
       const res = await fetch("/api/salary-slips?mode=generate", {
@@ -431,31 +431,17 @@ export default function SalarySlipsPage() {
         </p>
       ) : null}
       {canManage ? (
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="w-auto min-w-28">
-            <Select value={year} onChange={(e) => setYear(e.target.value)}>
-              <option value="">All Years</option>
-              {Array.from({ length: currentYear - 2020 + 1 }).map((_, idx) => {
-                const y = currentYear - idx;
-                return (
-                  <option key={y} value={String(y)}>
-                    {String(y)}
-                  </option>
-                );
-              })}
-            </Select>
-          </div>
-          <div className="w-auto min-w-32">
-            <Select value={month} onChange={(e) => setMonth(e.target.value)}>
-              <option value="">All Months</option>
-              {monthOptions.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </Select>
-          </div>
+        <div className="flex flex-wrap items-end gap-4">
+          <MonthYearPicker
+            year={year}
+            month={month}
+            periods={periods}
+            allowAll
+            label="Period"
+            onChange={handlePeriodChange}
+          />
           <div className="w-auto min-w-48 flex-1 sm:flex-none">
+            <label className="text-ex-muted mb-1 block text-xs font-medium">Employee</label>
             <Select value={targetEmployee} onChange={(e) => setTargetEmployee(e.target.value)}>
               <option value="">All Active Employees</option>
               {employees.map((e) => (
