@@ -5,8 +5,7 @@ import type { SessionUser } from "@/types/auth";
 
 import { isSessionUserActive } from "./account-status";
 import { getSessionFromCookie } from "./server";
-// TEMP DISABLED: office Wi‑Fi / WFH network restriction.
-// import { assertNetworkAccess } from "@/lib/network-access/assert";
+import { assertNetworkAccess } from "@/lib/network-access/assert";
 
 /** Optional route context (dynamic segments). */
 export type ApiRouteContext = {
@@ -67,9 +66,8 @@ export function withActiveSession<
     const auth = await requireActiveSession();
     if (!auth.ok) return auth.response;
 
-    // TEMP DISABLED: office Wi‑Fi / WFH network restriction.
-    // const network = await assertNetworkAccess(request, auth.user);
-    // if (!network.ok) return network.response;
+    const network = await assertNetworkAccess(request, auth.user);
+    if (!network.ok) return network.response;
 
     return handler(request, auth.user, context);
   };

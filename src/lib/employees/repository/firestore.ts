@@ -1,4 +1,4 @@
-import { getSheetHeaders } from "@/lib/employee";
+import { getSheetHeaders, headerToFormKey } from "@/lib/employee";
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 
@@ -59,8 +59,24 @@ async function ensureEmployeesBootstrapped(): Promise<void> {
 async function getHeaders(): Promise<string[]> {
   await ensureEmployeesBootstrapped();
   const snap = await employeesCollection().doc(META_DOC_ID).get();
-  const headers = (snap.data()?.headers as string[] | undefined) ?? [];
+  let headers = (snap.data()?.headers as string[] | undefined) ?? [];
+  if (headers.length > 0) return headers;
+
+  // Meta may exist without headers (empty bootstrap). Pull once from Sheets.
+  try {
+    const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
+    headers = getSheetHeaders(raw);
+    if (headers.length > 0) {
+      await employeesCollection().doc(META_DOC_ID).set({ headers }, { merge: true });
+    }
+  } catch (error) {
+    console.error("[firebase] failed to refresh employee headers from Sheets:", error);
+  }
   return headers;
+}
+
+export async function getEmployeeHeadersFirestore(): Promise<string[]> {
+  return getHeaders();
 }
 
 export async function getEmployeeBySheetRow(sheetRow: number): Promise<EmployeeRowRecord | null> {
@@ -124,4 +140,63 @@ export async function listAllEmployeeRows(): Promise<EmployeeRowRecord[]> {
   }
 
   return records.sort((a, b) => a.sheetRow - b.sheetRow);
+}
+
+/** Sheet-shaped matrix: `[headers, ...dataRows]` for existing list/process helpers. */
+export async function readEmployeeSheetDataFirestore(): Promise<{
+  data: string[][];
+  sheetRowNumbers: number[];
+}> {
+  const records = await listAllEmployeeRows();
+  const headers = await getHeaders();
+  return {
+    data: [headers, ...records.map((record) => record.row)],
+    sheetRowNumbers: records.map((record) => record.sheetRow),
+  };
+}
+
+export async function getEmployeeCountFirestore(): Promise<number> {
+  const records = await listAllEmployeeRows();
+  return records.length;
+}
+
+export async function getExistingEmployeeIdsFirestore(): Promise<string[]> {
+  const records = await listAllEmployeeRows();
+  if (records.length === 0) return [];
+  const headers = records[0]?.headers ?? (await getHeaders());
+  const idIndex = headers.findIndex((header) => headerToFormKey(header) === "employeeId");
+  if (idIndex < 0) return [];
+  return records.map((record) => String(record.row[idIndex] ?? "").trim()).filter(Boolean);
+}
+
+export async function createEmployeeRowFirestore(row: string[]): Promise<number> {
+  await ensureEmployeesBootstrapped();
+  const headers = await getHeaders();
+  if (headers.length === 0) {
+    throw new Error("Employee sheet headers are missing in Firebase. Re-bootstrap from Sheets.");
+  }
+
+  const snap = await employeesCollection().get();
+  let maxSheetRow = 1;
+  for (const doc of snap.docs) {
+    if (doc.id === META_DOC_ID) continue;
+    const sheetRow = Number(doc.id);
+    if (Number.isFinite(sheetRow) && sheetRow > maxSheetRow) {
+      maxSheetRow = sheetRow;
+    }
+  }
+
+  const sheetRow = maxSheetRow + 1;
+  const normalized = headers.map((_, index) => String(row[index] ?? ""));
+  await employeesCollection().doc(String(sheetRow)).set({ sheetRow, row: normalized });
+  return sheetRow;
+}
+
+export async function deleteEmployeeRowFirestore(sheetRow: number): Promise<boolean> {
+  if (sheetRow < 2) return false;
+  const ref = employeesCollection().doc(String(sheetRow));
+  const snap = await ref.get();
+  if (!snap.exists) return false;
+  await ref.delete();
+  return true;
 }

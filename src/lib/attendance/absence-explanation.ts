@@ -126,6 +126,31 @@ function wasAbsentOnDate(attendance: AttendanceRow | null): boolean {
   return true;
 }
 
+/**
+ * Past absence explanations should not cover days before the employee existed in HRM.
+ * New hires often have an older joining date, but `createdAt` is when the account was added.
+ */
+function pastAbsenceScanFromIso(
+  employee: AttendanceEmployeeContext,
+  quarterStartIso: string,
+): string {
+  const raw = employee.createdAt?.trim() ?? "";
+  if (!raw) return quarterStartIso;
+
+  let createdIso = "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    createdIso = raw;
+  } else {
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      createdIso = localDateIso(parsed);
+    }
+  }
+
+  if (!createdIso) return quarterStartIso;
+  return createdIso > quarterStartIso ? createdIso : quarterStartIso;
+}
+
 function hasActiveLeaveForDate(leaves: LeaveApplication[]): boolean {
   return leaves.some((leave) => {
     const status = leave.status.trim().toLowerCase();
@@ -536,6 +561,7 @@ export async function getPendingAbsenceExplanationGroups(
   const todayIso = localDateIso();
   const asOfDate = new Date(`${todayIso}T12:00:00`);
   const quarterStartIso = currentQuarterStartIso(asOfDate);
+  const pastScanFromIso = pastAbsenceScanFromIso(employee, quarterStartIso);
   const leaveHolidayDates = await getLeaveHolidayDates();
 
   const [leaveRows, explanations, attendanceByDate] = await Promise.all([
@@ -592,14 +618,15 @@ export async function getPendingAbsenceExplanationGroups(
   }
 
   // Past unauthorized / rejected gaps are limited to the current leave quarter
-  // (Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec), matching sick/casual allocation.
+  // (Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec), matching sick/casual allocation,
+  // and never before the employee account was created in HRM.
   for (const leave of allLeaves) {
     if (leave.status.trim().toLowerCase() !== LEAVE_STATUS.REJECTED.toLowerCase()) {
       continue;
     }
 
     const dateIso = leaveDateToIso(leave.date);
-    if (!dateIso || dateIso >= todayIso || dateIso < quarterStartIso) continue;
+    if (!dateIso || dateIso >= todayIso || dateIso < pastScanFromIso) continue;
     if (!isScheduledWorkingDay(dateIso, leaveHolidayDates)) continue;
 
     const attendance = attendanceByDate.get(dateIso) ?? null;
@@ -616,7 +643,7 @@ export async function getPendingAbsenceExplanationGroups(
   }
 
   for (const dateIso of listPastWorkingDates(todayIso, leaveHolidayDates, {
-    fromDateInclusive: quarterStartIso,
+    fromDateInclusive: pastScanFromIso,
   })) {
     if (allPastAbsenceByDate.has(dateIso)) continue;
 
@@ -639,7 +666,7 @@ export async function getPendingAbsenceExplanationGroups(
   }
 
   const latestEpisode = collectLatestAbsenceEpisode(allPastAbsenceByDate, leaveHolidayDates).filter(
-    (entry) => entry.dateIso < todayIso && entry.dateIso >= quarterStartIso,
+    (entry) => entry.dateIso < todayIso && entry.dateIso >= pastScanFromIso,
   );
   const latestEpisodeNeedsExplanation =
     latestEpisode.length > 0 && latestEpisode.some((entry) => !explainedDates.has(entry.dateIso));
@@ -686,7 +713,11 @@ export async function submitAbsenceExplanations(params: {
   for (const submission of params.submissions) {
     const explanation = submission.explanation.trim();
     if (explanation.length < ABSENCE_EXPLANATION_MIN_LENGTH) {
-      throw new Error(`Explanation must be at least ${ABSENCE_EXPLANATION_MIN_LENGTH} characters`);
+      throw new Error(
+        ABSENCE_EXPLANATION_MIN_LENGTH <= 1
+          ? "Explanation is required"
+          : `Explanation must be at least ${ABSENCE_EXPLANATION_MIN_LENGTH} characters`,
+      );
     }
 
     const group = resolveSubmissionGroup(submission, pendingById);

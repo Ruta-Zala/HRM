@@ -207,20 +207,19 @@ export const navStructure: NavItem[] = [
       { roles: [], label: "Media uploads", href: "/integrations/media" },
     ],
   },
-  // TEMP DISABLED: office Wi‑Fi / WFH network restriction — hide from sidebar until re-enabled.
-  // {
-  //   label: "Access Control",
-  //   href: "/settings/network",
-  //   icon: "Shield",
-  //   roles: [SUPER_ADMIN, HR_MANAGER],
-  //   children: [
-  //     {
-  //       roles: [SUPER_ADMIN, HR_MANAGER],
-  //       label: "LAN / Wi-Fi Restriction",
-  //       href: "/settings/network",
-  //     },
-  //   ],
-  // },
+  {
+    label: "Access Control",
+    href: "/settings/network",
+    icon: "Shield",
+    roles: [SUPER_ADMIN, HR_MANAGER],
+    children: [
+      {
+        roles: [SUPER_ADMIN, HR_MANAGER],
+        label: "LAN / Wi-Fi Restriction",
+        href: "/settings/network",
+      },
+    ],
+  },
 ];
 
 function filterNavChildren(
@@ -250,12 +249,6 @@ export function canAccessPath(role: UserRole, pathname: string): boolean {
   }
 
   if (isLeaveDeskRoute(pathname) && !roleCanApplyLeave(role)) {
-    return false;
-  }
-
-  // TEMP DISABLED: office Wi‑Fi / WFH network restriction settings page.
-  // Remove this block when re-enabling Access Control in navStructure.
-  if (pathname === "/settings/network" || pathname.startsWith("/settings/network/")) {
     return false;
   }
 
