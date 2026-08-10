@@ -1,6 +1,7 @@
 /**
  * Daily multi-user flows (attendance, login, notifications, absence gate) use Firebase
- * when configured. Infrequent HR flows stay on Google Sheets.
+ * when configured. Network access (office Wi‑Fi / WFH) always uses Firestore.
+ * Other infrequent HR flows may still use Google Sheets.
  */
 export function isFirebaseDailyStorage(): boolean {
   const daily = process.env.DAILY_DATA_STORAGE?.trim().toLowerCase();

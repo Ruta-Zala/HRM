@@ -11,7 +11,10 @@ export type IndexedSheetRow = {
   values: string[];
 };
 
-export function indexSheetBody(data: string[][]): {
+export function indexSheetBody(
+  data: string[][],
+  sheetRowNumbers?: number[],
+): {
   headers: string[];
   rows: IndexedSheetRow[];
 } {
@@ -23,7 +26,7 @@ export function indexSheetBody(data: string[][]): {
   return {
     headers,
     rows: body.map((values, index) => ({
-      sheetRow: index + 2,
+      sheetRow: sheetRowNumbers?.[index] ?? index + 2,
       values,
     })),
   };
@@ -141,6 +144,8 @@ function sortIndexedRows(
 
 export function processEmployeeSheet(params: {
   data: string[][];
+  /** When rows come from Firebase, pass real doc sheetRow ids (aligned with data body). */
+  sheetRowNumbers?: number[];
   search?: string;
   status?: string;
   sortBy?: string | null;
@@ -156,6 +161,7 @@ export function processEmployeeSheet(params: {
 } {
   const {
     data,
+    sheetRowNumbers,
     search = "",
     status = "",
     sortBy,
@@ -165,7 +171,7 @@ export function processEmployeeSheet(params: {
     excludeInactive = false,
   } = params;
 
-  const { headers, rows: indexedRows } = indexSheetBody(data);
+  const { headers, rows: indexedRows } = indexSheetBody(data, sheetRowNumbers);
   let rows = indexedRows;
   rows = filterIndexedRows(headers, rows, search);
   if (excludeInactive) {

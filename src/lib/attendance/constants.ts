@@ -223,7 +223,7 @@ export const OVERTIME_REQUEST_HEADERS = [
 export const ABSENCE_EXPLANATION_SHEET_TITLE = "AbsenceExplanations";
 
 /** Minimum characters for absence explanation after rejected leave. */
-export const ABSENCE_EXPLANATION_MIN_LENGTH = 10;
+export const ABSENCE_EXPLANATION_MIN_LENGTH = 1;
 
 export const ABSENCE_EXPLANATION_HEADERS = [
   "ID",

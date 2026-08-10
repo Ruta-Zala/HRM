@@ -14,12 +14,11 @@ import {
   roleRequiresAbsenceExplanationGate,
 } from "@/lib/attendance/absence-gate";
 import { NETWORK_BLOCKED_PATH } from "@/lib/network-access/constants";
-// TEMP DISABLED: office Wi‑Fi / WFH network restriction imports.
-// import {
-//   NETWORK_GATE_COOKIE,
-//   readNetworkGateDecision,
-// } from "@/lib/network-access/network-gate-cookie";
-// import { canManageEmployees } from "@/lib/auth/roles";
+import {
+  NETWORK_GATE_COOKIE,
+  readNetworkGateDecision,
+} from "@/lib/network-access/network-gate-cookie";
+import { canManageEmployees } from "@/lib/auth/roles";
 import type { UserRole } from "@/types/auth";
 
 const PUBLIC_PATHS = [
@@ -31,8 +30,7 @@ const PUBLIC_PATHS = [
   "/api/auth/me",
   "/api/auth/status",
   "/api/auth/absence-gate",
-  // TEMP DISABLED: office Wi‑Fi / WFH network restriction.
-  // "/api/auth/network-access",
+  "/api/auth/network-access",
   "/api/integrations/google-drive/callback",
   "/api/cron/leave-reminders",
   // Vercel Cron (midnight IST) — auth is enforced inside the route.
@@ -44,8 +42,7 @@ const NETWORK_GATE_ALLOWED_PATHS = [
   "/api/auth/logout",
   "/api/auth/me",
   "/api/auth/status",
-  // TEMP DISABLED: office Wi‑Fi / WFH network restriction.
-  // "/api/auth/network-access",
+  "/api/auth/network-access",
 ];
 
 const GATE_ALLOWED_PAGE_PATHS = [PUNCH_GATE_ROUTE];
@@ -95,32 +92,23 @@ function isNetworkGateAllowedPath(pathname: string): boolean {
   return NETWORK_GATE_ALLOWED_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-// TEMP DISABLED: used by enforceNetworkGate when network restriction is re-enabled.
-// function redirectToNetworkBlocked(req: NextRequest) {
-//   const url = req.nextUrl.clone();
-//   url.pathname = NETWORK_BLOCKED_PATH;
-//   url.search = "";
-//   return NextResponse.redirect(url);
-// }
+function redirectToNetworkBlocked(req: NextRequest) {
+  const url = req.nextUrl.clone();
+  url.pathname = NETWORK_BLOCKED_PATH;
+  url.search = "";
+  return NextResponse.redirect(url);
+}
 
 /**
  * Cookie-based network gate (no Google Sheets in middleware).
  * Missing/stale cookie → /network-blocked to revalidate via Node API.
- *
- * TEMP DISABLED: office Wi‑Fi / WFH network restriction is commented out.
- * Uncomment the body below and remove the early `return null` to re-enable.
  */
 function enforceNetworkGate(req: NextRequest, role: UserRole): NextResponse | null {
-  // TEMP DISABLED — network restriction off until re-enabled.
-  void req;
-  void role;
-  return null;
+  if (canManageEmployees(role)) return null;
 
-  // if (canManageEmployees(role)) return null;
-  //
-  // const decision = readNetworkGateDecision(req.cookies.get(NETWORK_GATE_COOKIE)?.value, req);
-  // if (decision === "allow") return null;
-  // return redirectToNetworkBlocked(req);
+  const decision = readNetworkGateDecision(req.cookies.get(NETWORK_GATE_COOKIE)?.value, req);
+  if (decision === "allow") return null;
+  return redirectToNetworkBlocked(req);
 }
 
 function isGateRequired(req: NextRequest, gateRole: boolean): boolean {
@@ -243,7 +231,6 @@ export async function middleware(req: NextRequest) {
   }
 
   if (!isNetworkGateAllowedPath(pathname)) {
-    // TEMP DISABLED: office Wi‑Fi / WFH network restriction (enforceNetworkGate is a no-op).
     const networkRedirect = enforceNetworkGate(req, user.role as UserRole);
     if (networkRedirect) {
       if (pathname.startsWith("/api/")) {
