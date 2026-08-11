@@ -436,14 +436,17 @@ function listPastWorkingDates(
 async function buildAttendanceByDate(
   employee: AttendanceEmployeeContext,
   todayIso: string,
-  scanFromIso?: string,
+  fromDateInclusive?: string,
 ): Promise<Map<string, AttendanceRow>> {
   const today = new Date(`${todayIso}T12:00:00`);
-  const monthKeys: Array<{ year: number; monthIndex: number }> = [];
   const quarterStartIso = currentQuarterStartIso(today);
-  const fromIso = scanFromIso?.trim() || pastAbsenceScanFromIso(employee, quarterStartIso);
-
+  // Prefer the caller window (createdAt / quarter start); fall back safely for login + gate scans.
+  const requestedFrom =
+    fromDateInclusive?.trim() || pastAbsenceScanFromIso(employee, quarterStartIso);
+  const fromIso = requestedFrom <= todayIso ? requestedFrom : todayIso;
   const startMonth = new Date(`${fromIso}T12:00:00`);
+
+  const monthKeys: Array<{ year: number; monthIndex: number }> = [];
   let cursor = new Date(startMonth.getFullYear(), startMonth.getMonth(), 1);
   const endMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 

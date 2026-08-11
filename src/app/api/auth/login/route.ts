@@ -77,42 +77,43 @@ export async function POST(req: Request) {
 
     let requiresAbsenceExplanation = false;
     let requiresMorningPunch = false;
-    if (roleRequiresAbsenceExplanationGate(result.user.role)) {
-      try {
-        requiresAbsenceExplanation = await syncAbsenceGateForUser(result.user, {
-          forceRefresh: true,
-        });
-      } catch (error) {
-        // Absence gate sync is non-critical for successful authentication.
-        console.warn("[auth/login] absence gate sync failed:", error);
-      }
+    const gateRole = roleRequiresAbsenceExplanationGate(result.user.role);
 
-      try {
-        requiresMorningPunch = await userRequiresMorningPunchGate(result.user);
-      } catch (error) {
-        console.warn("[auth/login] morning punch gate sync failed:", error);
-      }
-
-      try {
-        // Catch up forgotten punch-outs from prior days and create the employee notification.
-        await ensureForgottenPunchOutForUser(result.user);
-      } catch (error) {
-        console.warn("[auth/login] auto punch-out catch-up failed:", error);
-      }
-    }
-
-    let network = {
-      allowed: true,
-      reason: "restriction_disabled",
-      clientIp: safeReportedIp ?? "",
-    };
-    try {
-      network = await evaluateNetworkAccess(req, result.user, {
+    // Run gate checks in parallel — these were sequential and dominated live login latency.
+    // Auto punch-out is catch-up only; do not block the login response on it.
+    const [absenceResult, morningResult, networkResult] = await Promise.all([
+      gateRole
+        ? syncAbsenceGateForUser(result.user, { forceRefresh: true }).catch((error) => {
+            console.warn("[auth/login] absence gate sync failed:", error);
+            return false;
+          })
+        : Promise.resolve(false),
+      gateRole
+        ? userRequiresMorningPunchGate(result.user).catch((error) => {
+            console.warn("[auth/login] morning punch gate sync failed:", error);
+            return false;
+          })
+        : Promise.resolve(false),
+      evaluateNetworkAccess(req, result.user, {
         reportedPublicIp: safeReportedIp,
+      }).catch((error) => {
+        console.warn("[auth/login] network check failed, allowing temporary access:", error);
+        return {
+          allowed: true,
+          reason: "restriction_disabled" as const,
+          clientIp: safeReportedIp ?? "",
+        };
+      }),
+    ]);
+
+    requiresAbsenceExplanation = absenceResult;
+    requiresMorningPunch = morningResult;
+    const network = networkResult;
+
+    if (gateRole) {
+      void ensureForgottenPunchOutForUser(result.user).catch((error) => {
+        console.warn("[auth/login] auto punch-out catch-up failed:", error);
       });
-    } catch (error) {
-      // Network evaluation should not fail sign-in on transient dependency issues.
-      console.warn("[auth/login] network check failed, allowing temporary access:", error);
     }
 
     const token = encodeSession({ ...result.user, loggedInAt: Date.now() });
