@@ -9,6 +9,7 @@ const PICKER_FIELD_KEYS = [
   "status",
   "position",
   "email",
+  "address",
 ] as const satisfies readonly (keyof EmployeeFormState)[];
 
 export type EmployeeListApiResponse = {
@@ -38,6 +39,7 @@ export function parseEmployeeListApiResponse(result: EmployeeListApiResponse): E
       status: normalizeStatus(fields.status ?? "") as EmployeeStatus,
       position: fields.position ?? "",
       email: fields.email ?? "",
+      address: fields.address ?? "",
     };
   });
 }

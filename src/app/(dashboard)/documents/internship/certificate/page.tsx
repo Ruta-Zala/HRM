@@ -1,0 +1,219 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+
+import { PageHeader } from "@/components/ui/page-header";
+import { AccessDenied } from "@/components/ui/access-denied";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { POSITIONS } from "@/app/consts/common";
+import { useAuth } from "@/contexts/auth-provider";
+import { canManageEmployees } from "@/lib/auth/roles";
+
+import { useLetterEmployees } from "../../_shared/use-letter-employees";
+import { TITLE_OPTIONS, printLetter, todayIso, type Title } from "../../_shared/letter-utils";
+import styles from "../../_shared/letter.module.css";
+import { buildCertificateData } from "./generate";
+import CertificateTemplate from "./letter-template";
+import type { CertificateFormState } from "./types";
+
+export default function InternshipCertificatePage() {
+  const { user } = useAuth();
+  const canManage = user ? canManageEmployees(user.role) : false;
+  const { employees: allEmployees, loading, error } = useLetterEmployees(canManage);
+  const employees = useMemo(
+    () =>
+      allEmployees.filter(
+        (employee) => employee.position.trim().toLowerCase() === POSITIONS.TRAINEE.toLowerCase(),
+      ),
+    [allEmployees],
+  );
+
+  const [form, setForm] = useState<CertificateFormState>({
+    employeeSheetRow: "",
+    candidateName: "",
+    title: "Mr",
+    project: "",
+    startDate: "",
+    endDate: "",
+    issueDate: todayIso(),
+  });
+
+  function update<K extends keyof CertificateFormState>(key: K, value: CertificateFormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function selectEmployee(sheetRow: string) {
+    const employee = employees.find((e) => e.sheetRow === sheetRow);
+    setForm((prev) => ({
+      ...prev,
+      employeeSheetRow: sheetRow,
+      candidateName: employee?.name ?? "",
+    }));
+  }
+
+  const data = useMemo(() => buildCertificateData(form), [form]);
+
+  const isReady = Boolean(
+    form.candidateName.trim() && form.startDate && form.endDate && form.issueDate,
+  );
+
+  if (!canManage) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="Internship Certificate"
+          description="Generate an internship completion certificate."
+        />
+        <AccessDenied
+          description="Document generation is only available to HR and Super Admin."
+          action={
+            <Link href="/documents/internship">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="size-4" />
+                Back to documents
+              </Button>
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6 lg:h-[calc(100dvh-8.5rem)] lg:overflow-hidden">
+      <PageHeader
+        className="shrink-0"
+        title="Internship Certificate"
+        description="Pick a candidate and fill in the internship details."
+        actions={
+          <Link href="/documents/internship">
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="size-4" />
+              Back to documents
+            </Button>
+          </Link>
+        }
+      />
+
+      {error ? (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {error}
+        </p>
+      ) : null}
+
+      <div className="divide-ex-border -mx-4 grid min-h-0 flex-1 grid-cols-1 gap-6 px-2 lg:mx-0 lg:grid-cols-2 lg:gap-0 lg:divide-x lg:overflow-hidden lg:px-0">
+        <div className="lg:overflow-y-auto lg:pr-6">
+          <Card className="print:hidden">
+            <CardHeader>
+              <CardTitle className="text-base">Details</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="candidate">Candidate</Label>
+                <Select
+                  id="candidate"
+                  value={form.employeeSheetRow}
+                  onChange={(e) => selectEmployee(e.target.value)}
+                  disabled={loading}
+                >
+                  <option value="">
+                    {loading
+                      ? "Loading trainees…"
+                      : employees.length === 0
+                        ? "No trainees found"
+                        : "Select trainee"}
+                  </option>
+                  {employees.map((employee) => (
+                    <option key={employee.sheetRow} value={employee.sheetRow}>
+                      {employee.name} ({employee.employeeId})
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="title">Title</Label>
+                <Select
+                  id="title"
+                  value={form.title}
+                  onChange={(e) => update("title", e.target.value as Title)}
+                >
+                  {TITLE_OPTIONS.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="project">Technology / project</Label>
+                <Input
+                  id="project"
+                  value={form.project}
+                  onChange={(e) => update("project", e.target.value)}
+                  placeholder="e.g. Full Stack Development"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="startDate">Start date</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={form.startDate}
+                  onChange={(e) => update("startDate", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="endDate">End date</Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={form.endDate}
+                  onChange={(e) => update("endDate", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="issueDate">Issue date</Label>
+                <Input
+                  id="issueDate"
+                  type="date"
+                  value={form.issueDate}
+                  onChange={(e) => update("issueDate", e.target.value)}
+                />
+              </div>
+
+              <Button onClick={printLetter} disabled={!isReady} className="mt-1">
+                Print / Save PDF
+              </Button>
+              {!isReady ? (
+                <p className="text-ex-muted text-xs">
+                  Select a candidate and fill in the dates to enable printing.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="min-h-0 lg:pl-6">
+          <div
+            className={`${styles.previewPanel} border-ex-border bg-ex-elevated/40 overflow-x-hidden overflow-y-auto rounded-xl border p-4 lg:h-full print:overflow-visible print:border-0 print:bg-transparent print:p-0`}
+          >
+            <div className={styles.previewScaler}>
+              <CertificateTemplate data={data} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

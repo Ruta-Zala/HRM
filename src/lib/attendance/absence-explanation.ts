@@ -436,13 +436,24 @@ function listPastWorkingDates(
 async function buildAttendanceByDate(
   employee: AttendanceEmployeeContext,
   todayIso: string,
+  scanFromIso?: string,
 ): Promise<Map<string, AttendanceRow>> {
   const today = new Date(`${todayIso}T12:00:00`);
   const monthKeys: Array<{ year: number; monthIndex: number }> = [];
+  const quarterStartIso = currentQuarterStartIso(today);
+  const fromIso = scanFromIso?.trim() || pastAbsenceScanFromIso(employee, quarterStartIso);
 
-  for (let offset = 0; offset < ATTENDANCE_MONTHS_TO_SCAN; offset += 1) {
-    const date = new Date(today.getFullYear(), today.getMonth() - offset, 1);
-    monthKeys.push({ year: date.getFullYear(), monthIndex: date.getMonth() });
+  const startMonth = new Date(`${fromIso}T12:00:00`);
+  let cursor = new Date(startMonth.getFullYear(), startMonth.getMonth(), 1);
+  const endMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  while (cursor <= endMonth && monthKeys.length < ATTENDANCE_MONTHS_TO_SCAN) {
+    monthKeys.push({ year: cursor.getFullYear(), monthIndex: cursor.getMonth() });
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+
+  if (monthKeys.length === 0) {
+    monthKeys.push({ year: today.getFullYear(), monthIndex: today.getMonth() });
   }
 
   const repo = getAttendanceRepository();
@@ -567,7 +578,7 @@ export async function getPendingAbsenceExplanationGroups(
   const [leaveRows, explanations, attendanceByDate] = await Promise.all([
     readLeaveBucketRowsForAbsenceExplanation(toLeaveBucketStorageRef(employee)),
     listAbsenceExplanations(employee),
-    buildAttendanceByDate(employee, todayIso),
+    buildAttendanceByDate(employee, todayIso, pastScanFromIso),
   ]);
 
   const allLeaves = listLeaveApplicationsFromRows({

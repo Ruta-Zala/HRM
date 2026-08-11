@@ -12,7 +12,7 @@ import {
   type TodayAttendance,
 } from "@/lib/attendance/client";
 import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-facing-error";
-import { computeLiveWorkedMsFromFields } from "@/lib/attendance/time";
+import { computeLiveBreakMsFromFields, computeLiveWorkedMsFromFields } from "@/lib/attendance/time";
 
 export type AttendanceActionName = "punch-in" | "punch-out" | "break-start" | "break-end";
 
@@ -26,6 +26,10 @@ type TodayAttendanceContextValue = {
   actingAction: AttendanceActionName | null;
   tick: number;
   liveWorkedMs: number;
+  /** Elapsed time for the current open break (0 when not on break). */
+  liveBreakSessionMs: number;
+  /** Total break used today including the open break. */
+  liveBreakUsedMs: number;
   refresh: () => Promise<void>;
   runAction: (action: AttendanceActionName, payload?: AttendanceActionPayload) => Promise<void>;
 };
@@ -109,6 +113,17 @@ function useTodayAttendanceState(enabled: boolean): TodayAttendanceContextValue 
       })
     : 0;
 
+  const liveBreak = today
+    ? computeLiveBreakMsFromFields({
+        date: today.date,
+        workMode: today.workMode,
+        punchIn: today.punchIn,
+        totalBreakTime: today.totalBreakTime,
+        breakStart: today.breakStart,
+        breakEnd: today.breakEnd,
+      })
+    : { sessionMs: 0, totalUsedMs: 0, onBreak: false };
+
   void tick;
 
   return {
@@ -119,6 +134,8 @@ function useTodayAttendanceState(enabled: boolean): TodayAttendanceContextValue 
     actingAction,
     tick,
     liveWorkedMs,
+    liveBreakSessionMs: liveBreak.sessionMs,
+    liveBreakUsedMs: liveBreak.totalUsedMs,
     refresh,
     runAction,
   };

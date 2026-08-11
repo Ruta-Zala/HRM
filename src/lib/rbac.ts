@@ -150,6 +150,24 @@ export const navStructure: NavItem[] = [
     ],
   },
   {
+    label: "Documents",
+    href: "/documents",
+    icon: "FileText",
+    roles: [SUPER_ADMIN, HR_MANAGER],
+    children: [
+      {
+        label: "Internship",
+        href: "/documents/internship",
+        roles: [SUPER_ADMIN, HR_MANAGER],
+      },
+      {
+        label: "Employee Documents",
+        href: "/documents/employee",
+        roles: [SUPER_ADMIN, HR_MANAGER],
+      },
+    ],
+  },
+  {
     label: "Leave",
     href: "/leave",
     icon: "CalendarDays",

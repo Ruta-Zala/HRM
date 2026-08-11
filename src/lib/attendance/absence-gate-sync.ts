@@ -12,6 +12,7 @@ import {
 import { setAbsenceGateCookie } from "@/lib/attendance/absence-gate-cookie";
 import { roleRequiresAbsenceExplanationGate } from "@/lib/attendance/absence-gate";
 import { resolveAttendanceEmployee } from "@/lib/attendance/employee";
+import { hasLeaveBucketStorage } from "@/lib/attendance/leave-bucket/repository";
 import type { SessionUser } from "@/types/auth";
 
 export { invalidateAbsenceExplanationCache };
@@ -25,7 +26,7 @@ export async function getPendingAbsenceGroupsForUser(
   }
 
   const employee = await resolveAttendanceEmployee(user);
-  if (!employee?.attendanceSpreadsheetId) {
+  if (!employee || !hasLeaveBucketStorage(employee)) {
     return [];
   }
 
@@ -68,7 +69,7 @@ export async function checkAbsenceGateForUser(user: SessionUser): Promise<boolea
   }
 
   const employee = await resolveAttendanceEmployee(user);
-  if (!employee?.attendanceSpreadsheetId) {
+  if (!employee || !hasLeaveBucketStorage(employee)) {
     return false;
   }
 

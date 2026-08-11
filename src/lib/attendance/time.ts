@@ -532,6 +532,51 @@ export function monthLabel(monthIndex: number): string {
   return MONTH_NAMES[monthIndex] ?? "Unknown";
 }
 
+type LiveBreakFields = {
+  date: string;
+  workMode?: string;
+  punchIn?: string;
+  totalBreakTime: string;
+  breakStart: string;
+  breakEnd: string;
+  now?: Date;
+};
+
+/** Live break session + day total (includes an open break). */
+export function computeLiveBreakMsFromFields(params: LiveBreakFields): {
+  sessionMs: number;
+  totalUsedMs: number;
+  onBreak: boolean;
+} {
+  const skipBreak = isHalfDayUnpaidWorkMode(params.workMode);
+  if (skipBreak) {
+    return { sessionMs: 0, totalUsedMs: 0, onBreak: false };
+  }
+
+  const now = params.now ?? new Date();
+  const baseDate = new Date(params.date);
+  const storedMs = resolveLiveBreakMs(params.totalBreakTime, params.workMode, {
+    inProgress: true,
+  });
+
+  const onBreak = Boolean(params.breakStart.trim() && !params.breakEnd.trim());
+  if (!onBreak) {
+    return { sessionMs: 0, totalUsedMs: storedMs, onBreak: false };
+  }
+
+  const breakStartMs = parseSheetClockTime(params.breakStart, baseDate, {
+    punchIn: params.punchIn,
+    role: "out",
+  });
+  const sessionMs = breakStartMs != null ? Math.max(0, now.getTime() - breakStartMs) : 0;
+
+  return {
+    sessionMs,
+    totalUsedMs: storedMs + sessionMs,
+    onBreak: true,
+  };
+}
+
 /** Client-side live worked duration from today's attendance fields. */
 export function computeLiveWorkedMsFromFields(params: {
   date: string;
@@ -557,20 +602,15 @@ export function computeLiveWorkedMsFromFields(params: {
       }) ?? now.getTime())
     : now.getTime();
 
-  const skipBreak = isHalfDayUnpaidWorkMode(params.workMode);
-  let totalBreakMs = resolveLiveBreakMs(params.totalBreakTime, params.workMode, {
-    inProgress: !params.punchOut.trim(),
+  const { totalUsedMs: totalBreakMs } = computeLiveBreakMsFromFields({
+    date: params.date,
+    workMode: params.workMode,
+    punchIn: params.punchIn,
+    totalBreakTime: params.totalBreakTime,
+    breakStart: params.breakStart,
+    breakEnd: params.breakEnd,
+    now,
   });
-
-  if (!skipBreak && params.breakStart.trim() && !params.breakEnd.trim()) {
-    const breakStartMs = parseSheetClockTime(params.breakStart, baseDate, {
-      punchIn: params.punchIn,
-      role: "out",
-    });
-    if (breakStartMs != null) {
-      totalBreakMs += Math.max(0, now.getTime() - breakStartMs);
-    }
-  }
 
   return Math.max(0, endMs - punchInMs - totalBreakMs);
 }

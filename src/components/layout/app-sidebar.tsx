@@ -4,6 +4,7 @@ import {
   Bell,
   CalendarDays,
   ChevronDown,
+  FileText,
   LayoutDashboard,
   Menu,
   MessageSquareWarning,
@@ -31,6 +32,7 @@ const iconMap = {
   MessageSquareWarning,
   Plug,
   Shield,
+  FileText,
 } as const;
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
