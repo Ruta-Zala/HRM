@@ -1,4 +1,4 @@
-import { getSheetHeaders, headerToFormKey } from "@/lib/employee";
+import { getSheetHeaders, headerToFormKey, sheetRowToForm } from "@/lib/employee";
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 
@@ -15,6 +15,20 @@ let bootstrapPromise: Promise<void> | null = null;
 
 function employeesCollection() {
   return getAdminFirestore().collection(EMPLOYEES_COLLECTION);
+}
+
+function loginIndexFields(
+  headers: string[],
+  row: string[],
+): {
+  emailLower: string;
+  usernameLower: string;
+} {
+  const form = sheetRowToForm(headers, row);
+  return {
+    emailLower: form.email.trim().toLowerCase(),
+    usernameLower: form.username.trim().toLowerCase(),
+  };
 }
 
 async function ensureEmployeesBootstrapped(): Promise<void> {
@@ -44,6 +58,7 @@ async function ensureEmployeesBootstrapped(): Promise<void> {
       batch.set(db.collection(EMPLOYEES_COLLECTION).doc(String(sheetRow)), {
         sheetRow,
         row,
+        ...loginIndexFields(headers, row),
       });
     }
 
@@ -99,18 +114,50 @@ export async function findEmployeeByLogin(login: string): Promise<EmployeeRowRec
 
   await ensureEmployeesBootstrapped();
   const headers = await getHeaders();
-  const snap = await employeesCollection().get();
 
+  // Prefer indexed login fields when present (written on create/update).
+  const byEmail = await employeesCollection()
+    .where("emailLower", "==", loginNorm)
+    .limit(1)
+    .get()
+    .catch(() => null);
+  const byUsername =
+    byEmail && !byEmail.empty
+      ? null
+      : await employeesCollection()
+          .where("usernameLower", "==", loginNorm)
+          .limit(1)
+          .get()
+          .catch(() => null);
+
+  const indexedDoc = byEmail?.docs[0] ?? byUsername?.docs[0];
+  if (indexedDoc && indexedDoc.id !== META_DOC_ID) {
+    const sheetRow = Number(indexedDoc.id);
+    if (Number.isFinite(sheetRow) && sheetRow >= 2) {
+      return {
+        sheetRow,
+        headers,
+        row: (indexedDoc.data().row as string[]) ?? [],
+      };
+    }
+  }
+
+  // Fallback for older docs without emailLower / usernameLower.
+  const snap = await employeesCollection().get();
   for (const doc of snap.docs) {
     if (doc.id === META_DOC_ID) continue;
     const sheetRow = Number(doc.id);
     if (!Number.isFinite(sheetRow) || sheetRow < 2) continue;
     const row = (doc.data().row as string[]) ?? [];
-    const { sheetRowToForm } = await import("@/lib/employee");
     const form = sheetRowToForm(headers, row);
     const email = form.email.trim().toLowerCase();
     const username = form.username.trim().toLowerCase();
     if (email === loginNorm || (username && username === loginNorm)) {
+      // Lazily index this doc so the next login is a fast query.
+      void employeesCollection()
+        .doc(String(sheetRow))
+        .set({ emailLower: email, usernameLower: username }, { merge: true })
+        .catch(() => undefined);
       return { sheetRow, headers, row };
     }
   }
@@ -119,7 +166,10 @@ export async function findEmployeeByLogin(login: string): Promise<EmployeeRowRec
 }
 
 export async function updateEmployeeRow(sheetRow: number, row: string[]): Promise<void> {
-  await employeesCollection().doc(String(sheetRow)).set({ sheetRow, row }, { merge: true });
+  const headers = await getHeaders();
+  await employeesCollection()
+    .doc(String(sheetRow))
+    .set({ sheetRow, row, ...loginIndexFields(headers, row) }, { merge: true });
 }
 
 export async function listAllEmployeeRows(): Promise<EmployeeRowRecord[]> {
@@ -188,7 +238,9 @@ export async function createEmployeeRowFirestore(row: string[]): Promise<number>
 
   const sheetRow = maxSheetRow + 1;
   const normalized = headers.map((_, index) => String(row[index] ?? ""));
-  await employeesCollection().doc(String(sheetRow)).set({ sheetRow, row: normalized });
+  await employeesCollection()
+    .doc(String(sheetRow))
+    .set({ sheetRow, row: normalized, ...loginIndexFields(headers, normalized) });
   return sheetRow;
 }
 

@@ -12,8 +12,8 @@ import {
   listAllEmployeeRows as listAllEmployeeRowsFirestore,
   readEmployeeSheetDataFirestore,
   updateEmployeeRow as updateEmployeeRowFirestore,
-  type EmployeeRowRecord,
 } from "./firestore";
+import type { EmployeeRowRecord } from "./firestore";
 import {
   findEmployeeByLoginFromSheets,
   getEmployeeBySheetRowFromSheets,
@@ -21,7 +21,7 @@ import {
   resolveEmployeeRecordForSessionFromSheets,
 } from "./sheets";
 
-export type { EmployeeRowRecord };
+export type { EmployeeRowRecord } from "./firestore";
 
 export async function getEmployeeBySheetRow(sheetRow: number): Promise<EmployeeRowRecord | null> {
   if (isFirebaseDailyStorage()) {
@@ -37,17 +37,58 @@ export async function findEmployeeByLogin(login: string): Promise<EmployeeRowRec
   return findEmployeeByLoginFromSheets(login);
 }
 
+type SessionEmployeeCacheEntry = {
+  record: EmployeeRowRecord | null;
+  expiresAt: number;
+};
+
+const SESSION_EMPLOYEE_CACHE_TTL_MS = 8_000;
+const sessionEmployeeCache = new Map<string, SessionEmployeeCacheEntry>();
+
+function sessionEmployeeCacheKey(user: SessionUser): string {
+  return `${user.sheetRow ?? 0}:${user.email.trim().toLowerCase()}`;
+}
+
+function readSessionEmployeeCache(user: SessionUser): EmployeeRowRecord | null | undefined {
+  const entry = sessionEmployeeCache.get(sessionEmployeeCacheKey(user));
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) {
+    sessionEmployeeCache.delete(sessionEmployeeCacheKey(user));
+    return undefined;
+  }
+  return entry.record;
+}
+
+function writeSessionEmployeeCache(user: SessionUser, record: EmployeeRowRecord | null): void {
+  sessionEmployeeCache.set(sessionEmployeeCacheKey(user), {
+    record,
+    expiresAt: Date.now() + SESSION_EMPLOYEE_CACHE_TTL_MS,
+  });
+}
+
 export async function resolveEmployeeRecordForSession(
   user: SessionUser,
 ): Promise<EmployeeRowRecord | null> {
+  const cached = readSessionEmployeeCache(user);
+  if (cached !== undefined) return cached;
+
+  let record: EmployeeRowRecord | null;
   if (isFirebaseDailyStorage()) {
     if (user.sheetRow != null && user.sheetRow >= 2) {
       const byRow = await getEmployeeBySheetRowFirestore(user.sheetRow);
-      if (byRow) return byRow;
+      if (byRow) {
+        record = byRow;
+        writeSessionEmployeeCache(user, record);
+        return record;
+      }
     }
-    return findEmployeeByLoginFirestore(user.email);
+    record = await findEmployeeByLoginFirestore(user.email);
+  } else {
+    record = await resolveEmployeeRecordForSessionFromSheets(user);
   }
-  return resolveEmployeeRecordForSessionFromSheets(user);
+
+  writeSessionEmployeeCache(user, record);
+  return record;
 }
 
 export async function listAllEmployeeRows(): Promise<EmployeeRowRecord[]> {

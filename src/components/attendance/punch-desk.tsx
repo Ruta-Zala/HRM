@@ -195,6 +195,8 @@ export function PunchDesk({
   acting,
   actingAction,
   liveWorkedMs,
+  liveBreakSessionMs = 0,
+  liveBreakUsedMs,
   onPunchIn,
   onPunchOut,
   onBreakStart,
@@ -207,6 +209,10 @@ export function PunchDesk({
   acting: boolean;
   actingAction: "punch-in" | "punch-out" | "break-start" | "break-end" | null;
   liveWorkedMs: number;
+  /** Elapsed time for the current open break. */
+  liveBreakSessionMs?: number;
+  /** Total break used today including the open break. Falls back to stored total. */
+  liveBreakUsedMs?: number;
   onPunchIn: () => void;
   onPunchOut: () => void;
   onBreakStart: () => void;
@@ -241,7 +247,9 @@ export function PunchDesk({
         ? { label: "Overtime", value: today.overtime, tone: "success" as const }
         : { label: "Overtime", value: "—", tone: "default" as const };
 
-  const breakUsedMs = parseDurationToMs(today?.totalBreakTime ?? "");
+  const breakUsedMs =
+    liveBreakUsedMs ??
+    parseDurationToMs(today?.totalBreakTime ?? "") + (onBreak ? liveBreakSessionMs : 0);
 
   return (
     <div className="border-ex-border bg-ex-elevated overflow-hidden rounded-2xl border shadow-sm dark:shadow-none">
@@ -261,6 +269,7 @@ export function PunchDesk({
                 className={cn(
                   "bg-ex-elevated ring-ex-border flex size-12 shrink-0 items-center justify-center rounded-2xl shadow-sm ring-1",
                   phase === "working" && "animate-pulse",
+                  phase === "break" && "animate-pulse",
                 )}
               >
                 <PhaseIcon className={cn("size-6", config.iconClass)} aria-hidden />
@@ -280,9 +289,11 @@ export function PunchDesk({
               </Badge>
             ) : today?.status && hasPunchedIn ? (
               <Badge variant={statusBadgeVariant(today.status)} className="w-fit">
-                {today.status}
-                {hasPunchedOut && today.punchOut ? ` · Out ${today.punchOut}` : ""}
-                {!hasPunchedOut && today.punchIn ? ` · In ${today.punchIn}` : ""}
+                {onBreak && today.breakStart
+                  ? `On break · since ${today.breakStart}`
+                  : today.status}
+                {!onBreak && hasPunchedOut && today.punchOut ? ` · Out ${today.punchOut}` : ""}
+                {!onBreak && !hasPunchedOut && today.punchIn ? ` · In ${today.punchIn}` : ""}
               </Badge>
             ) : !hasPunchedIn ? (
               <Badge variant="info" className="w-fit gap-1.5">
@@ -296,7 +307,16 @@ export function PunchDesk({
             <div className="flex h-40 items-center justify-center lg:w-48">
               <Loader2 className="text-ex-muted size-8 animate-spin" />
             </div>
-          ) : phase === "working" || phase === "break" ? (
+          ) : phase === "break" ? (
+            <WorkTimer
+              workedMs={liveBreakSessionMs}
+              progressMs={breakUsedMs}
+              showProgress
+              mode="break"
+              label="Break Time"
+              breakAllowanceHours={today?.idealBreakHours ?? IDEAL_BREAK_HOURS}
+            />
+          ) : phase === "working" ? (
             <WorkTimer
               workedMs={liveWorkedMs}
               showProgress
@@ -359,6 +379,8 @@ export function PunchDesk({
                   : formatBreakAllowance(breakUsedMs)
                 : `0h / ${today?.idealBreakHours ?? IDEAL_BREAK_HOURS}h`
             }
+            highlight={onBreak}
+            tone={onBreak ? "warning" : "default"}
           />
           <StatPill label={fourthStat.label} value={fourthStat.value} tone={fourthStat.tone} />
         </div>

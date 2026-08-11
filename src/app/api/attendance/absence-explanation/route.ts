@@ -8,8 +8,16 @@ import {
   getPendingAbsenceGroupsForUser,
   invalidateAbsenceExplanationCache,
 } from "@/lib/attendance/absence-gate-sync";
-import { setAbsenceGateCookie } from "@/lib/attendance/absence-gate-cookie";
+import {
+  ABSENCE_GATE_COOKIE,
+  isAbsenceGateCookieActive,
+  setAbsenceGateCookie,
+} from "@/lib/attendance/absence-gate-cookie";
 import { resolveAttendanceEmployee } from "@/lib/attendance/employee";
+import {
+  getCachedAbsenceGroups,
+  setCachedAbsenceGroups,
+} from "@/lib/attendance/absence-explanation-cache";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
@@ -31,7 +39,7 @@ const submitSchema = z.object({
 
 export const dynamic = "force-dynamic";
 
-export const GET = withActiveSession(async (_req, user) => {
+export const GET = withActiveSession(async (req, user) => {
   if (!roleRequiresAbsenceExplanationGate(user.role)) {
     const res = NextResponse.json({
       success: true,
@@ -43,7 +51,35 @@ export const GET = withActiveSession(async (_req, user) => {
   }
 
   try {
-    const groups = await getPendingAbsenceGroupsForUser(user);
+    const forceRefresh = req.headers.get("x-absence-gate-refresh") === "1";
+    const gateCookie = req.cookies.get(ABSENCE_GATE_COOKIE)?.value;
+
+    if (!forceRefresh && !isAbsenceGateCookieActive(gateCookie)) {
+      const employee = await resolveAttendanceEmployee(user);
+      if (employee?.employeeId) {
+        const cached = getCachedAbsenceGroups(employee.employeeId);
+        if (cached) {
+          const res = NextResponse.json({
+            success: true,
+            groups: cached,
+            requiresExplanation: cached.length > 0,
+          });
+          await applyAbsenceGateCookie(res, user);
+          return res;
+        }
+
+        setCachedAbsenceGroups(employee.employeeId, []);
+        const res = NextResponse.json({
+          success: true,
+          groups: [],
+          requiresExplanation: false,
+        });
+        setAbsenceGateCookie(res, false);
+        return res;
+      }
+    }
+
+    const groups = await getPendingAbsenceGroupsForUser(user, { forceRefresh });
     const res = NextResponse.json({
       success: true,
       groups,

@@ -43,12 +43,17 @@ function LoginPageContent() {
     setError(null);
     try {
       // On localhost the server cannot see your public IP; send it from the browser.
-      // On Vercel the server ignores this and uses the real forwarded IP.
+      // On live (Vercel) the server already has x-forwarded-for — skip the slow ipify round-trip.
       let publicIp = "";
-      try {
-        publicIp = await fetchPublicIpv4FromBrowser();
-      } catch {
-        // Gate still runs with whatever the server can detect.
+      const host = window.location.hostname;
+      const isLocalHost =
+        host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host.endsWith(".local");
+      if (isLocalHost) {
+        try {
+          publicIp = await fetchPublicIpv4FromBrowser();
+        } catch {
+          // Gate still runs with whatever the server can detect.
+        }
       }
 
       const res = await fetch("/api/auth/login", {

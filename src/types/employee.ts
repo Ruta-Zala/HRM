@@ -15,4 +15,5 @@ export interface Employee {
   status: EmployeeStatus;
   department?: string;
   designation?: string;
+  address?: string;
 }

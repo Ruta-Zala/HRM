@@ -130,7 +130,14 @@ export const GET = withActiveSession(async (req, user) => {
       });
     }
 
-    const today = await attendanceRepo.getTodayAttendance(storageRef);
+    const [today, leavePunchBlock] = await Promise.all([
+      attendanceRepo.getTodayAttendance(storageRef),
+      getLeavePunchBlock({
+        employeeId: employee!.employeeId,
+        employeeName: employee!.employeeName,
+        attendanceSpreadsheetId: employee!.attendanceSpreadsheetId,
+      }),
+    ]);
     const workedMs = today ? computeLiveWorkedMs(today) : 0;
     const idealHours = isHalfDayUnpaidWorkMode(today?.workMode) ? 4 : IDEAL_WORKING_HOURS;
     const idealBreakHours = isHalfDayUnpaidWorkMode(today?.workMode) ? 0 : IDEAL_BREAK_HOURS;
@@ -144,12 +151,6 @@ export const GET = withActiveSession(async (req, user) => {
         breakUsedMs += Math.max(0, Date.now() - breakStartMs);
       }
     }
-
-    const leavePunchBlock = await getLeavePunchBlock({
-      employeeId: employee!.employeeId,
-      employeeName: employee!.employeeName,
-      attendanceSpreadsheetId: employee!.attendanceSpreadsheetId,
-    });
 
     return NextResponse.json({
       success: true,
