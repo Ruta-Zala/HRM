@@ -17,6 +17,7 @@ import {
   readLeaveBucketRows,
   saveLeaveBucketRows,
 } from "@/lib/attendance/leave-bucket/repository";
+import { readLeaveBucketRowsCached } from "@/lib/attendance/leave-bucket-mirror";
 import {
   OVERTIME_APPROVAL,
   WORK_MODE,
@@ -122,7 +123,7 @@ export async function listLeaveApplications(params: {
   attendanceSpreadsheetId: string;
   statusFilter?: LeaveStatus;
 }): Promise<LeaveApplication[]> {
-  const rows = await readLeaveBucketRows({
+  const rows = await readLeaveBucketRowsCached({
     employeeId: params.employeeId,
     spreadsheetId: params.attendanceSpreadsheetId,
   });

@@ -14,9 +14,11 @@ import {
   ensureAcceptedLeaveForDate,
 } from "@/lib/attendance/leave-approvals";
 import { invalidateOnLeaveCache } from "@/lib/attendance/on-leave";
-import { hasAttendanceStorage, isAttendanceOnFirebase } from "@/lib/attendance/repository";
-import { upsertManualAttendanceInFirestore } from "@/lib/attendance/repository/firestore";
-import { upsertManualAttendanceRecord } from "@/lib/google/attendance-sheets";
+import {
+  getAttendanceRepository,
+  hasAttendanceStorage,
+  toAttendanceStorageRef,
+} from "@/lib/attendance/repository";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
@@ -55,28 +57,18 @@ export const POST = withActiveSession(async (req, user) => {
     });
 
     const workMode = normalized.workMode || WORK_MODE.FULL_DAY_ONSITE;
-
-    const record = isAttendanceOnFirebase()
-      ? await upsertManualAttendanceInFirestore({
-          employeeId: employee!.employeeId,
-          dateIso: normalized.dateIso,
-          punchIn: normalized.punchIn,
-          punchOut: normalized.punchOut,
-          breakStart: normalized.breakStart,
-          breakEnd: normalized.breakEnd,
-          totalBreakTime: normalized.totalBreakTime,
-          workMode,
-        })
-      : await upsertManualAttendanceRecord({
-          spreadsheetId: employee!.attendanceSpreadsheetId,
-          dateIso: normalized.dateIso,
-          punchIn: normalized.punchIn,
-          punchOut: normalized.punchOut,
-          breakStart: normalized.breakStart,
-          breakEnd: normalized.breakEnd,
-          totalBreakTime: normalized.totalBreakTime,
-          workMode,
-        });
+    const record = await getAttendanceRepository().upsertManualAttendance(
+      toAttendanceStorageRef(employee!),
+      {
+        dateIso: normalized.dateIso,
+        punchIn: normalized.punchIn,
+        punchOut: normalized.punchOut,
+        breakStart: normalized.breakStart,
+        breakEnd: normalized.breakEnd,
+        totalBreakTime: normalized.totalBreakTime,
+        workMode,
+      },
+    );
 
     let leaveCleared = 0;
     let leaveEnsured = false;

@@ -7,7 +7,11 @@ import {
   reviewCorrectionRequest,
 } from "@/lib/attendance/corrections";
 import { resolveAttendanceEmployee } from "@/lib/attendance/employee";
-import { getTodayAttendance } from "@/lib/google/attendance-sheets";
+import {
+  getAttendanceRepository,
+  hasAttendanceStorage,
+  toAttendanceStorageRef,
+} from "@/lib/attendance/repository";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/server";
 import type { CorrectionField } from "@/lib/attendance/constants";
@@ -34,7 +38,7 @@ export const GET = withActiveSession(async (_req, user) => {
 export const POST = withActiveSession(async (req, user) => {
   try {
     const employee = await resolveAttendanceEmployee(user);
-    if (!employee?.attendanceSpreadsheetId) {
+    if (!hasAttendanceStorage(employee)) {
       return NextResponse.json(
         { success: false, message: "Employee attendance record not found" },
         { status: 404 },
@@ -63,9 +67,18 @@ export const POST = withActiveSession(async (req, user) => {
       return NextResponse.json({ success: false, message: "Reason is required" }, { status: 400 });
     }
 
-    const today = await getTodayAttendance(employee.attendanceSpreadsheetId);
-    const targetDate = date || today?.date;
+    const repo = getAttendanceRepository();
+    const storageRef = toAttendanceStorageRef(employee!);
+    const targetDate = date || (await repo.getTodayAttendance(storageRef))?.date || "";
     if (!targetDate) {
+      return NextResponse.json(
+        { success: false, message: "No attendance record found for correction" },
+        { status: 400 },
+      );
+    }
+
+    const day = await repo.getAttendanceForDate(storageRef, targetDate);
+    if (!day) {
       return NextResponse.json(
         { success: false, message: "No attendance record found for correction" },
         { status: 400 },
@@ -74,15 +87,15 @@ export const POST = withActiveSession(async (req, user) => {
 
     const originalValue =
       field === "punchIn"
-        ? (today?.punchIn ?? "")
+        ? (day.punchIn ?? "")
         : field === "punchOut"
-          ? (today?.punchOut ?? "")
+          ? (day.punchOut ?? "")
           : field === "breakStart"
-            ? (today?.breakStart ?? "")
-            : (today?.breakEnd ?? "");
+            ? (day.breakStart ?? "")
+            : (day.breakEnd ?? "");
 
     const request = await createCorrectionRequest({
-      employee,
+      employee: employee!,
       date: targetDate,
       field,
       originalValue,
@@ -93,7 +106,7 @@ export const POST = withActiveSession(async (req, user) => {
     try {
       await notifyCorrectionSubmitted({
         request,
-        employeeSheetRow: employee.sheetRow,
+        employeeSheetRow: employee!.sheetRow,
       });
     } catch (notificationError) {
       console.error("Correction submission notification error:", notificationError);

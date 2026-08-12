@@ -162,8 +162,7 @@ function StatPill({
         "rounded-xl border px-3 py-2.5 text-center transition",
         tone === "warning" && "border-ex-chip-warning-border bg-ex-chip-warning-bg",
         tone === "success" && "border-ex-chip-success-border bg-ex-chip-success-bg",
-        tone === "pending" &&
-          "border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800/60",
+        tone === "pending" && "border-ex-border bg-ex-elevated",
         tone === "info" && "border-ex-chip-info-border bg-ex-chip-info-bg",
         (!tone || tone === "default") &&
           (highlight
@@ -177,7 +176,7 @@ function StatPill({
           "mt-0.5 text-sm font-semibold tabular-nums",
           tone === "warning" && "text-ex-chip-warning-fg",
           tone === "success" && "text-ex-chip-success-fg",
-          tone === "pending" && "text-slate-700 dark:text-slate-200",
+          tone === "pending" && "text-ex-primary",
           tone === "info" && "text-ex-chip-info-fg",
           !tone || tone === "default" ? "text-ex-primary" : "",
         )}
@@ -503,11 +502,8 @@ export function PunchDesk({
 
           {phase === "done" ? (
             dayOutcome === "short" ? (
-              <p className="flex flex-1 items-center gap-2 text-sm text-amber-900/80 dark:text-amber-100/80">
-                <LogOut
-                  className="size-4 shrink-0 text-amber-600 dark:text-amber-400"
-                  aria-hidden
-                />
+              <p className="text-ex-primary flex flex-1 items-center gap-2 text-sm">
+                <LogOut className="text-ex-accent size-4 shrink-0" aria-hidden />
                 If your punch times are wrong, request a correction below.
               </p>
             ) : (

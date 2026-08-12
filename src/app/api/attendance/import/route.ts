@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 
 import { parseLegacyAttendanceCsv } from "@/lib/attendance/parse-import-csv";
 import { resolveAttendanceEmployeeForTarget } from "@/lib/attendance/employee";
-import { importAttendanceRecords } from "@/lib/google/attendance-sheets";
+import {
+  getAttendanceRepository,
+  hasAttendanceStorage,
+  toAttendanceStorageRef,
+} from "@/lib/attendance/repository";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
@@ -53,9 +57,9 @@ export const POST = withActiveSession(async (req, user) => {
     }
 
     const employee = await resolveAttendanceEmployeeForTarget(user, sheetRow);
-    if (!employee?.attendanceSpreadsheetId) {
+    if (!hasAttendanceStorage(employee)) {
       return NextResponse.json(
-        { success: false, message: "Employee attendance spreadsheet not found" },
+        { success: false, message: "Employee attendance storage not found" },
         { status: 404 },
       );
     }
@@ -70,7 +74,10 @@ export const POST = withActiveSession(async (req, user) => {
         workMode: r.workMode,
       }));
 
-    const result = await importAttendanceRecords(employee.attendanceSpreadsheetId, toImport);
+    const result = await getAttendanceRepository().importAttendanceRecords(
+      toAttendanceStorageRef(employee!),
+      toImport,
+    );
 
     return NextResponse.json({
       success: true,
@@ -80,8 +87,8 @@ export const POST = withActiveSession(async (req, user) => {
       holidaysSkipped: parsed.skipped,
       errors: parsed.errors,
       employee: {
-        employeeId: employee.employeeId,
-        employeeName: employee.employeeName,
+        employeeId: employee!.employeeId,
+        employeeName: employee!.employeeName,
       },
     });
   } catch (error: unknown) {

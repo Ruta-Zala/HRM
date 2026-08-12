@@ -35,7 +35,7 @@ import { formatIsoDateRange } from "@/lib/notifications/format";
 import { notifyLeaveSubmitted } from "@/lib/notifications/leave-events";
 import { localDateIso, leaveDateToIso } from "@/lib/payroll/leave-attendance";
 import { isWeekend, toIsoDate } from "@/lib/payroll/working-days";
-import { listCompanyHolidays } from "@/lib/company-holiday-sheets";
+import { getCompanyLeaveHolidayDates } from "@/lib/attendance/company-leave-holidays";
 import { getSheetsClient } from "@/lib/google/drive-auth";
 import { applySheetHeaderFormatByTitle } from "@/lib/google/sheet-format";
 
@@ -85,9 +85,6 @@ const COL = {
 
 /** How many calendar months of attendance to scan (current + previous). */
 const ATTENDANCE_MONTHS_TO_SCAN = 3;
-
-let holidayDatesCache: { expiresAt: number; dates: Set<string> } | null = null;
-const HOLIDAY_CACHE_TTL_MS = 5 * 60_000;
 
 function formatDisplayDate(dateIso: string): string {
   const [year, month, day] = dateIso.split("-").map(Number);
@@ -228,47 +225,10 @@ function absenceExplanationsCollection(employeeId: string) {
     .collection("absence_explanations");
 }
 
-const absenceBootstrapPromises = new Map<string, Promise<void>>();
-
-async function ensureAbsenceExplanationsBootstrapped(
-  employee: AttendanceEmployeeContext,
-): Promise<void> {
-  if (!isFirebaseDailyStorage()) return;
-
-  const key = employee.employeeId;
-  const existing = absenceBootstrapPromises.get(key);
-  if (existing) return existing;
-
-  const promise = (async () => {
-    const collection = absenceExplanationsCollection(employee.employeeId);
-    const snap = await collection.limit(1).get();
-    if (!snap.empty) return;
-
-    const spreadsheetId = employee.attendanceSpreadsheetId.trim();
-    if (!spreadsheetId) return;
-
-    const rows = await readAbsenceExplanationRows(spreadsheetId);
-    if (rows.length < 2) return;
-
-    const batch = getAdminFirestore().batch();
-    for (let i = 1; i < rows.length; i++) {
-      const record = rowToRecord(rows[i] ?? []);
-      if (!record?.id) continue;
-      batch.set(collection.doc(record.id), record);
-    }
-    await batch.commit();
-  })().finally(() => {
-    absenceBootstrapPromises.delete(key);
-  });
-
-  absenceBootstrapPromises.set(key, promise);
-  return promise;
-}
-
 async function listAbsenceExplanationsFirestore(
   employee: AttendanceEmployeeContext,
 ): Promise<AbsenceExplanationRecord[]> {
-  await ensureAbsenceExplanationsBootstrapped(employee);
+  // Firebase-only: no Sheets bootstrap on the login/punch path.
   const snap = await absenceExplanationsCollection(employee.employeeId).get();
   const records: AbsenceExplanationRecord[] = [];
 
@@ -381,16 +341,7 @@ export async function getAbsenceLeaveBalances(
 }
 
 async function getLeaveHolidayDates(): Promise<Set<string>> {
-  if (holidayDatesCache && Date.now() < holidayDatesCache.expiresAt) {
-    return holidayDatesCache.dates;
-  }
-
-  const holidays = await listCompanyHolidays();
-  const dates = new Set(
-    holidays.filter((holiday) => holiday.type === "leave").map((holiday) => holiday.date),
-  );
-  holidayDatesCache = { dates, expiresAt: Date.now() + HOLIDAY_CACHE_TTL_MS };
-  return dates;
+  return getCompanyLeaveHolidayDates();
 }
 
 function isScheduledWorkingDay(dateIso: string, leaveHolidayDates: Set<string>): boolean {
@@ -576,9 +527,9 @@ export async function getPendingAbsenceExplanationGroups(
   const asOfDate = new Date(`${todayIso}T12:00:00`);
   const quarterStartIso = currentQuarterStartIso(asOfDate);
   const pastScanFromIso = pastAbsenceScanFromIso(employee, quarterStartIso);
-  const leaveHolidayDates = await getLeaveHolidayDates();
 
-  const [leaveRows, explanations, attendanceByDate] = await Promise.all([
+  const [leaveHolidayDates, leaveRows, explanations, attendanceByDate] = await Promise.all([
+    getLeaveHolidayDates(),
     readLeaveBucketRowsForAbsenceExplanation(toLeaveBucketStorageRef(employee)),
     listAbsenceExplanations(employee),
     buildAttendanceByDate(employee, todayIso, pastScanFromIso),

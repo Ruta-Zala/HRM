@@ -42,7 +42,7 @@ type SessionEmployeeCacheEntry = {
   expiresAt: number;
 };
 
-const SESSION_EMPLOYEE_CACHE_TTL_MS = 8_000;
+const SESSION_EMPLOYEE_CACHE_TTL_MS = 30_000;
 const sessionEmployeeCache = new Map<string, SessionEmployeeCacheEntry>();
 
 function sessionEmployeeCacheKey(user: SessionUser): string {

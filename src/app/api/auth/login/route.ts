@@ -79,11 +79,10 @@ export async function POST(req: Request) {
     let requiresMorningPunch = false;
     const gateRole = roleRequiresAbsenceExplanationGate(result.user.role);
 
-    // Run gate checks in parallel — these were sequential and dominated live login latency.
-    // Auto punch-out is catch-up only; do not block the login response on it.
+    // Prefer cache from a recent gate sync; forceRefresh only when cookie/state is stale.
     const [absenceResult, morningResult, networkResult] = await Promise.all([
       gateRole
-        ? syncAbsenceGateForUser(result.user, { forceRefresh: true }).catch((error) => {
+        ? syncAbsenceGateForUser(result.user).catch((error) => {
             console.warn("[auth/login] absence gate sync failed:", error);
             return false;
           })

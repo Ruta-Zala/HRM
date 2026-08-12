@@ -45,7 +45,7 @@ export default function PunchPage() {
   const correctionFormRef = useRef<HTMLDivElement>(null);
   const [earlyLeaveOpen, setEarlyLeaveOpen] = useState(false);
   const [earlyLeaveError, setEarlyLeaveError] = useState<string | null>(null);
-  const [dailyUpdateDraft, setDailyUpdateDraft] = useState<string | null>(null);
+  const [dailyUpdateDraft, setDailyUpdateDraft] = useState("");
   const [dailyUpdateSaving, setDailyUpdateSaving] = useState(false);
   const [dailyUpdateError, setDailyUpdateError] = useState<string | null>(null);
   const [workMode, setWorkMode] = useState<string>(WORK_MODE.FULL_DAY_ONSITE);
@@ -78,7 +78,8 @@ export default function PunchPage() {
     setEarlyLeaveError(null);
     try {
       await runAction("punch-out", payload);
-      setDailyUpdateDraft(null);
+      // Empty string so the field does not fall back to the saved EOD update.
+      setDailyUpdateDraft("");
       setEarlyLeaveOpen(false);
     } catch (err) {
       setEarlyLeaveError(toUserFacingActionError(err));
@@ -87,7 +88,7 @@ export default function PunchPage() {
 
   async function handleSaveDailyUpdate() {
     if (!today?.date) return;
-    const value = (dailyUpdateDraft ?? today.dailyUpdate ?? "").trim();
+    const value = dailyUpdateDraft.trim();
     if (!value) {
       setDailyUpdateError("Daily update cannot be empty");
       return;
@@ -243,7 +244,7 @@ export default function PunchPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <textarea
-                  value={dailyUpdateDraft ?? today?.dailyUpdate ?? ""}
+                  value={dailyUpdateDraft}
                   onChange={(e) => setDailyUpdateDraft(e.target.value)}
                   placeholder="Add completed work for this day"
                   rows={4}
@@ -257,9 +258,7 @@ export default function PunchPage() {
                   <Button
                     size="sm"
                     onClick={() => void handleSaveDailyUpdate()}
-                    disabled={
-                      dailyUpdateSaving || !(dailyUpdateDraft ?? today?.dailyUpdate ?? "").trim()
-                    }
+                    disabled={dailyUpdateSaving || !dailyUpdateDraft.trim()}
                   >
                     {dailyUpdateSaving ? (
                       <>

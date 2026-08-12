@@ -1,10 +1,14 @@
 import { roleCanPunchInOut } from "@/lib/attendance/absence-gate";
 import { isBeforeTodayNoPunchExplainCutoff } from "@/lib/attendance/attendance-cutoffs";
+import { getCompanyLeaveHolidayDates } from "@/lib/attendance/company-leave-holidays";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
 import { listLeaveApplications } from "@/lib/attendance/leave-approvals";
 import { resolveAttendanceEmployee } from "@/lib/attendance/employee";
-import { getTodayAttendance } from "@/lib/google/attendance-sheets";
-import { listCompanyHolidays } from "@/lib/company-holiday-sheets";
+import {
+  getAttendanceRepository,
+  hasAttendanceStorage,
+  toAttendanceStorageRef,
+} from "@/lib/attendance/repository";
 import { localDateIso, leaveDateToIso } from "@/lib/payroll/leave-attendance";
 import { isWeekend } from "@/lib/payroll/working-days";
 import type { SessionUser } from "@/types/auth";
@@ -15,10 +19,7 @@ async function isScheduledWorkingDayToday(): Promise<boolean> {
   if (!year || !month || !day) return false;
   if (isWeekend(year, month, day)) return false;
 
-  const holidays = await listCompanyHolidays();
-  const leaveHolidayDates = new Set(
-    holidays.filter((holiday) => holiday.type === "leave").map((holiday) => holiday.date),
-  );
+  const leaveHolidayDates = await getCompanyLeaveHolidayDates();
   return !leaveHolidayDates.has(todayIso);
 }
 
@@ -40,14 +41,19 @@ function hasActiveLeaveToday(
 export async function userRequiresMorningPunchGate(user: SessionUser): Promise<boolean> {
   if (!roleCanPunchInOut(user.role)) return false;
   if (!isBeforeTodayNoPunchExplainCutoff()) return false;
-  if (!(await isScheduledWorkingDayToday())) return false;
 
-  const employee = await resolveAttendanceEmployee(user);
-  if (!employee?.attendanceSpreadsheetId) return false;
+  // Holiday check and employee resolve are independent — run together.
+  const [isWorkingDay, employee] = await Promise.all([
+    isScheduledWorkingDayToday(),
+    resolveAttendanceEmployee(user),
+  ]);
+  if (!isWorkingDay) return false;
+  if (!employee || !hasAttendanceStorage(employee)) return false;
 
   const todayIso = localDateIso();
+  const storageRef = toAttendanceStorageRef(employee);
   const [today, leaves] = await Promise.all([
-    getTodayAttendance(employee.attendanceSpreadsheetId),
+    getAttendanceRepository().getTodayAttendance(storageRef),
     listLeaveApplications({
       employeeId: employee.employeeId,
       employeeName: employee.employeeName,
