@@ -51,15 +51,15 @@ export async function evaluateNetworkAccess(
   }
 
   try {
-    const settings = await getNetworkAccessSettings();
+    const [settings, remoteEmployees, networks] = await Promise.all([
+      getNetworkAccessSettings(),
+      listRemoteAccessEmployees(),
+      listOfficeNetworks(),
+    ]);
     if (!settings.restrictionEnabled) {
       return { allowed: true, reason: "restriction_disabled", clientIp };
     }
 
-    const [remoteEmployees, networks] = await Promise.all([
-      listRemoteAccessEmployees(),
-      listOfficeNetworks(),
-    ]);
     if (isEmployeeRemoteExempt(remoteEmployees, user.sheetRow, user.id)) {
       return { allowed: true, reason: "remote_exempt", clientIp };
     }

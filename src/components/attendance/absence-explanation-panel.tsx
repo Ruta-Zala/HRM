@@ -147,14 +147,8 @@ export function AbsenceExplanationPanel({
     if (items.length > 0) {
       setAbsenceGateSessionHint(true);
     } else {
-      void fetch("/api/auth/absence-gate", { credentials: "include", cache: "no-store" })
-        .then((res) => res.json())
-        .then((data: { active?: boolean }) => {
-          setAbsenceGateSessionHint(Boolean(data.active));
-        })
-        .catch(() => {
-          // Keep the existing hint when the gate check fails.
-        });
+      // Login already set absence/morning cookies; avoid a third heavy gate round-trip.
+      setAbsenceGateSessionHint(false);
     }
     setExplanations((current) => {
       const next = { ...current };

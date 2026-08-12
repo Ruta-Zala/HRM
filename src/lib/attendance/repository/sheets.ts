@@ -1,13 +1,18 @@
 import {
+  autoPunchOutOpenSession,
   computeLiveWorkedMs,
   endBreak,
   getMonthAttendance,
   getTodayAttendance,
+  importAttendanceRecords,
   listAttendanceMonthlySheetsAcrossYears,
   punchIn,
   punchOut,
   startBreak,
+  updateAttendanceField,
   updateDailyUpdate,
+  updateOvertimeApproval,
+  upsertManualAttendanceRecord,
 } from "@/lib/google/attendance-sheets";
 
 import type { AttendanceRepository } from "./types";
@@ -42,6 +47,29 @@ export const sheetsAttendanceRepository: AttendanceRepository = {
   },
   updateDailyUpdate(ref, dateIso, dailyUpdate) {
     return updateDailyUpdate(ref.spreadsheetId, dateIso, dailyUpdate);
+  },
+  autoPunchOutOpenSession(ref, dateIso) {
+    return autoPunchOutOpenSession(ref.spreadsheetId, dateIso);
+  },
+  updateAttendanceField(ref, dateIso, field, value) {
+    return updateAttendanceField(
+      ref.spreadsheetId,
+      dateIso,
+      field as Parameters<typeof updateAttendanceField>[2],
+      value,
+    );
+  },
+  updateOvertimeApproval(ref, dateIso, overtimeApproval) {
+    return updateOvertimeApproval(ref.spreadsheetId, dateIso, overtimeApproval);
+  },
+  importAttendanceRecords(ref, records) {
+    return importAttendanceRecords(ref.spreadsheetId, records);
+  },
+  upsertManualAttendance(ref, params) {
+    return upsertManualAttendanceRecord({
+      spreadsheetId: ref.spreadsheetId,
+      ...params,
+    });
   },
 };
 

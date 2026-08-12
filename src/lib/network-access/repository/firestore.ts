@@ -21,10 +21,22 @@ const REMOTE_SHEET = "Remote Access";
 const RESTRICTION_KEY = "restriction_enabled";
 
 /**
- * No in-memory allowlist cache: login must see IP / WFH updates immediately.
- * Next.js can also isolate module state across routes, so a 2‑minute cache caused
- * “add my IP → login still blocked until ~1–2 min later”.
+ * Short TTL + write invalidation: concurrent login/punch calls share one read,
+ * but allowlist updates still appear within ~15s (and immediately after writes).
+ * A multi-minute cache previously left login blocked after adding an IP.
  */
+const NETWORK_CACHE_TTL_MS = 15_000;
+
+type CacheEntry<T> = { value: T; expiresAt: number };
+
+let settingsCache: CacheEntry<NetworkAccessSettings> | null = null;
+let officeNetworksCache: CacheEntry<OfficeNetwork[]> | null = null;
+let remoteAccessCache: CacheEntry<RemoteAccessEmployee[]> | null = null;
+
+let settingsInflight: Promise<NetworkAccessSettings> | null = null;
+let officeNetworksInflight: Promise<OfficeNetwork[]> | null = null;
+let remoteAccessInflight: Promise<RemoteAccessEmployee[]> | null = null;
+
 let bootstrapPromise: Promise<void> | null = null;
 
 function nowIso(): string {
@@ -163,16 +175,34 @@ async function ensureNetworkAccessBootstrapped(): Promise<void> {
 }
 
 export function clearNetworkAccessCachesFirestore(): void {
-  // Intentionally empty — reads always hit Firestore (see module comment above).
+  settingsCache = null;
+  officeNetworksCache = null;
+  remoteAccessCache = null;
+  settingsInflight = null;
+  officeNetworksInflight = null;
+  remoteAccessInflight = null;
 }
 
 export async function getNetworkAccessSettingsFirestore(): Promise<NetworkAccessSettings> {
-  await ensureNetworkAccessBootstrapped();
-  const snap = await getAdminFirestore().collection(SETTINGS_COLLECTION).doc(SETTINGS_DOC).get();
-  const data = snap.data() as { restrictionEnabled?: boolean } | undefined;
-  return {
-    restrictionEnabled: Boolean(data?.restrictionEnabled),
-  };
+  if (settingsCache && Date.now() < settingsCache.expiresAt) {
+    return settingsCache.value;
+  }
+  if (settingsInflight) return settingsInflight;
+
+  settingsInflight = (async () => {
+    await ensureNetworkAccessBootstrapped();
+    const snap = await getAdminFirestore().collection(SETTINGS_COLLECTION).doc(SETTINGS_DOC).get();
+    const data = snap.data() as { restrictionEnabled?: boolean } | undefined;
+    const value: NetworkAccessSettings = {
+      restrictionEnabled: Boolean(data?.restrictionEnabled),
+    };
+    settingsCache = { value, expiresAt: Date.now() + NETWORK_CACHE_TTL_MS };
+    return value;
+  })().finally(() => {
+    settingsInflight = null;
+  });
+
+  return settingsInflight;
 }
 
 export async function setNetworkRestrictionEnabledFirestore(
@@ -187,28 +217,42 @@ export async function setNetworkRestrictionEnabledFirestore(
     },
     { merge: true },
   );
+  clearNetworkAccessCachesFirestore();
   return settings;
 }
 
 export async function listOfficeNetworksFirestore(): Promise<OfficeNetwork[]> {
-  await ensureNetworkAccessBootstrapped();
-  const snap = await getAdminFirestore().collection(OFFICE_COLLECTION).get();
-  return snap.docs
-    .map((doc) => {
-      const data = doc.data() as Partial<OfficeNetwork>;
-      const ip = normalizeIp(String(data.ip ?? ""));
-      const label = String(data.label ?? "").trim();
-      if (!label || !isValidIpv4(ip)) return null;
-      return {
-        id: String(data.id ?? doc.id),
-        label,
-        ip,
-        createdAt: String(data.createdAt ?? ""),
-        updatedAt: String(data.updatedAt ?? ""),
-      } satisfies OfficeNetwork;
-    })
-    .filter((row): row is OfficeNetwork => Boolean(row))
-    .sort((a, b) => a.label.localeCompare(b.label));
+  if (officeNetworksCache && Date.now() < officeNetworksCache.expiresAt) {
+    return officeNetworksCache.value;
+  }
+  if (officeNetworksInflight) return officeNetworksInflight;
+
+  officeNetworksInflight = (async () => {
+    await ensureNetworkAccessBootstrapped();
+    const snap = await getAdminFirestore().collection(OFFICE_COLLECTION).get();
+    const value = snap.docs
+      .map((doc) => {
+        const data = doc.data() as Partial<OfficeNetwork>;
+        const ip = normalizeIp(String(data.ip ?? ""));
+        const label = String(data.label ?? "").trim();
+        if (!label || !isValidIpv4(ip)) return null;
+        return {
+          id: String(data.id ?? doc.id),
+          label,
+          ip,
+          createdAt: String(data.createdAt ?? ""),
+          updatedAt: String(data.updatedAt ?? ""),
+        } satisfies OfficeNetwork;
+      })
+      .filter((row): row is OfficeNetwork => Boolean(row))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    officeNetworksCache = { value, expiresAt: Date.now() + NETWORK_CACHE_TTL_MS };
+    return value;
+  })().finally(() => {
+    officeNetworksInflight = null;
+  });
+
+  return officeNetworksInflight;
 }
 
 export async function createOfficeNetworkFirestore(input: {
@@ -240,6 +284,7 @@ export async function createOfficeNetworkFirestore(input: {
   };
 
   await getAdminFirestore().collection(OFFICE_COLLECTION).doc(network.id).set(network);
+  clearNetworkAccessCachesFirestore();
   return network;
 }
 
@@ -278,6 +323,7 @@ export async function updateOfficeNetworkFirestore(input: {
   };
 
   await ref.set(updated);
+  clearNetworkAccessCachesFirestore();
   return updated;
 }
 
@@ -287,30 +333,44 @@ export async function deleteOfficeNetworkFirestore(id: string): Promise<boolean>
   const snap = await ref.get();
   if (!snap.exists) return false;
   await ref.delete();
+  clearNetworkAccessCachesFirestore();
   return true;
 }
 
 export async function listRemoteAccessEmployeesFirestore(): Promise<RemoteAccessEmployee[]> {
-  await ensureNetworkAccessBootstrapped();
-  const snap = await getAdminFirestore().collection(REMOTE_COLLECTION).get();
-  return snap.docs
-    .map((doc) => {
-      const data = doc.data() as Partial<RemoteAccessEmployee>;
-      const employeeSheetRow = Number(data.employeeSheetRow ?? 0);
-      const employeeName = String(data.employeeName ?? "").trim();
-      if (!Number.isInteger(employeeSheetRow) || employeeSheetRow < 2 || !employeeName) {
-        return null;
-      }
-      return {
-        id: String(data.id ?? doc.id),
-        employeeSheetRow,
-        employeeId: String(data.employeeId ?? "").trim(),
-        employeeName,
-        createdAt: String(data.createdAt ?? ""),
-      } satisfies RemoteAccessEmployee;
-    })
-    .filter((row): row is RemoteAccessEmployee => Boolean(row))
-    .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+  if (remoteAccessCache && Date.now() < remoteAccessCache.expiresAt) {
+    return remoteAccessCache.value;
+  }
+  if (remoteAccessInflight) return remoteAccessInflight;
+
+  remoteAccessInflight = (async () => {
+    await ensureNetworkAccessBootstrapped();
+    const snap = await getAdminFirestore().collection(REMOTE_COLLECTION).get();
+    const value = snap.docs
+      .map((doc) => {
+        const data = doc.data() as Partial<RemoteAccessEmployee>;
+        const employeeSheetRow = Number(data.employeeSheetRow ?? 0);
+        const employeeName = String(data.employeeName ?? "").trim();
+        if (!Number.isInteger(employeeSheetRow) || employeeSheetRow < 2 || !employeeName) {
+          return null;
+        }
+        return {
+          id: String(data.id ?? doc.id),
+          employeeSheetRow,
+          employeeId: String(data.employeeId ?? "").trim(),
+          employeeName,
+          createdAt: String(data.createdAt ?? ""),
+        } satisfies RemoteAccessEmployee;
+      })
+      .filter((row): row is RemoteAccessEmployee => Boolean(row))
+      .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+    remoteAccessCache = { value, expiresAt: Date.now() + NETWORK_CACHE_TTL_MS };
+    return value;
+  })().finally(() => {
+    remoteAccessInflight = null;
+  });
+
+  return remoteAccessInflight;
 }
 
 export async function addRemoteAccessEmployeeFirestore(input: {
@@ -333,6 +393,7 @@ export async function addRemoteAccessEmployeeFirestore(input: {
   };
 
   await getAdminFirestore().collection(REMOTE_COLLECTION).doc(record.id).set(record);
+  clearNetworkAccessCachesFirestore();
   return record;
 }
 
@@ -342,5 +403,6 @@ export async function removeRemoteAccessEmployeeFirestore(id: string): Promise<b
   const snap = await ref.get();
   if (!snap.exists) return false;
   await ref.delete();
+  clearNetworkAccessCachesFirestore();
   return true;
 }

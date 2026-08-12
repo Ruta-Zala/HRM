@@ -97,10 +97,12 @@ export async function getEmployeeHeadersFirestore(): Promise<string[]> {
 export async function getEmployeeBySheetRow(sheetRow: number): Promise<EmployeeRowRecord | null> {
   if (sheetRow < 2) return null;
   await ensureEmployeesBootstrapped();
-  const snap = await employeesCollection().doc(String(sheetRow)).get();
+  const [snap, headers] = await Promise.all([
+    employeesCollection().doc(String(sheetRow)).get(),
+    getHeaders(),
+  ]);
   if (!snap.exists) return null;
   const data = snap.data() as { row?: string[] };
-  const headers = await getHeaders();
   return {
     sheetRow,
     headers,
@@ -116,19 +118,18 @@ export async function findEmployeeByLogin(login: string): Promise<EmployeeRowRec
   const headers = await getHeaders();
 
   // Prefer indexed login fields when present (written on create/update).
-  const byEmail = await employeesCollection()
-    .where("emailLower", "==", loginNorm)
-    .limit(1)
-    .get()
-    .catch(() => null);
-  const byUsername =
-    byEmail && !byEmail.empty
-      ? null
-      : await employeesCollection()
-          .where("usernameLower", "==", loginNorm)
-          .limit(1)
-          .get()
-          .catch(() => null);
+  const [byEmail, byUsername] = await Promise.all([
+    employeesCollection()
+      .where("emailLower", "==", loginNorm)
+      .limit(1)
+      .get()
+      .catch(() => null),
+    employeesCollection()
+      .where("usernameLower", "==", loginNorm)
+      .limit(1)
+      .get()
+      .catch(() => null),
+  ]);
 
   const indexedDoc = byEmail?.docs[0] ?? byUsername?.docs[0];
   if (indexedDoc && indexedDoc.id !== META_DOC_ID) {

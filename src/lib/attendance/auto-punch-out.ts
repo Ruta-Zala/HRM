@@ -1,17 +1,17 @@
 import { roleCanPunchInOut } from "@/lib/attendance/absence-gate";
+import { resolveAttendanceEmployee } from "@/lib/attendance/employee";
+import {
+  getAttendanceRepository,
+  hasAttendanceStorage,
+  isAttendanceOnFirebase,
+  type AttendanceStorageRef,
+} from "@/lib/attendance/repository";
+import { getEmployeeIdFromRow, isEmployeeStatusActive, sheetRowToForm } from "@/lib/employee";
+import { listAllEmployeeRows } from "@/lib/employees/repository";
 import {
   getAttendanceSpreadsheetIdFromRow,
-  resolveAttendanceEmployee,
   resolveAttendanceSpreadsheetIdForRow,
 } from "@/lib/attendance/employee";
-import {
-  getEmployeeIdFromRow,
-  getSheetHeaders,
-  isEmployeeStatusActive,
-  sheetRowToForm,
-} from "@/lib/employee";
-import { autoPunchOutOpenSession, getMonthAttendance } from "@/lib/google/attendance-sheets";
-import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import { addDaysToDateIso, notificationDateIso } from "@/lib/notifications/automation-date";
 import { notifyAutoPunchOut } from "@/lib/notifications/auto-punch-out-events";
 import type { SessionUser, UserRole } from "@/types/auth";
@@ -41,42 +41,55 @@ function listTargetDates(todayIso: string, lookbackDays: number): string[] {
   return dates;
 }
 
-async function listPunchableEmployees(): Promise<PunchableEmployee[]> {
-  const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
-  const headers = getSheetHeaders(raw);
-  const employees: PunchableEmployee[] = [];
+function toStorageRef(employee: PunchableEmployee): AttendanceStorageRef {
+  return {
+    employeeId: employee.employeeId,
+    spreadsheetId: employee.attendanceSpreadsheetId,
+  };
+}
 
-  for (let index = 1; index < raw.length; index++) {
-    const row = raw[index] ?? [];
-    const form = sheetRowToForm(headers, row);
+async function listPunchableEmployees(): Promise<PunchableEmployee[]> {
+  const records = await listAllEmployeeRows();
+  const employees: PunchableEmployee[] = [];
+  const onFirebase = isAttendanceOnFirebase();
+
+  for (const record of records) {
+    const form = sheetRowToForm(record.headers, record.row);
     if (!isEmployeeStatusActive(form.status)) continue;
 
     const role = form.role.trim().toLowerCase() as UserRole;
     if (!roleCanPunchInOut(role)) continue;
 
-    const sheetRow = index + 1;
-    let attendanceSpreadsheetId = "";
-    try {
-      attendanceSpreadsheetId = await resolveAttendanceSpreadsheetIdForRow({
-        headers,
-        row,
-        sheetRow,
-        employeeId: form.employeeId.trim(),
-        employeeName: form.name.trim() || "Employee",
-        documentsFolderId: form.documentsFolderId,
-        birthdayDate: form.birthdayDate,
-        createIfMissing: false,
-      });
-    } catch (error) {
-      console.warn(`[auto-punch-out] spreadsheet resolve failed for row ${sheetRow}:`, error);
-      attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(headers, row);
+    const employeeId =
+      form.employeeId.trim() || getEmployeeIdFromRow(record.headers, record.row, record.sheetRow);
+    if (!employeeId) continue;
+
+    let attendanceSpreadsheetId = getAttendanceSpreadsheetIdFromRow(record.headers, record.row);
+
+    if (!onFirebase) {
+      try {
+        attendanceSpreadsheetId = await resolveAttendanceSpreadsheetIdForRow({
+          headers: record.headers,
+          row: record.row,
+          sheetRow: record.sheetRow,
+          employeeId,
+          employeeName: form.name.trim() || "Employee",
+          documentsFolderId: form.documentsFolderId,
+          birthdayDate: form.birthdayDate,
+          createIfMissing: false,
+        });
+      } catch (error) {
+        console.warn(
+          `[auto-punch-out] spreadsheet resolve failed for row ${record.sheetRow}:`,
+          error,
+        );
+      }
+      if (!attendanceSpreadsheetId) continue;
     }
 
-    if (!attendanceSpreadsheetId) continue;
-
     employees.push({
-      sheetRow,
-      employeeId: getEmployeeIdFromRow(headers, row, sheetRow),
+      sheetRow: record.sheetRow,
+      employeeId,
       employeeName: form.name.trim() || "Employee",
       attendanceSpreadsheetId,
     });
@@ -92,6 +105,8 @@ async function closeForgottenSessionsForEmployee(
   let closed = 0;
   let notified = 0;
   const dates: string[] = [];
+  const repo = getAttendanceRepository();
+  const storageRef = toStorageRef(employee);
 
   const byMonth = new Map<string, string[]>();
   for (const dateIso of dateIsos) {
@@ -106,7 +121,7 @@ async function closeForgottenSessionsForEmployee(
     let openDates: string[];
 
     try {
-      const rows = await getMonthAttendance(employee.attendanceSpreadsheetId, year, month - 1);
+      const rows = await repo.getMonthAttendance(storageRef, year, month - 1);
       const open = new Set(
         rows.filter((row) => row.punchIn.trim() && !row.punchOut.trim()).map((row) => row.date),
       );
@@ -121,7 +136,7 @@ async function closeForgottenSessionsForEmployee(
 
     for (const dateIso of openDates) {
       try {
-        const closedRow = await autoPunchOutOpenSession(employee.attendanceSpreadsheetId, dateIso);
+        const closedRow = await repo.autoPunchOutOpenSession(storageRef, dateIso);
         if (!closedRow) continue;
 
         closed += 1;
@@ -186,17 +201,17 @@ export async function ensureForgottenPunchOutForUser(
   }
 
   const employee = await resolveAttendanceEmployee(user);
-  if (!employee?.attendanceSpreadsheetId) {
+  if (!hasAttendanceStorage(employee)) {
     return { checked: 0, closed: 0, notified: 0, dates: [] };
   }
 
   const todayIso = notificationDateIso();
   const dateIsos = listTargetDates(todayIso, options?.lookbackDays ?? LOOKBACK_DAYS);
   const target: PunchableEmployee = {
-    sheetRow: employee.sheetRow,
-    employeeId: employee.employeeId,
-    employeeName: employee.employeeName,
-    attendanceSpreadsheetId: employee.attendanceSpreadsheetId,
+    sheetRow: employee!.sheetRow,
+    employeeId: employee!.employeeId,
+    employeeName: employee!.employeeName,
+    attendanceSpreadsheetId: employee!.attendanceSpreadsheetId,
   };
 
   const result = await closeForgottenSessionsForEmployee(target, dateIsos);

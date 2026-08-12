@@ -1,17 +1,20 @@
 import {
   EARLY_LEAVE_REASON_MIN_LENGTH,
+  IMPORT_DEFAULT_BREAK,
   OVERTIME_APPROVAL,
   WORK_MODE,
   WORKING_STATUS,
   canonicalizeWorkMode,
   isHalfDayUnpaidWorkMode,
   isPunchOptionalWorkMode,
+  type CorrectionField,
 } from "@/lib/attendance/constants";
 import {
   computeAttendanceMetrics,
   formatClockTime,
   formatDuration,
   formatIsoDate,
+  formatWallClockTime,
   monthlySheetTitle,
   normalizeSheetDate,
   parseDurationToMs,
@@ -23,6 +26,9 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import type { AttendanceRepository, AttendanceStorageRef } from "./types";
 
 const COLLECTION = "attendance";
+const AUTO_PUNCH_OUT_CLOCK = formatWallClockTime(23, 59);
+const AUTO_PUNCH_OUT_NOTE =
+  "Auto punch-out at midnight (forgot to punch out). Contact HR or Super Admin to correct punch-out time.";
 
 type DayFields = Omit<AttendanceRow, "sheetRow">;
 
@@ -358,5 +364,166 @@ export const firestoreAttendanceRepository: AttendanceRepository = {
     const fields = await getOrCreateDayFields(ref, new Date(`${normalized}T12:00:00`));
     fields.dailyUpdate = dailyUpdate.trim();
     return saveDayFields(ref, fields);
+  },
+
+  async autoPunchOutOpenSession(ref, dateIso) {
+    const normalized = normalizeSheetDate(dateIso);
+    if (!normalized) {
+      throw new Error("Invalid attendance date for auto punch-out");
+    }
+
+    const baseDate = new Date(`${normalized}T12:00:00`);
+    const fields = await getDayFields(ref, normalized);
+    if (!fields?.punchIn.trim() || fields.punchOut.trim()) return null;
+
+    if (fields.breakStart.trim() && !fields.breakEnd.trim()) {
+      const breakStartMs = parseTimeOnDate(fields.breakStart, baseDate);
+      const breakEndMs = parseTimeOnDate(AUTO_PUNCH_OUT_CLOCK, baseDate);
+      const breakMs =
+        breakStartMs != null && breakEndMs != null && breakEndMs > breakStartMs
+          ? breakEndMs - breakStartMs
+          : 0;
+      const existingBreakMs = parseDurationToMs(fields.totalBreakTime);
+      fields.totalBreakTime = formatDuration(existingBreakMs + breakMs);
+      fields.breakStart = "";
+      fields.breakEnd = "";
+    }
+
+    fields.punchOut = AUTO_PUNCH_OUT_CLOCK;
+    applyPunchOutMetrics(fields, baseDate);
+
+    if (fields.status === WORKING_STATUS.SHORT && !fields.earlyLeaveReason.trim()) {
+      fields.earlyLeaveReason = AUTO_PUNCH_OUT_NOTE;
+    }
+
+    const existingUpdate = fields.dailyUpdate.trim();
+    if (!existingUpdate) {
+      fields.dailyUpdate = AUTO_PUNCH_OUT_NOTE;
+    } else if (!existingUpdate.toLowerCase().includes("auto punch-out")) {
+      fields.dailyUpdate = `${existingUpdate}\n${AUTO_PUNCH_OUT_NOTE}`;
+    }
+
+    return saveDayFields(ref, fields);
+  },
+
+  async updateAttendanceField(ref, dateIso, field, value) {
+    const normalized = normalizeSheetDate(dateIso);
+    if (!normalized) {
+      throw new Error("Attendance record not found for correction date");
+    }
+
+    const fields = await getDayFields(ref, normalized);
+    if (!fields) {
+      throw new Error("Attendance record not found for correction date");
+    }
+
+    const key = field as CorrectionField | "dailyUpdate" | "isOvertimeApproved";
+    if (key === "punchIn") fields.punchIn = value;
+    else if (key === "punchOut") fields.punchOut = value;
+    else if (key === "breakStart") fields.breakStart = value;
+    else if (key === "breakEnd") fields.breakEnd = value;
+    else if (key === "dailyUpdate") fields.dailyUpdate = value;
+    else if (key === "isOvertimeApproved") fields.isOvertimeApproved = value;
+    else {
+      throw new Error(`Unsupported attendance field: ${field}`);
+    }
+
+    if (fields.punchIn.trim() && fields.punchOut.trim()) {
+      applyPunchOutMetrics(fields, new Date(`${normalized}T12:00:00`));
+    }
+
+    return saveDayFields(ref, fields);
+  },
+
+  async updateOvertimeApproval(ref, dateIso, overtimeApproval) {
+    return this.updateAttendanceField(ref, dateIso, "isOvertimeApproved", overtimeApproval.trim());
+  },
+
+  async importAttendanceRecords(ref, records) {
+    let imported = 0;
+    let updated = 0;
+    if (!records.length) return { imported, updated };
+
+    const isHolidayMode = (mode: string): boolean => {
+      const normalized = mode.trim().toLowerCase();
+      return (
+        normalized === WORK_MODE.WEEKEND_HOLIDAY.toLowerCase() ||
+        normalized === WORK_MODE.PUBLIC_HOLIDAY.toLowerCase()
+      );
+    };
+    const isLeaveMode = (mode: string): boolean => {
+      const normalized = canonicalizeWorkMode(mode).toLowerCase();
+      return (
+        normalized === WORK_MODE.HALF_DAY_PAID_LEAVE.toLowerCase() ||
+        normalized === WORK_MODE.HALF_DAY_UNPAID_LEAVE.toLowerCase() ||
+        normalized === WORK_MODE.PAID_LEAVE.toLowerCase() ||
+        normalized === WORK_MODE.SICK_LEAVE.toLowerCase() ||
+        normalized === WORK_MODE.CASUAL_LEAVE.toLowerCase() ||
+        normalized === WORK_MODE.UNPAID_LEAVE.toLowerCase()
+      );
+    };
+
+    for (const record of records) {
+      const dateIso = normalizeSheetDate(record.dateIso);
+      if (!dateIso) continue;
+
+      const baseDate = new Date(`${dateIso}T12:00:00`);
+      const existing = await getDayFields(ref, dateIso);
+      const fields = existing ?? emptyDay(baseDate);
+      fields.date = dateIso;
+      fields.workMode = record.workMode?.trim() || fields.workMode || WORK_MODE.FULL_DAY_ONSITE;
+      fields.punchIn = record.punchIn;
+      fields.punchOut = record.punchOut;
+      fields.dailyUpdate = record.dailyUpdate?.trim() ?? "";
+      fields.breakStart = "";
+      fields.breakEnd = "";
+      fields.totalBreakTime = isHalfDayUnpaidWorkMode(fields.workMode) ? "" : IMPORT_DEFAULT_BREAK;
+
+      const hasIn = record.punchIn.trim().length > 0;
+      const hasOut = record.punchOut.trim().length > 0;
+      const normalizedMode = fields.workMode;
+
+      if (isHolidayMode(normalizedMode)) {
+        fields.breakStart = "";
+        fields.breakEnd = "";
+        fields.totalBreakTime = "";
+        fields.workingHours = "";
+        fields.status = "";
+        fields.overtime = "";
+      } else if (isLeaveMode(normalizedMode) && !hasIn && !hasOut) {
+        fields.breakStart = "";
+        fields.breakEnd = "";
+        fields.totalBreakTime = "";
+        fields.workingHours = "";
+        fields.status = WORKING_STATUS.ON_LEAVE;
+        fields.overtime = "";
+      } else if (!hasIn && !hasOut) {
+        fields.breakStart = "";
+        fields.breakEnd = "";
+        fields.totalBreakTime = "";
+        fields.workingHours = "";
+        fields.status = "";
+        fields.overtime = "";
+      } else if (hasOut) {
+        applyPunchOutMetrics(fields, baseDate);
+      } else {
+        fields.overtime = "—";
+        fields.status = WORKING_STATUS.IN_PROGRESS;
+        fields.workingHours = "";
+      }
+
+      await saveDayFields(ref, fields);
+      if (existing) updated += 1;
+      else imported += 1;
+    }
+
+    return { imported, updated };
+  },
+
+  async upsertManualAttendance(ref, params) {
+    return upsertManualAttendanceInFirestore({
+      employeeId: ref.employeeId,
+      ...params,
+    });
   },
 };

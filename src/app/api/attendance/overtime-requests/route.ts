@@ -10,7 +10,11 @@ import {
   resolveAttendanceEmployee,
   resolveAttendanceEmployeeForTarget,
 } from "@/lib/attendance/employee";
-import { getMonthAttendance } from "@/lib/google/attendance-sheets";
+import {
+  getAttendanceRepository,
+  hasAttendanceStorage,
+  toAttendanceStorageRef,
+} from "@/lib/attendance/repository";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees, canReviewOvertime } from "@/lib/auth/server";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
@@ -47,7 +51,7 @@ export const POST = withActiveSession(async (req, user) => {
       user,
       Number.isFinite(targetSheetRow) ? targetSheetRow : user.sheetRow,
     );
-    if (!employee?.attendanceSpreadsheetId) {
+    if (!hasAttendanceStorage(employee)) {
       return NextResponse.json(
         { success: false, message: "Employee attendance record not found" },
         { status: 404 },
@@ -71,8 +75,8 @@ export const POST = withActiveSession(async (req, user) => {
       return NextResponse.json({ success: false, message: "Invalid date" }, { status: 400 });
     }
 
-    const monthRows = await getMonthAttendance(employee.attendanceSpreadsheetId, year, month);
-    const target = monthRows.find((r) => r.date === date);
+    const storageRef = toAttendanceStorageRef(employee!);
+    const target = await getAttendanceRepository().getAttendanceForDate(storageRef, date);
     if (!target) {
       return NextResponse.json(
         { success: false, message: "Attendance record not found for selected date" },
@@ -103,7 +107,7 @@ export const POST = withActiveSession(async (req, user) => {
     }
 
     const request = await createOvertimeRequest({
-      employee,
+      employee: employee!,
       date,
       overtime: target.overtime,
       comment,

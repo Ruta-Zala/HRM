@@ -8,7 +8,7 @@ import {
   isPunchOptionalWorkMode,
 } from "@/lib/attendance/constants";
 import { getAttendanceRepository } from "@/lib/attendance/repository";
-import { listCompanyHolidays } from "@/lib/company-holiday-sheets";
+import { listCompanyHolidays } from "@/lib/company-holidays/repository";
 import { getEmployeeIdFromRow, isEmployeeStatusActive, sheetRowToForm } from "@/lib/employee";
 import { listAllEmployeeRows } from "@/lib/employees/repository";
 import type { AttendanceRow } from "@/lib/google/attendance-sheets";
