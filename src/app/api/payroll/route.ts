@@ -9,7 +9,7 @@ import {
   resolveAttendanceSpreadsheetIdForRow,
 } from "@/lib/attendance/employee";
 import { sheetRowToForm } from "@/lib/employee";
-import { listCompanyHolidays } from "@/lib/company-holiday-sheets";
+import { listCompanyHolidays } from "@/lib/company-holidays/repository";
 import { listLeaveApplications } from "@/lib/attendance/leave-approvals";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
 import { getMonthAttendance } from "@/lib/google/attendance-sheets";

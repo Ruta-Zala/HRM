@@ -1,0 +1,314 @@
+﻿/* Shared A4 letter page styling. The letterhead (header bars, logo, watermark,
+   footer contact strip) is a single full-page background image, so letter
+   content only needs top/bottom padding clear of that artwork. */
+
+.printOnly {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8mm;
+}
+
+.letterPage {
+  position: relative;
+  width: 210mm;
+  height: 297mm;
+  background-image: url("/documents/background-page.png");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  color: #111;
+  font-family: "Georgia", "Times New Roman", serif;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.letterContent {
+  box-sizing: border-box;
+  padding: 50mm 16mm 22mm;
+  font-size: 10pt;
+  line-height: 1.5;
+}
+
+.letterTitle {
+  margin: 6mm 0 8mm;
+  text-align: center;
+  font-size: 15pt;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.dateRight {
+  margin: 0 0 8mm;
+  text-align: right;
+  font-weight: 700;
+}
+
+/* Dates and standalone numbers (duration counts, etc.) — a clean sans-serif
+   for contrast against the serif body copy. */
+.numeric {
+  font-family: Arial, Helvetica, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.metaBlock {
+  margin: 0 0 6mm;
+}
+
+.metaBlock p {
+  margin: 0 0 1mm;
+  font-weight: 700;
+}
+
+.greeting {
+  margin: 0 0 5mm;
+  font-weight: 700;
+}
+
+.paragraph {
+  margin: 0 0 5mm;
+  text-align: justify;
+}
+
+.details {
+  margin: 0 0 5mm;
+}
+
+.detailsTitle {
+  margin: 0 0 2mm;
+  font-weight: 700;
+}
+
+.details p {
+  margin: 0 0 1mm;
+}
+
+.signatureBlock {
+  margin-top: 16mm;
+}
+
+/* Certificate "Date / Name / Sign" label rows (no "Warm regards" closing). */
+.signRows {
+  margin-top: 16mm;
+}
+
+.signRows p {
+  margin: 0 0 1.5mm;
+  font-weight: 700;
+}
+
+.signLabel {
+  display: inline-block;
+  min-width: 14mm;
+}
+
+.signOff {
+  margin: 0 0 10mm;
+}
+
+.signatureName {
+  margin: 0;
+  font-weight: 700;
+}
+
+.signatureTitle {
+  margin: 0;
+  color: #444;
+}
+
+/* Increment letter: recipient name/address (left) + date (right), side by side. */
+.recipientHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8mm;
+  margin: 0 0 8mm;
+}
+
+.addressBlock {
+  margin: 0;
+  white-space: pre-line;
+  font-weight: 700;
+}
+
+.headDate {
+  margin: 0;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Offer letter: dense 2-page numbered-section format. */
+.offerContent {
+  font-size: 9pt;
+  line-height: 1.35;
+}
+
+.nameLine {
+  margin: 0 0 5mm;
+  font-weight: 700;
+}
+
+.sectionHeading {
+  margin: 3mm 0 0.5mm;
+  font-weight: 700;
+}
+
+.tightParagraph {
+  margin: 0 0 2mm;
+  text-align: justify;
+}
+
+/* Bulleted clauses (Hours of Work, Salary, Leave, Termination…) — a real list,
+   not one <p> per line, so items sit close together instead of each carrying
+   its own paragraph margin. */
+.bulletList {
+  margin: 0 0 2mm;
+  padding-left: 4.5mm;
+  list-style: disc;
+}
+
+.bulletList li {
+  margin: 0 0 0.6mm;
+  text-align: justify;
+}
+
+/* Reserved blank space to physically sign, between "Sincerely," and the
+   printed "Signature with Date" caption. */
+.signatureSpace {
+  height: 16mm;
+}
+
+.offerTable {
+  border-collapse: collapse;
+  width: 75%;
+  margin: 3mm 0;
+}
+
+.offerTable td {
+  border: 1px solid #333;
+  padding: 1.2mm 3mm;
+}
+
+.offerTable td:last-child {
+  width: 32mm;
+  font-weight: 700;
+}
+
+/* NOC: two blank signature lines side by side, each with a label beneath. */
+.blankSignRow {
+  display: flex;
+  gap: 14mm;
+  margin-top: 20mm;
+}
+
+.blankSignRow > div {
+  flex: 1;
+  border-top: 1px solid #111;
+  padding-top: 1.5mm;
+  font-weight: 700;
+}
+
+/* --- On-screen preview: fits the panel's width like an image (width: 100%,
+   height: auto), but via `zoom` so the real mm/pt content scales too, not just
+   the box. `.previewPanel` is a size container; `cqw` = 1% of its width, so
+   `zoom` is a pure-CSS ratio of "panel width ÷ A4 width" — no JS, no
+   ResizeObserver. The panel then only ever needs to scroll vertically. */
+.previewPanel {
+  container-type: inline-size;
+}
+
+@media screen {
+  .previewScaler {
+    zoom: calc(100cqw / 793.7px);
+  }
+
+  /* Employee offer letters: match print typography in preview.
+     This keeps the signature block from sliding into the footer
+     background area. */
+  .offerContent {
+    font-size: 8.9pt;
+    line-height: 1.28;
+  }
+
+  .previewScaler .letterPage {
+    /* Match the project UI font in the live preview only. */
+    font-family: var(--font-sans);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    border: 1px solid #e5e5e5;
+    /* Prevent preview overflow from drawing on the next page background. */
+    overflow: hidden;
+  }
+
+  .previewScaler .numeric {
+    font-family: var(--font-sans);
+  }
+}
+
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    width: 210mm;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .printOnly,
+  .printOnly * {
+    visibility: visible;
+  }
+
+  .printOnly {
+    /* Avoid flex + absolute positioning for multi-page printing.
+       Chromium can skip background painting for later flex items. */
+    /* Position the letter outside normal page flow.
+       Otherwise the dashboard UI (made invisible via visibility:hidden)
+       still contributes to layout height and creates blank pages. */
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 210mm;
+    /* Ensure it doesn't reserve extra vertical space. */
+    margin: 0;
+    gap: 0;
+    /* Multi-page letters (`LetterPages`) reuse the same flex container.
+       In print we must start from the top; centering can clip the first
+       page's background image. */
+    justify-content: flex-start;
+    align-items: stretch;
+  }
+
+  .letterPage {
+    box-shadow: none;
+    border: none;
+    page-break-after: always;
+    /* Prevent the browser from splitting a letter page across print pages.
+       When splitting happens, Chromium may drop background rendering for the
+       first fragment (common for multi-page @media print with flex). */
+    break-inside: avoid;
+  }
+
+  /* Employee offer letters can be slightly taller than the fixed A4 frame.
+     Tighten print typography to keep content within the intended height so
+     Chromium doesn’t create an extra “overflow page” without the background. */
+  .offerContent {
+    font-size: 8.9pt;
+    line-height: 1.28;
+  }
+
+  .letterPage:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}

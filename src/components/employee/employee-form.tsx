@@ -34,6 +34,7 @@ import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-
 import { readResponseJson } from "@/lib/api/read-response-json";
 import { POSITIONS, ROLES } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
+import { useNotifications } from "@/contexts/notifications-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { joinSkillsValue, parseSkillsValue } from "@/app/consts/tech-skills";
 import { Select } from "../ui/select";
@@ -92,6 +93,7 @@ export function EmployeeForm({
 }: EmployeeFormProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const { pushToast } = useNotifications();
   const canManage = user ? canManageEmployees(user.role) : false;
   const canEditRole = user?.role === ROLES.HR_MANAGER || user?.role === ROLES.SUPER_ADMIN;
   const canEditLastIncrement = user?.role !== ROLES.EMPLOYEE;
@@ -399,12 +401,23 @@ export function EmployeeForm({
         const credentials = result.credentials as
           { username?: string; initialPassword?: string } | undefined;
         if (!isEdit && credentials && (credentials.username || credentials.initialPassword)) {
-          const lines = [
-            "Employee saved. Share these sign-in details once (they are stored encrypted in the sheet):",
+          const credentialParts = [
             credentials.username ? `Username: ${credentials.username}` : null,
             credentials.initialPassword ? `Password: ${credentials.initialPassword}` : null,
           ].filter(Boolean);
-          window.alert(lines.join("\n"));
+          pushToast({
+            title: "Employee Created",
+            body: `Share these sign-in details once (stored encrypted): ${credentialParts.join(" · ")}`,
+            variant: "success",
+          });
+        } else {
+          pushToast({
+            title: isEdit ? "Employee Updated" : "Employee Created",
+            body:
+              (typeof result.message === "string" && result.message) ||
+              (isEdit ? "Employee updated successfully." : "Employee created successfully."),
+            variant: "success",
+          });
         }
 
         if (onSaved) {

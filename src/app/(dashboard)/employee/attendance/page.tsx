@@ -219,6 +219,11 @@ export default function AttendanceHistoryPage() {
     setMonth(clampMonthForYear(y, month, periods));
   }
 
+  function handlePeriodChange(nextYear: number, nextMonth: number) {
+    setYear(nextYear);
+    setMonth(clampMonthForYear(nextYear, nextMonth, periods));
+  }
+
   async function handleRequestOvertime(row: AttendanceHistoryRow) {
     const comment = window.prompt("Optional note for approver (press OK to continue):") ?? "";
     setRequestingOvertimeId(row.id);
@@ -300,6 +305,7 @@ export default function AttendanceHistoryPage() {
         month={month}
         onYearChange={handleYearChange}
         onMonthChange={setMonth}
+        onPeriodChange={handlePeriodChange}
         rows={rows}
         loading={loading}
         importing={importing}

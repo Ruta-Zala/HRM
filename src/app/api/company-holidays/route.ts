@@ -7,8 +7,9 @@ import {
   deleteCompanyHoliday,
   listCompanyHolidays,
   updateCompanyHoliday,
-} from "@/lib/company-holiday-sheets";
+} from "@/lib/company-holidays/repository";
 import type { CompanyHoliday, CompanyHolidayType } from "@/lib/company-holidays";
+import { clearCompanyLeaveHolidayCache } from "@/lib/attendance/company-leave-holidays";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 function validDate(value: string): boolean {
@@ -77,6 +78,7 @@ export const POST = withActiveSession(async (req, user) => {
     }
 
     const holiday = await createCompanyHoliday(input);
+    clearCompanyLeaveHolidayCache();
     return NextResponse.json({ success: true, holiday }, { status: 201 });
   } catch (error) {
     console.error("POST Company Holiday Error:", error);
@@ -115,6 +117,7 @@ export const PATCH = withActiveSession(async (req, user) => {
       return NextResponse.json({ success: false, message: "Holiday not found" }, { status: 404 });
     }
 
+    clearCompanyLeaveHolidayCache();
     return NextResponse.json({ success: true, holiday });
   } catch (error) {
     console.error("PATCH Company Holiday Error:", error);
@@ -148,6 +151,7 @@ export const DELETE = withActiveSession(async (req, user) => {
       return NextResponse.json({ success: false, message: "Holiday not found" }, { status: 404 });
     }
 
+    clearCompanyLeaveHolidayCache();
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("DELETE Company Holiday Error:", error);

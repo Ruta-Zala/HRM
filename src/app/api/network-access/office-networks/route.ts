@@ -4,12 +4,12 @@ import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { getClientIp, isValidIpv4, normalizeIp } from "@/lib/network-access/ip";
 import {
+  clearNetworkAccessCaches,
   createOfficeNetwork,
   deleteOfficeNetwork,
   listOfficeNetworks,
   updateOfficeNetwork,
-} from "@/lib/network-access/office-networks-sheets";
-import { clearNetworkAccessCaches } from "@/lib/network-access/settings-sheets";
+} from "@/lib/network-access/repository";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
 
 export const dynamic = "force-dynamic";

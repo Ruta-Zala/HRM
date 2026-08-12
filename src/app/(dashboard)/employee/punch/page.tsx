@@ -15,34 +15,54 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { useTodayAttendance } from "@/hooks/use-today-attendance";
 import { useAuth } from "@/contexts/auth-provider";
+import { useNotifications } from "@/contexts/notifications-provider";
 import { toUserFacingActionError } from "@/lib/api/user-facing-error";
 import { roleCanPunchInOut } from "@/lib/auth/roles";
 import { roleRequiresAbsenceExplanationGate } from "@/lib/attendance/absence-gate";
+import { readAbsenceGateSessionHint } from "@/lib/attendance/absence-gate-session";
 import { updateDailyUpdate } from "@/lib/attendance/client";
 import { WORK_MODE, WORK_MODE_OPTIONS, workModeOptionLabel } from "@/lib/attendance/constants";
 
 export default function PunchPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { pushToast } = useNotifications();
   const canPunch = user ? roleCanPunchInOut(user.role) : false;
   const showAbsenceGate = user ? roleRequiresAbsenceExplanationGate(user.role) : false;
-  const { today, loading, error, acting, actingAction, liveWorkedMs, runAction, refresh } =
-    useTodayAttendance();
+  const {
+    today,
+    loading,
+    error,
+    acting,
+    actingAction,
+    liveWorkedMs,
+    liveBreakSessionMs,
+    liveBreakUsedMs,
+    runAction,
+    refresh,
+  } = useTodayAttendance();
   const [showCorrection, setShowCorrection] = useState(false);
   const correctionFormRef = useRef<HTMLDivElement>(null);
   const [earlyLeaveOpen, setEarlyLeaveOpen] = useState(false);
   const [earlyLeaveError, setEarlyLeaveError] = useState<string | null>(null);
-  const [dailyUpdateDraft, setDailyUpdateDraft] = useState<string | null>(null);
+  const [dailyUpdateDraft, setDailyUpdateDraft] = useState("");
   const [dailyUpdateSaving, setDailyUpdateSaving] = useState(false);
   const [dailyUpdateError, setDailyUpdateError] = useState<string | null>(null);
   const [workMode, setWorkMode] = useState<string>(WORK_MODE.FULL_DAY_ONSITE);
   // Stay blocked until the absence check finishes successfully with no pending items.
   // Derived from the panel report so we never sync props into state via an effect.
+  const initialGateHint = readAbsenceGateSessionHint();
   const [absenceGate, setAbsenceGate] = useState<{
     blocked: boolean;
     error: string | null;
-  } | null>(null);
-  const absenceGateBlocked = showAbsenceGate && (absenceGate?.blocked ?? true);
+  } | null>(() =>
+    showAbsenceGate
+      ? initialGateHint === false
+        ? { blocked: false, error: null }
+        : null
+      : { blocked: false, error: null },
+  );
+  const absenceGateBlocked = showAbsenceGate && (absenceGate?.blocked ?? initialGateHint !== false);
   const absenceGateError = showAbsenceGate ? (absenceGate?.error ?? null) : null;
 
   const targetMs = (today?.idealHours ?? 8) * 60 * 60 * 1000;
@@ -58,7 +78,8 @@ export default function PunchPage() {
     setEarlyLeaveError(null);
     try {
       await runAction("punch-out", payload);
-      setDailyUpdateDraft(null);
+      // Empty string so the field does not fall back to the saved EOD update.
+      setDailyUpdateDraft("");
       setEarlyLeaveOpen(false);
     } catch (err) {
       setEarlyLeaveError(toUserFacingActionError(err));
@@ -67,7 +88,7 @@ export default function PunchPage() {
 
   async function handleSaveDailyUpdate() {
     if (!today?.date) return;
-    const value = (dailyUpdateDraft ?? today.dailyUpdate ?? "").trim();
+    const value = dailyUpdateDraft.trim();
     if (!value) {
       setDailyUpdateError("Daily update cannot be empty");
       return;
@@ -75,9 +96,15 @@ export default function PunchPage() {
     setDailyUpdateSaving(true);
     setDailyUpdateError(null);
     try {
-      const updated = await updateDailyUpdate(today.date, value);
-      setDailyUpdateDraft(updated.dailyUpdate ?? null);
+      await updateDailyUpdate(today.date, value);
+      // Empty string (not null) so the field does not fall back to the saved value.
+      setDailyUpdateDraft("");
       await refresh();
+      pushToast({
+        title: "Daily update saved",
+        body: "Your update for today was saved successfully.",
+        variant: "success",
+      });
     } catch (err) {
       setDailyUpdateError(toUserFacingActionError(err));
     } finally {
@@ -182,6 +209,8 @@ export default function PunchPage() {
             acting={acting}
             actingAction={actingAction}
             liveWorkedMs={liveWorkedMs}
+            liveBreakSessionMs={liveBreakSessionMs}
+            liveBreakUsedMs={liveBreakUsedMs}
             onPunchIn={() => void runAction("punch-in", { workMode })}
             onPunchOut={() => void handlePunchOut()}
             onBreakStart={() => void runAction("break-start")}
@@ -215,7 +244,7 @@ export default function PunchPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <textarea
-                  value={dailyUpdateDraft ?? today?.dailyUpdate ?? ""}
+                  value={dailyUpdateDraft}
                   onChange={(e) => setDailyUpdateDraft(e.target.value)}
                   placeholder="Add completed work for this day"
                   rows={4}
@@ -229,9 +258,7 @@ export default function PunchPage() {
                   <Button
                     size="sm"
                     onClick={() => void handleSaveDailyUpdate()}
-                    disabled={
-                      dailyUpdateSaving || !(dailyUpdateDraft ?? today?.dailyUpdate ?? "").trim()
-                    }
+                    disabled={dailyUpdateSaving || !dailyUpdateDraft.trim()}
                   >
                     {dailyUpdateSaving ? (
                       <>

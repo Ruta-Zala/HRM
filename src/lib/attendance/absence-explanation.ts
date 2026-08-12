@@ -35,7 +35,7 @@ import { formatIsoDateRange } from "@/lib/notifications/format";
 import { notifyLeaveSubmitted } from "@/lib/notifications/leave-events";
 import { localDateIso, leaveDateToIso } from "@/lib/payroll/leave-attendance";
 import { isWeekend, toIsoDate } from "@/lib/payroll/working-days";
-import { listCompanyHolidays } from "@/lib/company-holiday-sheets";
+import { getCompanyLeaveHolidayDates } from "@/lib/attendance/company-leave-holidays";
 import { getSheetsClient } from "@/lib/google/drive-auth";
 import { applySheetHeaderFormatByTitle } from "@/lib/google/sheet-format";
 
@@ -86,9 +86,6 @@ const COL = {
 /** How many calendar months of attendance to scan (current + previous). */
 const ATTENDANCE_MONTHS_TO_SCAN = 3;
 
-let holidayDatesCache: { expiresAt: number; dates: Set<string> } | null = null;
-const HOLIDAY_CACHE_TTL_MS = 5 * 60_000;
-
 function formatDisplayDate(dateIso: string): string {
   const [year, month, day] = dateIso.split("-").map(Number);
   if (!year || !month || !day) return dateIso;
@@ -124,6 +121,31 @@ function wasAbsentOnDate(attendance: AttendanceRow | null): boolean {
   }
 
   return true;
+}
+
+/**
+ * Past absence explanations should not cover days before the employee existed in HRM.
+ * New hires often have an older joining date, but `createdAt` is when the account was added.
+ */
+function pastAbsenceScanFromIso(
+  employee: AttendanceEmployeeContext,
+  quarterStartIso: string,
+): string {
+  const raw = employee.createdAt?.trim() ?? "";
+  if (!raw) return quarterStartIso;
+
+  let createdIso = "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    createdIso = raw;
+  } else {
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      createdIso = localDateIso(parsed);
+    }
+  }
+
+  if (!createdIso) return quarterStartIso;
+  return createdIso > quarterStartIso ? createdIso : quarterStartIso;
 }
 
 function hasActiveLeaveForDate(leaves: LeaveApplication[]): boolean {
@@ -203,47 +225,10 @@ function absenceExplanationsCollection(employeeId: string) {
     .collection("absence_explanations");
 }
 
-const absenceBootstrapPromises = new Map<string, Promise<void>>();
-
-async function ensureAbsenceExplanationsBootstrapped(
-  employee: AttendanceEmployeeContext,
-): Promise<void> {
-  if (!isFirebaseDailyStorage()) return;
-
-  const key = employee.employeeId;
-  const existing = absenceBootstrapPromises.get(key);
-  if (existing) return existing;
-
-  const promise = (async () => {
-    const collection = absenceExplanationsCollection(employee.employeeId);
-    const snap = await collection.limit(1).get();
-    if (!snap.empty) return;
-
-    const spreadsheetId = employee.attendanceSpreadsheetId.trim();
-    if (!spreadsheetId) return;
-
-    const rows = await readAbsenceExplanationRows(spreadsheetId);
-    if (rows.length < 2) return;
-
-    const batch = getAdminFirestore().batch();
-    for (let i = 1; i < rows.length; i++) {
-      const record = rowToRecord(rows[i] ?? []);
-      if (!record?.id) continue;
-      batch.set(collection.doc(record.id), record);
-    }
-    await batch.commit();
-  })().finally(() => {
-    absenceBootstrapPromises.delete(key);
-  });
-
-  absenceBootstrapPromises.set(key, promise);
-  return promise;
-}
-
 async function listAbsenceExplanationsFirestore(
   employee: AttendanceEmployeeContext,
 ): Promise<AbsenceExplanationRecord[]> {
-  await ensureAbsenceExplanationsBootstrapped(employee);
+  // Firebase-only: no Sheets bootstrap on the login/punch path.
   const snap = await absenceExplanationsCollection(employee.employeeId).get();
   const records: AbsenceExplanationRecord[] = [];
 
@@ -356,16 +341,7 @@ export async function getAbsenceLeaveBalances(
 }
 
 async function getLeaveHolidayDates(): Promise<Set<string>> {
-  if (holidayDatesCache && Date.now() < holidayDatesCache.expiresAt) {
-    return holidayDatesCache.dates;
-  }
-
-  const holidays = await listCompanyHolidays();
-  const dates = new Set(
-    holidays.filter((holiday) => holiday.type === "leave").map((holiday) => holiday.date),
-  );
-  holidayDatesCache = { dates, expiresAt: Date.now() + HOLIDAY_CACHE_TTL_MS };
-  return dates;
+  return getCompanyLeaveHolidayDates();
 }
 
 function isScheduledWorkingDay(dateIso: string, leaveHolidayDates: Set<string>): boolean {
@@ -411,13 +387,27 @@ function listPastWorkingDates(
 async function buildAttendanceByDate(
   employee: AttendanceEmployeeContext,
   todayIso: string,
+  fromDateInclusive?: string,
 ): Promise<Map<string, AttendanceRow>> {
   const today = new Date(`${todayIso}T12:00:00`);
-  const monthKeys: Array<{ year: number; monthIndex: number }> = [];
+  const quarterStartIso = currentQuarterStartIso(today);
+  // Prefer the caller window (createdAt / quarter start); fall back safely for login + gate scans.
+  const requestedFrom =
+    fromDateInclusive?.trim() || pastAbsenceScanFromIso(employee, quarterStartIso);
+  const fromIso = requestedFrom <= todayIso ? requestedFrom : todayIso;
+  const startMonth = new Date(`${fromIso}T12:00:00`);
 
-  for (let offset = 0; offset < ATTENDANCE_MONTHS_TO_SCAN; offset += 1) {
-    const date = new Date(today.getFullYear(), today.getMonth() - offset, 1);
-    monthKeys.push({ year: date.getFullYear(), monthIndex: date.getMonth() });
+  const monthKeys: Array<{ year: number; monthIndex: number }> = [];
+  let cursor = new Date(startMonth.getFullYear(), startMonth.getMonth(), 1);
+  const endMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  while (cursor <= endMonth && monthKeys.length < ATTENDANCE_MONTHS_TO_SCAN) {
+    monthKeys.push({ year: cursor.getFullYear(), monthIndex: cursor.getMonth() });
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+
+  if (monthKeys.length === 0) {
+    monthKeys.push({ year: today.getFullYear(), monthIndex: today.getMonth() });
   }
 
   const repo = getAttendanceRepository();
@@ -536,12 +526,13 @@ export async function getPendingAbsenceExplanationGroups(
   const todayIso = localDateIso();
   const asOfDate = new Date(`${todayIso}T12:00:00`);
   const quarterStartIso = currentQuarterStartIso(asOfDate);
-  const leaveHolidayDates = await getLeaveHolidayDates();
+  const pastScanFromIso = pastAbsenceScanFromIso(employee, quarterStartIso);
 
-  const [leaveRows, explanations, attendanceByDate] = await Promise.all([
+  const [leaveHolidayDates, leaveRows, explanations, attendanceByDate] = await Promise.all([
+    getLeaveHolidayDates(),
     readLeaveBucketRowsForAbsenceExplanation(toLeaveBucketStorageRef(employee)),
     listAbsenceExplanations(employee),
-    buildAttendanceByDate(employee, todayIso),
+    buildAttendanceByDate(employee, todayIso, pastScanFromIso),
   ]);
 
   const allLeaves = listLeaveApplicationsFromRows({
@@ -592,14 +583,15 @@ export async function getPendingAbsenceExplanationGroups(
   }
 
   // Past unauthorized / rejected gaps are limited to the current leave quarter
-  // (Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec), matching sick/casual allocation.
+  // (Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec), matching sick/casual allocation,
+  // and never before the employee account was created in HRM.
   for (const leave of allLeaves) {
     if (leave.status.trim().toLowerCase() !== LEAVE_STATUS.REJECTED.toLowerCase()) {
       continue;
     }
 
     const dateIso = leaveDateToIso(leave.date);
-    if (!dateIso || dateIso >= todayIso || dateIso < quarterStartIso) continue;
+    if (!dateIso || dateIso >= todayIso || dateIso < pastScanFromIso) continue;
     if (!isScheduledWorkingDay(dateIso, leaveHolidayDates)) continue;
 
     const attendance = attendanceByDate.get(dateIso) ?? null;
@@ -616,7 +608,7 @@ export async function getPendingAbsenceExplanationGroups(
   }
 
   for (const dateIso of listPastWorkingDates(todayIso, leaveHolidayDates, {
-    fromDateInclusive: quarterStartIso,
+    fromDateInclusive: pastScanFromIso,
   })) {
     if (allPastAbsenceByDate.has(dateIso)) continue;
 
@@ -639,7 +631,7 @@ export async function getPendingAbsenceExplanationGroups(
   }
 
   const latestEpisode = collectLatestAbsenceEpisode(allPastAbsenceByDate, leaveHolidayDates).filter(
-    (entry) => entry.dateIso < todayIso && entry.dateIso >= quarterStartIso,
+    (entry) => entry.dateIso < todayIso && entry.dateIso >= pastScanFromIso,
   );
   const latestEpisodeNeedsExplanation =
     latestEpisode.length > 0 && latestEpisode.some((entry) => !explainedDates.has(entry.dateIso));
@@ -686,7 +678,11 @@ export async function submitAbsenceExplanations(params: {
   for (const submission of params.submissions) {
     const explanation = submission.explanation.trim();
     if (explanation.length < ABSENCE_EXPLANATION_MIN_LENGTH) {
-      throw new Error(`Explanation must be at least ${ABSENCE_EXPLANATION_MIN_LENGTH} characters`);
+      throw new Error(
+        ABSENCE_EXPLANATION_MIN_LENGTH <= 1
+          ? "Explanation is required"
+          : `Explanation must be at least ${ABSENCE_EXPLANATION_MIN_LENGTH} characters`,
+      );
     }
 
     const group = resolveSubmissionGroup(submission, pendingById);

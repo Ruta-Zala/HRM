@@ -1,16 +1,7 @@
-// app/api/sheet/route.ts
+// app/api/employee/route.ts
 
 import { NextResponse } from "next/server";
-import {
-  readSheet,
-  appendSheetRow,
-  updateSheetRow,
-  clearSheetRange,
-  getEmployeeCount,
-  getExistingEmployeeIds,
-  getSheetHeadersData,
-  EMPLOYEE_SHEET_RANGE,
-} from "@/lib/google/sheets";
+import { clearSheetRange } from "@/lib/google/sheets";
 import { createEmployeeFolderStructure, uploadEmployeeDocuments } from "@/lib/google/drive";
 import { getOrCreateEmployeeAttendanceSpreadsheet } from "@/lib/google/attendance-sheets";
 import {
@@ -19,7 +10,6 @@ import {
   processEmployeeSheet,
   getSheetHeaders,
   sheetRowToForm,
-  sheetRowToRange,
   generateEmployeeId,
   getEmployeeNameFromRow,
   getEmployeeIdFromRow,
@@ -47,6 +37,14 @@ import {
   hydrateEmployeeRowSalaryFromHistory,
 } from "@/lib/salary-slips/sheets";
 import { toApiErrorMessage } from "@/lib/api/user-facing-error";
+import {
+  createEmployeeRow,
+  getEmployeeBySheetRow,
+  getEmployeeSheetHeaders,
+  getExistingEmployeeIds,
+  readEmployeeSheetData,
+  updateEmployeeRow,
+} from "@/lib/employees/repository";
 
 /**
  * GET
@@ -59,8 +57,6 @@ export const GET = withActiveSession(async (req, user) => {
   try {
     const canViewFullDetails = canManageEmployees(user.role);
     const { searchParams } = new URL(req.url);
-
-    const range = searchParams.get("range") || EMPLOYEE_SHEET_RANGE;
 
     const sortBy = searchParams.get("sortBy");
     const orderParam = searchParams.get("order");
@@ -82,34 +78,42 @@ export const GET = withActiveSession(async (req, user) => {
     const headersOnly = searchParams.get("headersOnly") === "true";
 
     if (headersOnly) {
-      const headerRow = await readSheet("Employees!1:1");
-      const sheetData = headerRow.length ? headerRow : [[]];
+      const headers = await getEmployeeSheetHeaders();
+      const sheetData = headers.length ? [headers] : [[]];
       const filtered = filterEmployeeSheetForViewer(sheetData, canViewFullDetails);
-      const headers = getSheetHeaders(filtered);
+      const viewHeaders = getSheetHeaders(filtered);
 
       return NextResponse.json(
         {
           success: true,
-          headers,
+          headers: viewHeaders,
           view: canViewFullDetails ? "full" : "limited",
         },
         { status: 200 },
       );
     }
 
-    const raw = await readSheet(range);
+    const { data: raw, sheetRowNumbers } = await readEmployeeSheetData();
 
     if (rowParam) {
       const sheetRow = parseInt(rowParam, 10);
-      if (!Number.isFinite(sheetRow) || sheetRow < 2 || sheetRow > raw.length) {
+      if (!Number.isFinite(sheetRow) || sheetRow < 2) {
         return NextResponse.json(
           { success: false, message: "Employee not found" },
           { status: 404 },
         );
       }
 
-      const headers = getSheetHeaders(raw);
-      let row = [...(raw[sheetRow - 1] ?? [])];
+      const record = await getEmployeeBySheetRow(sheetRow);
+      if (!record) {
+        return NextResponse.json(
+          { success: false, message: "Employee not found" },
+          { status: 404 },
+        );
+      }
+
+      const headers = record.headers.length ? record.headers : getSheetHeaders(raw);
+      let row = [...record.row];
 
       if (!canViewFullDetails) {
         const statusColIndex = headers.map(headerToFormKey).indexOf("status");
@@ -147,6 +151,7 @@ export const GET = withActiveSession(async (req, user) => {
 
     const { data, sheetRows, pagination } = processEmployeeSheet({
       data: raw,
+      sheetRowNumbers,
       search,
       status,
       sortBy,
@@ -201,7 +206,7 @@ export const POST = withActiveSession(async (req) => {
   try {
     const { values, files } = await parseEmployeeSubmit(req);
 
-    const headers = await getSheetHeadersData();
+    const headers = await getEmployeeSheetHeaders();
     const form = sheetRowToForm(headers, values);
     const validationErrors = validateEmployeeForm(form);
     const validationMessage = firstEmployeeValidationMessage(validationErrors);
@@ -216,10 +221,7 @@ export const POST = withActiveSession(async (req) => {
     await ensureSkillsInSkillsSheet(form.skills);
 
     // Row count for sheet append position; ids come from max existing EMP### + 1
-    const [totalEmployees, existingIds] = await Promise.all([
-      getEmployeeCount(),
-      getExistingEmployeeIds(),
-    ]);
+    const existingIds = await getExistingEmployeeIds();
     const employeeId = generateEmployeeId(existingIds);
 
     const employeeName = getEmployeeNameFromRow(headers, values);
@@ -250,9 +252,7 @@ export const POST = withActiveSession(async (req) => {
     });
     rowValues = prepared.rowValues;
 
-    await appendSheetRow([rowValues]);
-
-    const newSheetRow = totalEmployees + 2;
+    const newSheetRow = await createEmployeeRow(rowValues);
     const fileBuffers = await filesToUploadBuffers(files);
     let documentWarning: string | undefined;
 
@@ -265,7 +265,7 @@ export const POST = withActiveSession(async (req) => {
             headers,
             mergeRowWithFormFields(headers, rowValues, documentLinks),
           );
-          await updateSheetRow(sheetRowToRange(newSheetRow, headers.length), [rowWithDocs]);
+          await updateEmployeeRow(newSheetRow, rowWithDocs);
         }
       } catch (uploadError: unknown) {
         console.error("UPLOAD ERROR FULL:", JSON.stringify(uploadError, null, 2));
@@ -295,6 +295,7 @@ export const POST = withActiveSession(async (req) => {
         : "Employee created successfully",
       documentWarning: documentWarning ?? null,
       credentials,
+      sheetRow: newSheetRow,
     });
   } catch (error: unknown) {
     console.error(error);
@@ -339,7 +340,7 @@ export const PUT = withActiveSession(async (req, user) => {
       sheetRow = payload.sheetRow;
       values = [payload.values];
 
-      const headers = await getSheetHeadersData();
+      const headers = await getEmployeeSheetHeaders();
       const form = sheetRowToForm(headers, payload.values);
       const validationErrors = validateEmployeeForm(form);
       const validationMessage = firstEmployeeValidationMessage(validationErrors);
@@ -355,8 +356,8 @@ export const PUT = withActiveSession(async (req, user) => {
 
       let existingRow: string[] | undefined;
       if (sheetRow && sheetRow >= 2) {
-        const sheetData = await readSheet(EMPLOYEE_SHEET_RANGE);
-        existingRow = sheetData[sheetRow - 1];
+        const existing = await getEmployeeBySheetRow(sheetRow);
+        existingRow = existing?.row;
       }
       const docColIndex = headers.findIndex((h) => headerToFormKey(h) === "documentsFolderId");
       let documentsFolderId =
@@ -418,7 +419,7 @@ export const PUT = withActiveSession(async (req, user) => {
       sheetRow = body.sheetRow != null ? Number(body.sheetRow) : undefined;
 
       if (sheetRow && values?.[0]) {
-        const headers = await getSheetHeadersData();
+        const headers = await getEmployeeSheetHeaders();
         const form = sheetRowToForm(headers, values[0] as string[]);
         const validationErrors = validateEmployeeForm(form);
         const validationMessage = firstEmployeeValidationMessage(validationErrors);
@@ -432,8 +433,8 @@ export const PUT = withActiveSession(async (req, user) => {
         // If HR typed a new skill, persist it into the Skills sheet as well.
         await ensureSkillsInSkillsSheet(form.skills);
 
-        const sheetData = await readSheet(EMPLOYEE_SHEET_RANGE);
-        const existingRow = sheetData[sheetRow - 1];
+        const existing = await getEmployeeBySheetRow(sheetRow);
+        const existingRow = existing?.row;
         let rowValues = values[0] as string[];
         if (!canManage && existingRow) {
           rowValues = preserveHrOnlyFieldsOnUpdate(headers, rowValues, existingRow);
@@ -456,14 +457,12 @@ export const PUT = withActiveSession(async (req, user) => {
       );
     }
 
-    let updateRange = range;
-    if (!updateRange && sheetRow) {
-      const rowValues = values[0] as string[] | undefined;
-      const colCount = rowValues?.length ?? 1;
-      updateRange = sheetRowToRange(Number(sheetRow), colCount);
+    if (!sheetRow && range) {
+      const match = /!(?:[A-Z]+)(\d+)/i.exec(range);
+      if (match) sheetRow = Number(match[1]);
     }
 
-    if (!updateRange) {
+    if (!sheetRow || sheetRow < 2) {
       return NextResponse.json(
         {
           success: false,
@@ -473,12 +472,23 @@ export const PUT = withActiveSession(async (req, user) => {
       );
     }
 
-    const response = await updateSheetRow(updateRange, values);
+    const rowValues = values[0] as string[];
+    if (!rowValues) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "values array is required",
+        },
+        { status: 400 },
+      );
+    }
+
+    await updateEmployeeRow(sheetRow, rowValues);
 
     return NextResponse.json(
       {
         success: true,
-        data: response,
+        data: { sheetRow, updated: true },
       },
       { status: 200 },
     );

@@ -6,7 +6,6 @@ import {
 import { applyLeaveDatesToRows } from "@/lib/attendance/leave-bucket/operations";
 import { mergeLeaveBucketCsvIntoRows } from "@/lib/attendance/leave-bucket/csv-import";
 import { getAdminFirestore } from "@/lib/firebase/admin";
-import { readLeaveBucketRows as readLeaveBucketRowsSheets } from "@/lib/google/attendance-sheets";
 
 import type { LeaveBucketRepository, LeaveBucketStorageRef } from "./types";
 
@@ -18,7 +17,7 @@ type LeaveBucketDoc = {
   updatedAt: number;
 };
 
-const bootstrapInflight = new Map<string, Promise<string[][]>>();
+const emptyBucketInflight = new Map<string, Promise<string[][]>>();
 
 function leaveBucketDocRef(employeeId: string) {
   return getAdminFirestore().collection(COLLECTION).doc(employeeId.trim());
@@ -61,25 +60,10 @@ async function persistRows(ref: LeaveBucketStorageRef, rows: string[][]): Promis
   await leaveBucketDocRef(ref.employeeId).set(payload, { merge: true });
 }
 
-async function bootstrapFromSheets(ref: LeaveBucketStorageRef): Promise<string[][]> {
-  const spreadsheetId = ref.spreadsheetId?.trim();
-  if (!spreadsheetId) {
-    return normalizeRows(getLeaveBucketTemplateRows());
-  }
-
-  try {
-    const rows = normalizeRows(await readLeaveBucketRowsSheets(spreadsheetId));
-    await persistRows(ref, rows);
-    return rows;
-  } catch (error) {
-    console.warn(
-      `[leave-bucket/firestore] bootstrap from sheets failed for ${ref.employeeId}:`,
-      error,
-    );
-    return normalizeRows(getLeaveBucketTemplateRows());
-  }
-}
-
+/**
+ * Firebase-only leave buckets. No Sheets bootstrap on the login/punch path —
+ * missing docs get a local template and are persisted for the next read.
+ */
 async function ensureBootstrapped(ref: LeaveBucketStorageRef): Promise<string[][]> {
   const employeeId = ref.employeeId.trim();
   if (!employeeId) {
@@ -93,11 +77,16 @@ async function ensureBootstrapped(ref: LeaveBucketStorageRef): Promise<string[][
   }
 
   const inflight =
-    bootstrapInflight.get(employeeId) ??
-    bootstrapFromSheets(ref).finally(() => {
-      bootstrapInflight.delete(employeeId);
+    emptyBucketInflight.get(employeeId) ??
+    (async () => {
+      const rows = normalizeRows(getLeaveBucketTemplateRows());
+      await persistRows(ref, rows);
+      return rows;
+    })().finally(() => {
+      emptyBucketInflight.delete(employeeId);
     });
-  bootstrapInflight.set(employeeId, inflight);
+
+  emptyBucketInflight.set(employeeId, inflight);
   return inflight;
 }
 

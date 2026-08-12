@@ -147,14 +147,8 @@ export function AbsenceExplanationPanel({
     if (items.length > 0) {
       setAbsenceGateSessionHint(true);
     } else {
-      void fetch("/api/auth/absence-gate", { credentials: "include", cache: "no-store" })
-        .then((res) => res.json())
-        .then((data: { active?: boolean }) => {
-          setAbsenceGateSessionHint(Boolean(data.active));
-        })
-        .catch(() => {
-          // Keep the existing hint when the gate check fails.
-        });
+      // Login already set absence/morning cookies; avoid a third heavy gate round-trip.
+      setAbsenceGateSessionHint(false);
     }
     setExplanations((current) => {
       const next = { ...current };
@@ -331,7 +325,7 @@ export function AbsenceExplanationPanel({
           {groups.map((group) => {
             const value = explanations[group.id] ?? "";
             const trimmed = value.trim();
-            const tooShort = trimmed.length > 0 && trimmed.length < ABSENCE_EXPLANATION_MIN_LENGTH;
+            const missingRequired = trimmed.length < ABSENCE_EXPLANATION_MIN_LENGTH;
             const rejectedEntry = group.entries[0];
             const leaveOptions = group.leaveTypeOptions ?? [];
 
@@ -425,10 +419,9 @@ export function AbsenceExplanationPanel({
                     rows={4}
                     disabled={submitting}
                   />
-                  {tooShort ? (
+                  {missingRequired && value.length > 0 ? (
                     <p className="text-xs text-amber-700 dark:text-amber-300">
-                      At least {ABSENCE_EXPLANATION_MIN_LENGTH} characters required (
-                      {trimmed.length}/{ABSENCE_EXPLANATION_MIN_LENGTH}).
+                      Explanation is required.
                     </p>
                   ) : null}
                 </div>

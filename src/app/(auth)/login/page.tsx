@@ -10,8 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiResponseErrorMessage, parseJsonResponse } from "@/lib/api/json-response";
 import { setAbsenceGateSessionHint } from "@/lib/attendance/absence-gate-session";
-// TEMP DISABLED: office Wi‑Fi / WFH network restriction (public IP for gate).
-// import { fetchPublicIpv4FromBrowser } from "@/lib/network-access/ip";
+import { fetchPublicIpv4FromBrowser } from "@/lib/network-access/ip";
 
 export default function LoginPage() {
   return (
@@ -43,22 +42,25 @@ function LoginPageContent() {
     setPending(true);
     setError(null);
     try {
-      // TEMP DISABLED: office Wi‑Fi / WFH network restriction.
       // On localhost the server cannot see your public IP; send it from the browser.
-      // On Vercel the server ignores this and uses the real forwarded IP.
-      // let publicIp = "";
-      // try {
-      //   publicIp = await fetchPublicIpv4FromBrowser();
-      // } catch {
-      //   // Gate still runs with whatever the server can detect.
-      // }
+      // On live (Vercel) the server already has x-forwarded-for — skip the slow ipify round-trip.
+      let publicIp = "";
+      const host = window.location.hostname;
+      const isLocalHost =
+        host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host.endsWith(".local");
+      if (isLocalHost) {
+        try {
+          publicIp = await fetchPublicIpv4FromBrowser();
+        } catch {
+          // Gate still runs with whatever the server can detect.
+        }
+      }
 
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ login, password }),
-        // body: JSON.stringify({ login, password, publicIp: publicIp || undefined }),
+        body: JSON.stringify({ login, password, publicIp: publicIp || undefined }),
       });
 
       const parsed = await parseJsonResponse<{
@@ -71,18 +73,19 @@ function LoginPageContent() {
       }>(res);
       if (parsed.invalid || parsed.empty) {
         setError(apiResponseErrorMessage(res, parsed, "Sign-in failed"));
+        setPending(false);
         return;
       }
       if (!res.ok || !parsed.data?.ok) {
         setError(parsed.data?.error ?? "Sign-in failed");
+        setPending(false);
         return;
       }
       const data = parsed.data;
-      // TEMP DISABLED: office Wi‑Fi / WFH network restriction.
-      // if (data.networkAllowed === false) {
-      //   window.location.assign("/network-blocked");
-      //   return;
-      // }
+      if (data.networkAllowed === false) {
+        window.location.assign("/network-blocked");
+        return;
+      }
       if (data.requiresSiteGate || data.requiresAbsenceExplanation || data.requiresMorningPunch) {
         setAbsenceGateSessionHint(true);
         window.location.assign("/employee/punch");
@@ -93,7 +96,6 @@ function LoginPageContent() {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "An unexpected error occurred";
       setError(message);
-    } finally {
       setPending(false);
     }
   }

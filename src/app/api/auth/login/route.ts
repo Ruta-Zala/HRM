@@ -9,10 +9,9 @@ import { roleRequiresAbsenceExplanationGate } from "@/lib/attendance/absence-gat
 import { userRequiresMorningPunchGate } from "@/lib/attendance/morning-punch-gate";
 import { ensureForgottenPunchOutForUser } from "@/lib/attendance/auto-punch-out";
 import { authenticateFromSheet } from "@/lib/auth/login";
-// TEMP DISABLED: office Wi‑Fi / WFH network restriction.
-// import { evaluateNetworkAccess } from "@/lib/network-access/gate";
-// import { isValidIpv4, normalizeIp } from "@/lib/network-access/ip";
-// import { setNetworkGateCookie } from "@/lib/network-access/network-gate-cookie";
+import { evaluateNetworkAccess } from "@/lib/network-access/gate";
+import { isValidIpv4, normalizeIp } from "@/lib/network-access/ip";
+import { setNetworkGateCookie } from "@/lib/network-access/network-gate-cookie";
 import { COOKIE, encodeSession, sessionCookieOptionsForRole } from "@/lib/session";
 
 const LOGIN_RETRY_DELAYS_MS = [150, 350];
@@ -56,10 +55,8 @@ export async function POST(req: Request) {
 
     const login = (body.login ?? body.email ?? "").trim();
     const password = body.password ?? "";
-    // TEMP DISABLED: used when network restriction is re-enabled.
-    // const reportedPublicIp = normalizeIp(body.publicIp ?? "");
-    // const safeReportedIp = isValidIpv4(reportedPublicIp) ? reportedPublicIp : null;
-    void body.publicIp;
+    const reportedPublicIp = normalizeIp(body.publicIp ?? "");
+    const safeReportedIp = isValidIpv4(reportedPublicIp) ? reportedPublicIp : null;
 
     const result = await authenticateWithRetry(login, password);
 
@@ -80,45 +77,43 @@ export async function POST(req: Request) {
 
     let requiresAbsenceExplanation = false;
     let requiresMorningPunch = false;
-    if (roleRequiresAbsenceExplanationGate(result.user.role)) {
-      try {
-        requiresAbsenceExplanation = await syncAbsenceGateForUser(result.user, {
-          forceRefresh: true,
-        });
-      } catch (error) {
-        // Absence gate sync is non-critical for successful authentication.
-        console.warn("[auth/login] absence gate sync failed:", error);
-      }
+    const gateRole = roleRequiresAbsenceExplanationGate(result.user.role);
 
-      try {
-        requiresMorningPunch = await userRequiresMorningPunchGate(result.user);
-      } catch (error) {
-        console.warn("[auth/login] morning punch gate sync failed:", error);
-      }
+    // Prefer cache from a recent gate sync; forceRefresh only when cookie/state is stale.
+    const [absenceResult, morningResult, networkResult] = await Promise.all([
+      gateRole
+        ? syncAbsenceGateForUser(result.user).catch((error) => {
+            console.warn("[auth/login] absence gate sync failed:", error);
+            return false;
+          })
+        : Promise.resolve(false),
+      gateRole
+        ? userRequiresMorningPunchGate(result.user).catch((error) => {
+            console.warn("[auth/login] morning punch gate sync failed:", error);
+            return false;
+          })
+        : Promise.resolve(false),
+      evaluateNetworkAccess(req, result.user, {
+        reportedPublicIp: safeReportedIp,
+      }).catch((error) => {
+        console.warn("[auth/login] network check failed, allowing temporary access:", error);
+        return {
+          allowed: true,
+          reason: "restriction_disabled" as const,
+          clientIp: safeReportedIp ?? "",
+        };
+      }),
+    ]);
 
-      try {
-        // Catch up forgotten punch-outs from prior days and create the employee notification.
-        await ensureForgottenPunchOutForUser(result.user);
-      } catch (error) {
+    requiresAbsenceExplanation = absenceResult;
+    requiresMorningPunch = morningResult;
+    const network = networkResult;
+
+    if (gateRole) {
+      void ensureForgottenPunchOutForUser(result.user).catch((error) => {
         console.warn("[auth/login] auto punch-out catch-up failed:", error);
-      }
+      });
     }
-
-    // TEMP DISABLED: office Wi‑Fi / WFH network restriction — no gate check / cookie / network-access API.
-    // let network = {
-    //   allowed: true,
-    //   reason: "restriction_disabled" as const,
-    //   clientIp: "",
-    // };
-    // try {
-    //   const reportedPublicIp = normalizeIp(body.publicIp ?? "");
-    //   const safeReportedIp = isValidIpv4(reportedPublicIp) ? reportedPublicIp : null;
-    //   network = await evaluateNetworkAccess(req, result.user, {
-    //     reportedPublicIp: safeReportedIp,
-    //   });
-    // } catch (error) {
-    //   console.warn("[auth/login] network check failed, allowing temporary access:", error);
-    // }
 
     const token = encodeSession({ ...result.user, loggedInAt: Date.now() });
     const requiresSiteGate = requiresAbsenceExplanation || requiresMorningPunch;
@@ -128,14 +123,14 @@ export async function POST(req: Request) {
       requiresAbsenceExplanation,
       requiresMorningPunch,
       requiresSiteGate,
-      // networkAllowed: network.allowed,
-      // networkReason: network.reason,
-      // clientIp: network.clientIp,
+      networkAllowed: network.allowed,
+      networkReason: network.reason,
+      clientIp: network.clientIp,
     });
     res.cookies.set(COOKIE, token, sessionCookieOptionsForRole(result.user.role));
     setAbsenceGateCookie(res, requiresAbsenceExplanation);
     setMorningPunchGateCookie(res, requiresMorningPunch);
-    // setNetworkGateCookie(res, network.allowed, network.clientIp);
+    setNetworkGateCookie(res, network.allowed, network.clientIp);
     return res;
   } catch (error) {
     console.error("[auth/login]", error);
