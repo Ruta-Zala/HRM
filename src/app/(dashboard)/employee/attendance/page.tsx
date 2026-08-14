@@ -283,7 +283,7 @@ export default function AttendanceHistoryPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <input
         ref={fileInputRef}
         type="file"

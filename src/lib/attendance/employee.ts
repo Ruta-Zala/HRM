@@ -1,5 +1,4 @@
 import {
-  getSheetHeaders,
   headerToFormKey,
   sheetRowToForm,
   sheetRowToRange,
@@ -13,15 +12,11 @@ import {
 } from "@/lib/google/attendance-sheets";
 import { createEmployeeFolderStructure, getParentFolderId } from "@/lib/google/drive";
 import { getDrive } from "@/lib/google/drive-auth";
-import {
-  EMPLOYEE_SHEET_RANGE,
-  getSheetHeadersData,
-  readSheet,
-  updateSheetRow,
-} from "@/lib/google/sheets";
+import { getSheetHeadersData, updateSheetRow } from "@/lib/google/sheets";
 import { ROLES } from "@/app/consts/common";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { isAttendanceOnFirebase } from "@/lib/attendance/repository";
+import { getEmployeeBySheetRow, type EmployeeRowRecord } from "@/lib/employees/repository";
 import type { SessionUser } from "@/types/auth";
 
 export type AttendanceEmployeeContext = {
@@ -69,18 +64,16 @@ export async function isAttendanceSpreadsheetAccessible(spreadsheetId: string): 
   }
 }
 
-export async function resolveAttendanceEmployee(
-  user: SessionUser,
+async function buildAttendanceEmployeeContext(
+  record: EmployeeRowRecord,
+  options?: { nameFallback?: string; createIfMissing?: boolean; requireSpreadsheet?: boolean },
 ): Promise<AttendanceEmployeeContext | null> {
-  const record = await resolveEmployeeRecordForSession(user);
-  if (!record) return null;
-
   const form = sheetRowToForm(record.headers, record.row);
   const employeeId = form.employeeId.trim();
-  const employeeName = form.name.trim() || user.name;
+  const employeeName = form.name.trim() || options?.nameFallback || "Employee";
+  if (!employeeId) return null;
 
   if (isAttendanceOnFirebase()) {
-    if (!employeeId) return null;
     return {
       employeeId,
       employeeName,
@@ -99,10 +92,10 @@ export async function resolveAttendanceEmployee(
     employeeName,
     documentsFolderId: form.documentsFolderId,
     birthdayDate: form.birthdayDate,
-    createIfMissing: true,
+    createIfMissing: options?.createIfMissing,
   });
 
-  if (!attendanceSpreadsheetId) return null;
+  if (options?.requireSpreadsheet !== false && !attendanceSpreadsheetId) return null;
 
   return {
     employeeId,
@@ -112,6 +105,17 @@ export async function resolveAttendanceEmployee(
     birthdayDate: form.birthdayDate.trim(),
     createdAt: form.createdAt.trim(),
   };
+}
+
+export async function resolveAttendanceEmployee(
+  user: SessionUser,
+): Promise<AttendanceEmployeeContext | null> {
+  const record = await resolveEmployeeRecordForSession(user);
+  if (!record) return null;
+  return buildAttendanceEmployeeContext(record, {
+    nameFallback: user.name,
+    createIfMissing: true,
+  });
 }
 
 async function resolveEmployeeFolderId(
@@ -142,95 +146,26 @@ export async function resolveAttendanceEmployeeForTarget(
     return resolveAttendanceEmployee(user);
   }
 
-  const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
-  if (targetSheetRow < 2 || targetSheetRow > raw.length) return null;
+  const record = await getEmployeeBySheetRow(targetSheetRow);
+  if (!record) return null;
 
-  const headers = getSheetHeaders(raw);
-  const row = raw[targetSheetRow - 1] ?? [];
-  const form = sheetRowToForm(headers, row);
+  const form = sheetRowToForm(record.headers, record.row);
   if (form.role.trim().toLowerCase() === ROLES.SUPER_ADMIN) {
     return null;
   }
-  const employeeId = form.employeeId.trim();
-  const employeeName = form.name.trim() || "Employee";
 
-  if (isAttendanceOnFirebase()) {
-    if (!employeeId) return null;
-    return {
-      employeeId,
-      employeeName,
-      attendanceSpreadsheetId: getAttendanceSpreadsheetIdFromRow(headers, row),
-      sheetRow: targetSheetRow,
-      birthdayDate: form.birthdayDate.trim(),
-      createdAt: form.createdAt.trim(),
-    };
-  }
-
-  const attendanceSpreadsheetId = await resolveAttendanceSpreadsheetIdForRow({
-    headers,
-    row,
-    sheetRow: targetSheetRow,
-    employeeId,
-    employeeName,
-    documentsFolderId: form.documentsFolderId,
-    birthdayDate: form.birthdayDate,
-    createIfMissing: true,
-  });
-
-  if (!attendanceSpreadsheetId) return null;
-
-  return {
-    employeeId,
-    employeeName,
-    attendanceSpreadsheetId,
-    sheetRow: targetSheetRow,
-    birthdayDate: form.birthdayDate.trim(),
-    createdAt: form.createdAt.trim(),
-  };
+  return buildAttendanceEmployeeContext(record, { createIfMissing: true });
 }
 
 export async function resolveAttendanceEmployeeBySheetRow(
   sheetRow: number,
 ): Promise<AttendanceEmployeeContext | null> {
-  const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
-  if (sheetRow < 2 || sheetRow > raw.length) return null;
-
-  const headers = raw[0] as string[];
-  const row = raw[sheetRow - 1] ?? [];
-  const form = sheetRowToForm(headers, row);
-  const employeeId = form.employeeId.trim();
-  const employeeName = form.name.trim() || "Employee";
-
-  if (isAttendanceOnFirebase()) {
-    if (!employeeId) return null;
-    return {
-      employeeId: form.employeeId,
-      employeeName,
-      attendanceSpreadsheetId: getAttendanceSpreadsheetIdFromRow(headers, row),
-      sheetRow,
-      birthdayDate: form.birthdayDate.trim(),
-      createdAt: form.createdAt.trim(),
-    };
-  }
-
-  const attendanceSpreadsheetId = await resolveAttendanceSpreadsheetIdForRow({
-    headers,
-    row,
-    sheetRow,
-    employeeId,
-    employeeName,
-    documentsFolderId: form.documentsFolderId,
+  const record = await getEmployeeBySheetRow(sheetRow);
+  if (!record) return null;
+  return buildAttendanceEmployeeContext(record, {
     createIfMissing: false,
+    requireSpreadsheet: false,
   });
-
-  return {
-    employeeId: form.employeeId,
-    employeeName,
-    attendanceSpreadsheetId,
-    sheetRow,
-    birthdayDate: form.birthdayDate.trim(),
-    createdAt: form.createdAt.trim(),
-  };
 }
 
 /**

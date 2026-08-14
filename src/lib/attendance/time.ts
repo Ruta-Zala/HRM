@@ -422,10 +422,45 @@ export function idealBreakMs(): number {
   return IDEAL_BREAK_HOURS * 60 * 60 * 1000;
 }
 
+/**
+ * Actual break duration to subtract from elapsed punch-in → punch-out time.
+ * Empty/missing break is 0 — unused break allowance is never assumed.
+ * Legacy CSV imports write `IMPORT_DEFAULT_BREAK` onto the row when needed.
+ */
 export function resolveAttendanceBreakMs(totalBreakTime: string, workMode?: string): number {
   if (isHalfDayUnpaidWorkMode(workMode)) return 0;
-  const parsed = parseDurationToMs(totalBreakTime);
-  return parsed > 0 ? parsed : idealBreakMs();
+  return parseDurationToMs(totalBreakTime);
+}
+
+/**
+ * When both break clocks are set (e.g. after a correction is approved),
+ * total break is the duration between them. Otherwise keep the stored total.
+ */
+export function resolveTotalBreakTimeFromClocks(params: {
+  breakStart: string;
+  breakEnd: string;
+  punchIn?: string;
+  existingTotalBreakTime: string;
+  baseDate: Date;
+  workMode?: string;
+}): string {
+  if (isHalfDayUnpaidWorkMode(params.workMode)) return "";
+  const start = params.breakStart.trim();
+  const end = params.breakEnd.trim();
+  if (!start || !end) return params.existingTotalBreakTime;
+
+  const startMs = parseSheetClockTime(start, params.baseDate, {
+    punchIn: params.punchIn,
+    role: "in",
+  });
+  const endMs = parseSheetClockTime(end, params.baseDate, {
+    punchIn: params.punchIn,
+    role: "out",
+  });
+  if (startMs == null || endMs == null || endMs <= startMs) {
+    return params.existingTotalBreakTime;
+  }
+  return formatDuration(endMs - startMs);
 }
 
 /** Break time already taken today — used for live timers (no assumed allowance). */

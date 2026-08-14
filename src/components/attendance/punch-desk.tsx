@@ -17,11 +17,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   IDEAL_BREAK_HOURS,
-  IDEAL_SHIFT_HOURS,
   IDEAL_WORKING_HOURS,
   isHalfDayUnpaidWorkMode,
 } from "@/lib/attendance/constants";
-import { formatBreakAllowance, parseDurationToMs } from "@/lib/attendance/time";
+import { formatDuration, parseDurationToMs } from "@/lib/attendance/time";
 import type { TodayAttendance } from "@/lib/attendance/client";
 import { cn } from "@/lib/utils";
 
@@ -375,8 +374,8 @@ export function PunchDesk({
               hasPunchedIn
                 ? isHalfDayLeave
                   ? "Not allowed"
-                  : formatBreakAllowance(breakUsedMs)
-                : `0h / ${today?.idealBreakHours ?? IDEAL_BREAK_HOURS}h`
+                  : formatDuration(breakUsedMs)
+                : "0h 0m"
             }
             highlight={onBreak}
             tone={onBreak ? "warning" : "default"}
@@ -525,20 +524,6 @@ export function PunchDesk({
             </Button>
           ) : null}
         </div>
-
-        {hasPunchedIn && !hasPunchedOut ? (
-          <p className="text-ex-muted text-center text-xs sm:text-left">
-            Your day:{" "}
-            <strong className="text-ex-primary">
-              {today?.idealHours ?? IDEAL_WORKING_HOURS}h work
-            </strong>{" "}
-            +{" "}
-            <strong className="text-ex-primary">
-              {today?.idealBreakHours ?? IDEAL_BREAK_HOURS}h break
-            </strong>{" "}
-            = {today?.idealShiftHours ?? IDEAL_SHIFT_HOURS}h target.
-          </p>
-        ) : null}
       </div>
     </div>
   );

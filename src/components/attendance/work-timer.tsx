@@ -85,22 +85,11 @@ export function WorkTimer({
           </p>
           <p className="text-ex-muted mt-1 text-[11px]">
             {isBreak
-              ? progress >= 100
-                ? `${targetHours}h break used`
-                : `${formatDuration(remainingMs)} break left`
+              ? formatDuration(workedMs)
               : progress >= 100
                 ? `${idealHours}h work done`
                 : `${formatDuration(remainingMs)} work left`}
           </p>
-          {!isBreak ? (
-            <p className="text-ex-muted/80 text-[10px]">
-              +{IDEAL_BREAK_HOURS}h break · {idealHours + IDEAL_BREAK_HOURS}h day
-            </p>
-          ) : (
-            <p className="text-ex-muted/80 text-[10px]">
-              of {breakAllowanceHours}h break allowance
-            </p>
-          )}
         </div>
       </div>
     </div>

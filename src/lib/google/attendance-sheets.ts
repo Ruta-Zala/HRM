@@ -35,6 +35,7 @@ import {
   normalizeSheetDate,
   parseDurationToMs,
   resolveLiveBreakMs,
+  resolveTotalBreakTimeFromClocks,
   parseSheetClockTime,
   parseTimeOnDate,
 } from "@/lib/attendance/time";
@@ -309,6 +310,14 @@ export type AttendanceRow = {
 function applyAttendanceMetrics(rowValues: string[], baseDate: Date): void {
   const punchOut = (rowValues[ATTENDANCE_COL.punchOut] ?? "").trim();
   const workMode = rowValues[ATTENDANCE_COL.workMode] ?? WORK_MODE.FULL_DAY_ONSITE;
+  rowValues[ATTENDANCE_COL.totalBreakTime] = resolveTotalBreakTimeFromClocks({
+    breakStart: rowValues[ATTENDANCE_COL.breakStart] ?? "",
+    breakEnd: rowValues[ATTENDANCE_COL.breakEnd] ?? "",
+    punchIn: rowValues[ATTENDANCE_COL.punchIn] ?? "",
+    existingTotalBreakTime: rowValues[ATTENDANCE_COL.totalBreakTime] ?? "",
+    baseDate,
+    workMode,
+  });
   const metrics = computeAttendanceMetrics({
     punchIn: rowValues[ATTENDANCE_COL.punchIn] ?? "",
     punchOut: rowValues[ATTENDANCE_COL.punchOut] ?? "",
@@ -326,6 +335,9 @@ function applyAttendanceMetrics(rowValues: string[], baseDate: Date): void {
       rowValues[ATTENDANCE_COL.isOvertimeApproved] ?? OVERTIME_APPROVAL.NOT_CONSIDERED,
       metrics.overtime,
     );
+    if (rowValues[ATTENDANCE_COL.status] !== WORKING_STATUS.SHORT) {
+      rowValues[ATTENDANCE_COL.earlyLeaveReason] = "";
+    }
   } else {
     rowValues[ATTENDANCE_COL.overtime] = "—";
     rowValues[ATTENDANCE_COL.status] = WORKING_STATUS.IN_PROGRESS;
@@ -354,38 +366,51 @@ function resolveAttendanceStatus(
 
 function rowFromValues(values: string[], sheetRow: number): AttendanceRow {
   const dateStr = normalizeSheetDate(values[ATTENDANCE_COL.date] ?? "");
-  const baseDate = dateStr ? new Date(dateStr) : new Date();
+  const baseDate = dateStr ? new Date(`${dateStr}T12:00:00`) : new Date();
   const punchOut = values[ATTENDANCE_COL.punchOut] ?? "";
   const punchedOut = Boolean(punchOut.trim());
+  const workMode = values[ATTENDANCE_COL.workMode] ?? WORK_MODE.FULL_DAY_ONSITE;
+  const totalBreakTime = resolveTotalBreakTimeFromClocks({
+    breakStart: values[ATTENDANCE_COL.breakStart] ?? "",
+    breakEnd: values[ATTENDANCE_COL.breakEnd] ?? "",
+    punchIn: values[ATTENDANCE_COL.punchIn] ?? "",
+    existingTotalBreakTime: values[ATTENDANCE_COL.totalBreakTime] ?? "",
+    baseDate,
+    workMode,
+  });
 
   const metrics = computeAttendanceMetrics({
     punchIn: values[ATTENDANCE_COL.punchIn] ?? "",
     punchOut,
-    totalBreakTime: values[ATTENDANCE_COL.totalBreakTime] ?? "",
+    totalBreakTime,
     baseDate,
     punchedOut,
-    workMode: values[ATTENDANCE_COL.workMode] ?? WORK_MODE.FULL_DAY_ONSITE,
+    workMode,
   });
+  const status = punchedOut
+    ? resolveAttendanceStatus(
+        metrics.status,
+        values[ATTENDANCE_COL.isOvertimeApproved] ?? OVERTIME_APPROVAL.NOT_CONSIDERED,
+        metrics.overtime,
+      )
+    : (values[ATTENDANCE_COL.status] ?? WORKING_STATUS.IN_PROGRESS);
 
   return {
     sheetRow,
     date: dateStr,
-    workMode: values[ATTENDANCE_COL.workMode] ?? WORK_MODE.FULL_DAY_ONSITE,
+    workMode,
     punchIn: values[ATTENDANCE_COL.punchIn] ?? "",
     punchOut,
     breakStart: values[ATTENDANCE_COL.breakStart] ?? "",
     breakEnd: values[ATTENDANCE_COL.breakEnd] ?? "",
-    totalBreakTime: values[ATTENDANCE_COL.totalBreakTime] ?? "",
+    totalBreakTime,
     workingHours: punchedOut ? metrics.workingHours : "",
-    status: punchedOut
-      ? resolveAttendanceStatus(
-          metrics.status,
-          values[ATTENDANCE_COL.isOvertimeApproved] ?? OVERTIME_APPROVAL.NOT_CONSIDERED,
-          metrics.overtime,
-        )
-      : (values[ATTENDANCE_COL.status] ?? WORKING_STATUS.IN_PROGRESS),
+    status,
     overtime: punchedOut ? metrics.overtime : "—",
-    earlyLeaveReason: values[ATTENDANCE_COL.earlyLeaveReason] ?? "",
+    earlyLeaveReason:
+      punchedOut && status !== WORKING_STATUS.SHORT
+        ? ""
+        : (values[ATTENDANCE_COL.earlyLeaveReason] ?? ""),
     dailyUpdate: values[ATTENDANCE_COL.dailyUpdate] ?? "",
     isOvertimeApproved:
       values[ATTENDANCE_COL.isOvertimeApproved] ?? OVERTIME_APPROVAL.NOT_CONSIDERED,
@@ -1698,8 +1723,18 @@ export async function updateAttendanceField(
   const col = ATTENDANCE_COL[field];
   rowValues[col] = value;
 
+  const baseDate = new Date(`${dateIso}T12:00:00`);
+  rowValues[ATTENDANCE_COL.totalBreakTime] = resolveTotalBreakTimeFromClocks({
+    breakStart: rowValues[ATTENDANCE_COL.breakStart] ?? "",
+    breakEnd: rowValues[ATTENDANCE_COL.breakEnd] ?? "",
+    punchIn: rowValues[ATTENDANCE_COL.punchIn] ?? "",
+    existingTotalBreakTime: rowValues[ATTENDANCE_COL.totalBreakTime] ?? "",
+    baseDate,
+    workMode: rowValues[ATTENDANCE_COL.workMode] ?? "",
+  });
+
   if (rowValues[ATTENDANCE_COL.punchIn] && rowValues[ATTENDANCE_COL.punchOut]) {
-    applyAttendanceMetrics(rowValues, new Date(dateIso));
+    applyAttendanceMetrics(rowValues, baseDate);
   }
 
   await updateAttendanceRow(targetSpreadsheetId, sheetTitle, found.sheetRow, rowValues);

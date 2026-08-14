@@ -9,18 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-provider";
 import { roleCanPunchInOut } from "@/lib/auth/roles";
-import {
-  IDEAL_BREAK_HOURS,
-  IDEAL_SHIFT_HOURS,
-  IDEAL_WORKING_HOURS,
-} from "@/lib/attendance/constants";
+import { IDEAL_WORKING_HOURS } from "@/lib/attendance/constants";
 import { formatDuration } from "@/lib/attendance/time";
 import { useTodayAttendance } from "@/hooks/use-today-attendance";
 import { cn } from "@/lib/utils";
 
 export function AttendanceWidget({ className }: { className?: string }) {
   const { user } = useAuth();
-  const { today, loading, liveWorkedMs } = useTodayAttendance();
+  const { today, loading, liveWorkedMs, liveBreakUsedMs } = useTodayAttendance();
 
   if (!user || !roleCanPunchInOut(user.role)) {
     return null;
@@ -64,9 +60,7 @@ export function AttendanceWidget({ className }: { className?: string }) {
               </div>
               <div>
                 <dt className="text-ex-muted">Work goal</dt>
-                <dd className="text-ex-primary font-medium">
-                  {IDEAL_WORKING_HOURS}h work + {IDEAL_BREAK_HOURS}h break
-                </dd>
+                <dd className="text-ex-primary font-medium">{IDEAL_WORKING_HOURS}h</dd>
               </div>
               <div>
                 <dt className="text-ex-muted">Work left</dt>
@@ -75,14 +69,12 @@ export function AttendanceWidget({ className }: { className?: string }) {
                 </dd>
               </div>
               <div>
-                <dt className="text-ex-muted">Break used</dt>
-                <dd className="text-ex-primary font-medium">
-                  {today.breakAllowanceFormatted ?? `0h / ${IDEAL_BREAK_HOURS}h`}
-                </dd>
+                <dt className="text-ex-muted">Break</dt>
+                <dd className="text-ex-primary font-medium">{formatDuration(liveBreakUsedMs)}</dd>
               </div>
               <div>
-                <dt className="text-ex-muted">Typical day</dt>
-                <dd className="text-ex-primary font-medium">{IDEAL_SHIFT_HOURS}h total</dd>
+                <dt className="text-ex-muted">Punch Out</dt>
+                <dd className="text-ex-primary font-medium">{today.punchOut || "—"}</dd>
               </div>
             </dl>
             <WorkTimer workedMs={liveWorkedMs} />
