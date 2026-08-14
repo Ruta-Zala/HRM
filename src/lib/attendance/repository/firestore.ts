@@ -19,6 +19,7 @@ import {
   normalizeSheetDate,
   parseDurationToMs,
   parseTimeOnDate,
+  resolveTotalBreakTimeFromClocks,
 } from "@/lib/attendance/time";
 import type { AttendanceRow } from "@/lib/google/attendance-sheets";
 import { getAdminFirestore } from "@/lib/firebase/admin";
@@ -70,16 +71,27 @@ function emptyDay(date: Date): DayFields {
 
 function toAttendanceRow(fields: DayFields): AttendanceRow {
   const dateStr = normalizeSheetDate(fields.date);
-  const baseDate = dateStr ? new Date(dateStr) : new Date();
+  const baseDate = dateStr ? new Date(`${dateStr}T12:00:00`) : new Date();
   const punchedOut = Boolean(fields.punchOut.trim());
+  const totalBreakTime = resolveTotalBreakTimeFromClocks({
+    breakStart: fields.breakStart,
+    breakEnd: fields.breakEnd,
+    punchIn: fields.punchIn,
+    existingTotalBreakTime: fields.totalBreakTime,
+    baseDate,
+    workMode: fields.workMode,
+  });
   const metrics = computeAttendanceMetrics({
     punchIn: fields.punchIn,
     punchOut: fields.punchOut,
-    totalBreakTime: fields.totalBreakTime,
+    totalBreakTime,
     baseDate,
     punchedOut,
     workMode: fields.workMode,
   });
+  const status = punchedOut
+    ? resolveAttendanceStatus(metrics.status, fields.isOvertimeApproved, metrics.overtime)
+    : fields.status;
 
   return {
     sheetRow: 0,
@@ -89,19 +101,26 @@ function toAttendanceRow(fields: DayFields): AttendanceRow {
     punchOut: fields.punchOut,
     breakStart: fields.breakStart,
     breakEnd: fields.breakEnd,
-    totalBreakTime: fields.totalBreakTime,
+    totalBreakTime,
     workingHours: punchedOut ? metrics.workingHours : fields.workingHours,
-    status: punchedOut
-      ? resolveAttendanceStatus(metrics.status, fields.isOvertimeApproved, metrics.overtime)
-      : fields.status,
+    status,
     overtime: punchedOut ? metrics.overtime : fields.overtime,
-    earlyLeaveReason: fields.earlyLeaveReason,
+    earlyLeaveReason:
+      punchedOut && status !== WORKING_STATUS.SHORT ? "" : fields.earlyLeaveReason,
     dailyUpdate: fields.dailyUpdate,
     isOvertimeApproved: fields.isOvertimeApproved,
   };
 }
 
 function applyPunchOutMetrics(fields: DayFields, baseDate: Date): void {
+  fields.totalBreakTime = resolveTotalBreakTimeFromClocks({
+    breakStart: fields.breakStart,
+    breakEnd: fields.breakEnd,
+    punchIn: fields.punchIn,
+    existingTotalBreakTime: fields.totalBreakTime,
+    baseDate,
+    workMode: fields.workMode,
+  });
   const metrics = computeAttendanceMetrics({
     punchIn: fields.punchIn,
     punchOut: fields.punchOut,
@@ -117,6 +136,9 @@ function applyPunchOutMetrics(fields: DayFields, baseDate: Date): void {
     fields.isOvertimeApproved,
     metrics.overtime,
   );
+  if (fields.status !== WORKING_STATUS.SHORT) {
+    fields.earlyLeaveReason = "";
+  }
 }
 
 function daysCollection(employeeId: string) {
@@ -428,8 +450,18 @@ export const firestoreAttendanceRepository: AttendanceRepository = {
       throw new Error(`Unsupported attendance field: ${field}`);
     }
 
+    const baseDate = new Date(`${normalized}T12:00:00`);
+    fields.totalBreakTime = resolveTotalBreakTimeFromClocks({
+      breakStart: fields.breakStart,
+      breakEnd: fields.breakEnd,
+      punchIn: fields.punchIn,
+      existingTotalBreakTime: fields.totalBreakTime,
+      baseDate,
+      workMode: fields.workMode,
+    });
+
     if (fields.punchIn.trim() && fields.punchOut.trim()) {
-      applyPunchOutMetrics(fields, new Date(`${normalized}T12:00:00`));
+      applyPunchOutMetrics(fields, baseDate);
     }
 
     return saveDayFields(ref, fields);
