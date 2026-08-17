@@ -372,8 +372,7 @@ export const firestoreAttendanceRepository: AttendanceRepository = {
 
     const existingBreakMs = parseDurationToMs(fields.totalBreakTime);
     fields.totalBreakTime = formatDuration(existingBreakMs + breakMs);
-    fields.breakStart = "";
-    fields.breakEnd = "";
+    fields.breakEnd = breakEnd;
 
     return saveDayFields(ref, fields);
   },
@@ -407,8 +406,7 @@ export const firestoreAttendanceRepository: AttendanceRepository = {
           : 0;
       const existingBreakMs = parseDurationToMs(fields.totalBreakTime);
       fields.totalBreakTime = formatDuration(existingBreakMs + breakMs);
-      fields.breakStart = "";
-      fields.breakEnd = "";
+      fields.breakEnd = AUTO_PUNCH_OUT_CLOCK;
     }
 
     fields.punchOut = AUTO_PUNCH_OUT_CLOCK;
@@ -451,6 +449,7 @@ export const firestoreAttendanceRepository: AttendanceRepository = {
     }
 
     const baseDate = new Date(`${normalized}T12:00:00`);
+    const overwriteFromClocks = key === "breakStart" || key === "breakEnd";
     fields.totalBreakTime = resolveTotalBreakTimeFromClocks({
       breakStart: fields.breakStart,
       breakEnd: fields.breakEnd,
@@ -458,6 +457,7 @@ export const firestoreAttendanceRepository: AttendanceRepository = {
       existingTotalBreakTime: fields.totalBreakTime,
       baseDate,
       workMode: fields.workMode,
+      overwriteFromClocks,
     });
 
     if (fields.punchIn.trim() && fields.punchOut.trim()) {
