@@ -1367,8 +1367,6 @@ export async function autoPunchOutOpenSession(
         : 0;
     const existingBreakMs = parseDurationToMs(rowValues[ATTENDANCE_COL.totalBreakTime] ?? "");
     rowValues[ATTENDANCE_COL.totalBreakTime] = formatDuration(existingBreakMs + breakMs);
-    rowValues[ATTENDANCE_COL.breakStart] = "";
-    rowValues[ATTENDANCE_COL.breakEnd] = "";
   }
 
   rowValues[ATTENDANCE_COL.punchOut] = AUTO_PUNCH_OUT_CLOCK;
@@ -1457,8 +1455,6 @@ export async function endBreak(
 
   const existingBreakMs = parseDurationToMs(rowValues[ATTENDANCE_COL.totalBreakTime] ?? "");
   rowValues[ATTENDANCE_COL.totalBreakTime] = formatDuration(existingBreakMs + breakMs);
-  rowValues[ATTENDANCE_COL.breakStart] = "";
-  rowValues[ATTENDANCE_COL.breakEnd] = "";
 
   await updateAttendanceRow(targetSpreadsheetId, sheetTitle, found.sheetRow, rowValues);
 
@@ -1620,7 +1616,7 @@ export async function upsertManualAttendanceRecord(params: {
       rowValues[ATTENDANCE_COL.punchOut] = params.punchOut;
     }
 
-    // Keep break start/end on the row so HR can edit them later (unlike live punch flow).
+    // Keep break start/end on the row so HR can edit them later.
     if (
       params.breakStart !== undefined ||
       params.breakEnd !== undefined ||
@@ -1724,6 +1720,7 @@ export async function updateAttendanceField(
   rowValues[col] = value;
 
   const baseDate = new Date(`${dateIso}T12:00:00`);
+  const overwriteFromClocks = field === "breakStart" || field === "breakEnd";
   rowValues[ATTENDANCE_COL.totalBreakTime] = resolveTotalBreakTimeFromClocks({
     breakStart: rowValues[ATTENDANCE_COL.breakStart] ?? "",
     breakEnd: rowValues[ATTENDANCE_COL.breakEnd] ?? "",
@@ -1731,6 +1728,7 @@ export async function updateAttendanceField(
     existingTotalBreakTime: rowValues[ATTENDANCE_COL.totalBreakTime] ?? "",
     baseDate,
     workMode: rowValues[ATTENDANCE_COL.workMode] ?? "",
+    overwriteFromClocks,
   });
 
   if (rowValues[ATTENDANCE_COL.punchIn] && rowValues[ATTENDANCE_COL.punchOut]) {

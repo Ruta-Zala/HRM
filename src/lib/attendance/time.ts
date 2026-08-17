@@ -433,8 +433,11 @@ export function resolveAttendanceBreakMs(totalBreakTime: string, workMode?: stri
 }
 
 /**
- * When both break clocks are set (e.g. after a correction is approved),
- * total break is the duration between them. Otherwise keep the stored total.
+ * Resolve total break time from the last break start/end clocks.
+ *
+ * Live punch keeps those clocks on the row after break-out so they appear in
+ * the sheet. The stored total can include earlier breaks the same day, so it
+ * is kept unless `overwriteFromClocks` is set (correction of break times).
  */
 export function resolveTotalBreakTimeFromClocks(params: {
   breakStart: string;
@@ -443,11 +446,13 @@ export function resolveTotalBreakTimeFromClocks(params: {
   existingTotalBreakTime: string;
   baseDate: Date;
   workMode?: string;
+  overwriteFromClocks?: boolean;
 }): string {
   if (isHalfDayUnpaidWorkMode(params.workMode)) return "";
   const start = params.breakStart.trim();
   const end = params.breakEnd.trim();
-  if (!start || !end) return params.existingTotalBreakTime;
+  const existing = params.existingTotalBreakTime;
+  if (!start || !end) return existing;
 
   const startMs = parseSheetClockTime(start, params.baseDate, {
     punchIn: params.punchIn,
@@ -458,9 +463,14 @@ export function resolveTotalBreakTimeFromClocks(params: {
     role: "out",
   });
   if (startMs == null || endMs == null || endMs <= startMs) {
-    return params.existingTotalBreakTime;
+    return existing;
   }
-  return formatDuration(endMs - startMs);
+
+  const fromClocks = formatDuration(endMs - startMs);
+  if (existing.trim() && !params.overwriteFromClocks) {
+    return existing;
+  }
+  return fromClocks;
 }
 
 /** Break time already taken today — used for live timers (no assumed allowance). */
