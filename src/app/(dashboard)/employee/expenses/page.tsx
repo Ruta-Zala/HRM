@@ -475,7 +475,6 @@ export default function ExpensesPage() {
         },
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers close over latest state
     [expenses, saving],
   );
 
