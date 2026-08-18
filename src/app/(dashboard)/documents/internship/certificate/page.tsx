@@ -124,10 +124,10 @@ export default function InternshipCertificatePage() {
                 >
                   <option value="">
                     {loading
-                      ? "Loading trainees…"
+                      ? "Loading Trainees…"
                       : employees.length === 0
                         ? "No trainees found"
-                        : "Select trainee"}
+                        : "Select Trainee"}
                   </option>
                   {employees.map((employee) => (
                     <option key={employee.sheetRow} value={employee.sheetRow}>

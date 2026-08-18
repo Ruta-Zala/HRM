@@ -1,7 +1,6 @@
 import { roleCanPunchInOut } from "@/lib/attendance/absence-gate";
 import { resolveAttendanceEmployee } from "@/lib/attendance/employee";
 import {
-  getAttendanceRepository,
   hasAttendanceStorage,
   isAttendanceOnFirebase,
   type AttendanceStorageRef,
@@ -15,6 +14,7 @@ import {
 import { addDaysToDateIso, notificationDateIso } from "@/lib/notifications/automation-date";
 import { notifyAutoPunchOut } from "@/lib/notifications/auto-punch-out-events";
 import type { SessionUser, UserRole } from "@/types/auth";
+import { firestoreAttendanceRepository } from "@/lib/attendance/repository/firestore";
 
 /** Only the previous calendar day is auto-closed (midnight forgotten punch-out). */
 const LOOKBACK_DAYS = 1;
@@ -105,52 +105,28 @@ async function closeForgottenSessionsForEmployee(
   let closed = 0;
   let notified = 0;
   const dates: string[] = [];
-  const repo = getAttendanceRepository();
   const storageRef = toStorageRef(employee);
 
-  const byMonth = new Map<string, string[]>();
+  // Active storage is Firebase in this deployment. Sheets gets the update via scheduled sync.
   for (const dateIso of dateIsos) {
-    const key = dateIso.slice(0, 7);
-    const list = byMonth.get(key) ?? [];
-    list.push(dateIso);
-    byMonth.set(key, list);
-  }
-
-  for (const [monthKey, monthDates] of byMonth) {
-    const [year, month] = monthKey.split("-").map(Number);
-    let openDates: string[];
-
     try {
-      const rows = await repo.getMonthAttendance(storageRef, year, month - 1);
-      const open = new Set(
-        rows.filter((row) => row.punchIn.trim() && !row.punchOut.trim()).map((row) => row.date),
+      const closedRow = await firestoreAttendanceRepository.autoPunchOutOpenSession(
+        storageRef,
+        dateIso,
       );
-      openDates = monthDates.filter((dateIso) => open.has(dateIso));
+      if (!closedRow) continue;
+
+      closed += 1;
+      dates.push(dateIso);
+
+      const created = await notifyAutoPunchOut({
+        employeeSheetRow: employee.sheetRow,
+        employeeId: employee.employeeId,
+        dateIso,
+      });
+      notified += created;
     } catch (error) {
-      console.warn(
-        `[auto-punch-out] month read failed for ${employee.employeeName} (${monthKey}):`,
-        error,
-      );
-      openDates = monthDates;
-    }
-
-    for (const dateIso of openDates) {
-      try {
-        const closedRow = await repo.autoPunchOutOpenSession(storageRef, dateIso);
-        if (!closedRow) continue;
-
-        closed += 1;
-        dates.push(dateIso);
-
-        const created = await notifyAutoPunchOut({
-          employeeSheetRow: employee.sheetRow,
-          employeeId: employee.employeeId,
-          dateIso,
-        });
-        notified += created;
-      } catch (error) {
-        console.warn(`[auto-punch-out] failed for ${employee.employeeName} on ${dateIso}:`, error);
-      }
+      console.warn(`[auto-punch-out] failed for ${employee.employeeName} on ${dateIso}:`, error);
     }
   }
 

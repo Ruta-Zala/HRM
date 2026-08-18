@@ -6,7 +6,6 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
@@ -383,11 +382,6 @@ export default function PayrollPage() {
             loading={loading}
           />
         </div>
-        {loading ? (
-          <Skeleton className="h-6 w-14 rounded-md" />
-        ) : (
-          <Badge variant="warning">Draft</Badge>
-        )}
       </div>
 
       <div className="space-y-4">

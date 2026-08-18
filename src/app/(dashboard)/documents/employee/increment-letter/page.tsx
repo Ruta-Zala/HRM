@@ -112,7 +112,7 @@ export default function IncrementLetterPage() {
                   onChange={(e) => selectEmployee(e.target.value)}
                   disabled={loading}
                 >
-                  <option value="">{loading ? "Loading employees…" : "Select employee"}</option>
+                  <option value="">{loading ? "Loading Employees…" : "Select Employee"}</option>
                   {employees.map((employee) => (
                     <option key={employee.sheetRow} value={employee.sheetRow}>
                       {employee.name} ({employee.employeeId})
@@ -128,7 +128,7 @@ export default function IncrementLetterPage() {
                   rows={3}
                   value={form.address}
                   onChange={(e) => update("address", e.target.value)}
-                  placeholder="Employee address"
+                  placeholder="Employee Address"
                 />
               </div>
 

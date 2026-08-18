@@ -133,7 +133,7 @@ export default function PunchPage() {
 
   if (!canPunch) {
     return (
-      <div className="mx-auto max-w-4xl space-y-6">
+      <div className="w-full space-y-6">
         <AccessDenied
           title="Punch desk unavailable"
           description="Punch in/out is only available for Employee and HR Manager roles."
@@ -151,7 +151,7 @@ export default function PunchPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="w-full space-y-6">
       <div className="space-y-1">
         <h1 className="text-ex-primary text-2xl font-bold tracking-tight">Punch desk</h1>
         <p className="text-ex-muted text-sm">

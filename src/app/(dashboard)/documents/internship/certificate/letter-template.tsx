@@ -24,7 +24,7 @@ export default function CertificateTemplate({ data }: { data: CertificateLetterD
 
       <p className={styles.paragraph}>
         This is to certify that <strong>{data.candidateName}</strong> has been actively engaged in a{" "}
-        <span className={styles.numeric}>{data.durationMonths}</span>-month internship with{" "}
+        <span className={styles.numeric}>{data.durationMonths}</span> {data.durationMonths > 1 ? "months" : "month"} internship with{" "}
         {COMPANY.name}, commencing from <span className={styles.numeric}>{data.startDate}</span> to{" "}
         <span className={styles.numeric}>{data.endDate}</span>. Throughout this period,{" "}
         {data.candidateFirstName} has been dedicatedly involved in a {data.project} project.
