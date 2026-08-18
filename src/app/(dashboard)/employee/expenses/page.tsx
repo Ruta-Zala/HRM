@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MonthYearPicker } from "@/components/ui/month-year-picker";
 import { PageHeader } from "@/components/ui/page-header";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Select } from "@/components/ui/select";
 import { StatCard } from "@/components/ui/stat-card";
 import { Textarea } from "@/components/ui/textarea";
@@ -138,6 +139,7 @@ export default function ExpensesPage() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [pendingMarkPaid, setPendingMarkPaid] = useState<ExpenseRecord | null>(null);
 
   const [rejectingExpense, setRejectingExpense] = useState<ExpenseRecord | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
@@ -305,7 +307,6 @@ export default function ExpensesPage() {
   }
 
   async function handleMarkPaid(expense: ExpenseRecord) {
-    if (!window.confirm(`Mark "${expense.title}" (${formatInr(expense.amount)}) as paid?`)) return;
     setSaving(true);
     setError(null);
     try {
@@ -323,6 +324,7 @@ export default function ExpensesPage() {
       if (!res.ok || !json.success) {
         throw new Error(json.message ?? "Failed to mark expense as paid");
       }
+      setPendingMarkPaid(null);
       await loadExpenses();
     } catch (err) {
       setError(
@@ -436,7 +438,10 @@ export default function ExpensesPage() {
                 size="sm"
                 variant="outline"
                 disabled={saving}
-                onClick={() => void handleMarkPaid(expense)}
+                onClick={() => {
+                  setPendingMarkPaid(expense);
+                  setError(null);
+                }}
               >
                 <CheckCircle2 className="size-4" />
                 Mark paid
@@ -876,6 +881,31 @@ export default function ExpensesPage() {
           />
         </CardContent>
       </Card>
+
+      <ConfirmationDialog
+        open={Boolean(pendingMarkPaid)}
+        title="Mark expense as paid?"
+        description={
+          pendingMarkPaid ? (
+            <>
+              Mark <span className="text-ex-primary font-medium">“{pendingMarkPaid.title}”</span> (
+              {formatInr(pendingMarkPaid.amount)}) as paid?
+            </>
+          ) : (
+            ""
+          )
+        }
+        confirmText="Mark paid"
+        confirmVariant="primary"
+        busy={saving}
+        busyText="Marking…"
+        iconContainerClassName="bg-ex-secondary"
+        icon={<CheckCircle2 className="size-5 text-white" aria-hidden />}
+        onCancel={() => setPendingMarkPaid(null)}
+        onConfirm={() => {
+          if (pendingMarkPaid) void handleMarkPaid(pendingMarkPaid);
+        }}
+      />
     </div>
   );
 }

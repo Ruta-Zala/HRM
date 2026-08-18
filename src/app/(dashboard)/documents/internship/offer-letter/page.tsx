@@ -94,7 +94,7 @@ export default function InternshipOfferLetterPage() {
                   id="candidateName"
                   value={form.candidateName}
                   onChange={(e) => update("candidateName", e.target.value)}
-                  placeholder="Full name"
+                  placeholder="Full Name"
                 />
               </div>
 

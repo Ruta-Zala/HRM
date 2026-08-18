@@ -383,11 +383,6 @@ export default function PayrollPage() {
             loading={loading}
           />
         </div>
-        {loading ? (
-          <Skeleton className="h-6 w-14 rounded-md" />
-        ) : (
-          <Badge variant="warning">Draft</Badge>
-        )}
       </div>
 
       <div className="space-y-4">

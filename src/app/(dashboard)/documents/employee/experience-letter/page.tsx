@@ -113,7 +113,7 @@ export default function ExperienceLetterPage() {
                   onChange={(e) => selectEmployee(e.target.value)}
                   disabled={loading}
                 >
-                  <option value="">{loading ? "Loading employees…" : "Select employee"}</option>
+                  <option value="">{loading ? "Loading Employees…" : "Select Employee"}</option>
                   {employees.map((employee) => (
                     <option key={employee.sheetRow} value={employee.sheetRow}>
                       {employee.name} ({employee.employeeId})

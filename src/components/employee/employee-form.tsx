@@ -681,7 +681,7 @@ export function EmployeeForm({
                   required
                   aria-invalid={Boolean(fieldErrors.parentDetails)}
                 >
-                  <option value="">Select relationship</option>
+                  <option value="">Select</option>
                   <option value="father">Father</option>
                   <option value="mother">Mother</option>
                   <option value="spouse">Spouse</option>

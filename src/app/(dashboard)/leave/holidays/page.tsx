@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-provider";
@@ -128,6 +129,7 @@ export default function CompanyHolidaysPage() {
   } | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<CompanyHoliday | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const groups = MONTH_NAMES.map((month, monthIndex) => ({
@@ -176,6 +178,16 @@ export default function CompanyHolidaysPage() {
       return;
     }
 
+    const duplicate = holidays.find(
+      (holiday) => holiday.date === editor.date && holiday.id !== editor.id,
+    );
+    if (duplicate) {
+      setError(
+        `A holiday already exists on this date (${duplicate.name}). Edit that holiday to change the name.`,
+      );
+      return;
+    }
+
     setSaving(true);
     setError(null);
     try {
@@ -214,8 +226,6 @@ export default function CompanyHolidaysPage() {
   };
 
   const deleteHoliday = async (holiday: CompanyHoliday) => {
-    if (!window.confirm(`Delete ${holiday.name} from the company holiday calendar?`)) return;
-
     setDeletingId(holiday.id);
     setError(null);
     try {
@@ -234,6 +244,7 @@ export default function CompanyHolidaysPage() {
       }
       setHolidays((current) => current.filter((item) => item.id !== holiday.id));
       setEditor((current) => (current?.id === holiday.id ? null : current));
+      setPendingDelete(null);
     } catch (deleteError) {
       setError(toUserFacingActionError(deleteError));
     } finally {
@@ -405,7 +416,12 @@ export default function CompanyHolidaysPage() {
                             : undefined
                         }
                         onDelete={
-                          canManage ? (selected) => void deleteHoliday(selected) : undefined
+                          canManage
+                            ? (selected) => {
+                                setError(null);
+                                setPendingDelete(selected);
+                              }
+                            : undefined
                         }
                         deleting={deletingId === holiday.id}
                       />
@@ -417,6 +433,29 @@ export default function CompanyHolidaysPage() {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmationDialog
+        open={Boolean(pendingDelete)}
+        title="Delete holiday?"
+        description={
+          pendingDelete ? (
+            <>
+              Remove <span className="text-ex-primary font-medium">“{pendingDelete.name}”</span>{" "}
+              from the company holiday calendar?
+            </>
+          ) : (
+            ""
+          )
+        }
+        busy={Boolean(deletingId)}
+        busyText="Deleting…"
+        confirmText="Delete"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (pendingDelete) void deleteHoliday(pendingDelete);
+        }}
+        icon={<Trash2 className="size-5 text-white" aria-hidden />}
+      />
     </div>
   );
 }
