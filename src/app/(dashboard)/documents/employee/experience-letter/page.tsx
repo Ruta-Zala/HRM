@@ -8,6 +8,7 @@ import { AccessDenied } from "@/components/ui/access-denied";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-provider";
@@ -33,6 +34,7 @@ export default function ExperienceLetterPage() {
     startDate: "",
     endDate: todayIso(),
     issueDate: todayIso(),
+    additionalRemarks: "",
   });
 
   function update<K extends keyof ExperienceFormState>(key: K, value: ExperienceFormState[K]) {
@@ -174,6 +176,17 @@ export default function ExperienceLetterPage() {
                   type="date"
                   value={form.issueDate}
                   onChange={(e) => update("issueDate", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="additionalRemarks">Additional remarks</Label>
+                <Textarea
+                  id="additionalRemarks"
+                  rows={4}
+                  value={form.additionalRemarks}
+                  onChange={(e) => update("additionalRemarks", e.target.value)}
+                  placeholder="Optional text shown after the employment certification paragraph."
                 />
               </div>
 

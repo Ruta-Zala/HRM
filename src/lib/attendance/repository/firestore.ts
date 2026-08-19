@@ -105,8 +105,7 @@ function toAttendanceRow(fields: DayFields): AttendanceRow {
     workingHours: punchedOut ? metrics.workingHours : fields.workingHours,
     status,
     overtime: punchedOut ? metrics.overtime : fields.overtime,
-    earlyLeaveReason:
-      punchedOut && status !== WORKING_STATUS.SHORT ? "" : fields.earlyLeaveReason,
+    earlyLeaveReason: punchedOut && status !== WORKING_STATUS.SHORT ? "" : fields.earlyLeaveReason,
     dailyUpdate: fields.dailyUpdate,
     isOvertimeApproved: fields.isOvertimeApproved,
   };

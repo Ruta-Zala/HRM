@@ -9,9 +9,7 @@ export default function OfferLetterTemplate({ data }: { data: OfferLetterData })
     <div className={styles.offerContent}>
       <h1 className={styles.letterTitle}>Offer Letter</h1>
 
-      <p className={styles.nameLine}>{data.candidateName}</p>
-
-      <p className={styles.tightParagraph}>Dear {data.candidateFirstName},</p>
+      <p className={styles.tightParagraph}>Dear {data.candidateName},</p>
       <p className={styles.tightParagraph}>
         Congratulations! We are pleased to confirm that you have been selected to work at{" "}
         <strong>{data.companyName}.</strong> We are delighted to offer you employment on a full time

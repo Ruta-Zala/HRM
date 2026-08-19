@@ -71,6 +71,21 @@
   text-align: justify;
 }
 
+/* Extra remarks: same outer spacing as a letter paragraph. Consecutive
+   user paragraphs keep a small gap — not a full extra blank line. */
+.remarksBlock {
+  margin: 0 0 5mm;
+}
+
+.remarksBlock p {
+  margin: 0;
+  text-align: justify;
+}
+
+.remarksBlock p + p {
+  margin-top: 3mm;
+}
+
 .details {
   margin: 0 0 5mm;
 }
