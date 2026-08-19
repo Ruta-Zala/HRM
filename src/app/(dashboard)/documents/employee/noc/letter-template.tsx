@@ -12,11 +12,6 @@ export default function NocTemplate({ data }: { data: NocLetterData }) {
         Date:- <span className={styles.numeric}>{data.date}</span>
       </p>
 
-      <div className={styles.metaBlock}>
-        <p>Name: {data.candidateName}</p>
-        <p>Subject: No Objection Certificate</p>
-      </div>
-
       <p className={styles.greeting}>
         Dear{" "}
         <strong>

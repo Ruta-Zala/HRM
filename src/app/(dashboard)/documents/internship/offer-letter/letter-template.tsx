@@ -10,12 +10,7 @@ export default function OfferLetterTemplate({ data }: { data: OfferLetterData })
 
       <p className={styles.dateRight}>Date: {data?.offerDate}</p>
 
-      <div className={styles.metaBlock}>
-        <p>{data.candidateName},</p>
-        <p>Subject: Letter of Internship</p>
-      </div>
-
-      <p className={styles.greeting}>Dear {data.candidateFirstName},</p>
+      <p className={styles.greeting}>Dear {data.candidateName},</p>
 
       <p className={styles.paragraph}>
         We are pleased to offer you an Internship Opportunity with{" "}
