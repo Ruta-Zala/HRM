@@ -26,13 +26,14 @@
 
 .letterContent {
   box-sizing: border-box;
-  padding: 50mm 16mm 22mm;
+  height: 100%;
+  padding: 50mm 16mm 30mm;
   font-size: 10pt;
   line-height: 1.5;
 }
 
 .letterTitle {
-  margin: 6mm 0 8mm;
+  margin: 6mm 0 18mm;
   text-align: center;
   font-size: 15pt;
   font-weight: 700;
@@ -40,7 +41,7 @@
 }
 
 .dateRight {
-  margin: 0 0 8mm;
+  margin: 0 0 12mm;
   text-align: right;
   font-weight: 700;
 }
@@ -100,7 +101,7 @@
 }
 
 .signatureBlock {
-  margin-top: 16mm;
+  margin-top: 8mm;
 }
 
 /* Certificate "Date / Name / Sign" label rows (no "Warm regards" closing). */
@@ -119,7 +120,8 @@
 }
 
 .signOff {
-  margin: 0 0 10mm;
+  margin: 0;
+  font-weight: 700;
 }
 
 .signatureName {
@@ -129,7 +131,13 @@
 
 .signatureTitle {
   margin: 0;
-  color: #444;
+  font-weight: 700;
+}
+
+.certificateSignLine {
+  width: 52mm;
+  margin-top: 18mm;
+  border-top: 2px solid #111;
 }
 
 /* Increment letter: recipient name/address (left) + date (right), side by side. */
@@ -138,19 +146,34 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 8mm;
-  margin: 0 0 8mm;
+  margin: 0 0 14mm;
+}
+
+.recipientMeta {
+  flex: 1;
+  min-width: 0;
+  max-width: 110mm;
+}
+
+.recipientName {
+  margin: 0;
+  font-weight: 700;
 }
 
 .addressBlock {
-  margin: 0;
+  margin: 0.5mm 0 0;
   white-space: pre-line;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .headDate {
   margin: 0;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.incrementLastParagraph {
+  margin-bottom: 16mm;
 }
 
 /* Offer letter: dense 2-page numbered-section format. */
@@ -188,10 +211,8 @@
   text-align: justify;
 }
 
-/* Reserved blank space to physically sign, between "Sincerely," and the
-   printed "Signature with Date" caption. */
 .signatureSpace {
-  height: 16mm;
+  height: 12mm;
 }
 
 .offerTable {
@@ -210,18 +231,34 @@
   font-weight: 700;
 }
 
-/* NOC: two blank signature lines side by side, each with a label beneath. */
-.blankSignRow {
-  display: flex;
-  gap: 14mm;
-  margin-top: 20mm;
+/* NOC: company + employee signature columns with inline sign lines. */
+.nocSignHead {
+  margin: 8mm 0 10mm;
+  font-weight: 700;
 }
 
-.blankSignRow > div {
+.nocSignRow {
+  display: flex;
+  gap: 14mm;
+}
+
+.nocSignCol {
   flex: 1;
-  border-top: 1px solid #111;
-  padding-top: 1.5mm;
+}
+
+.nocSignLine,
+.nocSignDate {
+  margin: 0 0 2mm;
   font-weight: 700;
+}
+
+.nocSignRule {
+  display: inline-block;
+  min-width: 32mm;
+  height: 1.1em;
+  margin-left: 1.5mm;
+  border-bottom: 1px solid #111;
+  vertical-align: baseline;
 }
 
 /* --- On-screen preview: fits the panel's width like an image (width: 100%,

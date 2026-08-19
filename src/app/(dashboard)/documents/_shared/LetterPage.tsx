@@ -29,14 +29,37 @@ export function LetterPages({ pages }: { pages: ReactNode[] }) {
 }
 
 /** Text-only signature block — this branch has no signature-image upload flow. */
-export function SignatureBlock({ signOff = "Warm regards," }: { signOff?: string }) {
+export function SignatureBlock({
+  signOff = "Warm regards,",
+  splitTitle = false,
+  signLine = false,
+  showSignatory = true,
+  signSpace = false,
+}: {
+  signOff?: string | null;
+  /** HR title and company on separate lines, matching the stamp block on some letters. */
+  splitTitle?: boolean;
+  signLine?: boolean;
+  showSignatory?: boolean;
+  /** Blank space after the closing for a physical signature / stamp. */
+  signSpace?: boolean;
+}) {
   return (
     <div className={styles.signatureBlock}>
-      <p className={styles.signOff}>{signOff}</p>
-      <p className={styles.signatureName}>{COMPANY.signatoryName}</p>
-      <p className={styles.signatureTitle}>
-        {COMPANY.hrTitle}, {COMPANY.name}
-      </p>
+      {signOff ? <p className={styles.signOff}>{signOff}</p> : null}
+      {signSpace ? <div className={styles.signatureSpace} aria-hidden /> : null}
+      {showSignatory ? <p className={styles.signatureName}>{COMPANY.signatoryName}</p> : null}
+      {splitTitle ? (
+        <>
+          <p className={styles.signatureTitle}>{COMPANY.hrTitle}</p>
+          <p className={styles.signatureTitle}>{COMPANY.name}</p>
+        </>
+      ) : (
+        <p className={styles.signatureTitle}>
+          {COMPANY.hrTitle}, {COMPANY.name}
+        </p>
+      )}
+      {signLine ? <div className={styles.certificateSignLine} /> : null}
     </div>
   );
 }

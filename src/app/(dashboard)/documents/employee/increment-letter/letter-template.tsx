@@ -9,11 +9,11 @@ export default function IncrementLetterTemplate({ data }: { data: IncrementLette
       <h1 className={styles.letterTitle}>Increment Letter</h1>
 
       <div className={styles.recipientHead}>
-        <p className={styles.addressBlock}>
-          {data.candidateName}
-          {data.address ? `\n${data.address}` : ""}
-        </p>
-        <p className={`${styles.headDate} ${styles.numeric}`}>{data.effectiveDate}</p>
+        <div className={styles.recipientMeta}>
+          <p className={styles.recipientName}>{data.candidateName}</p>
+          {data.address ? <p className={styles.addressBlock}>{data.address}</p> : null}
+        </div>
+        <p className={`${styles.headDate} ${styles.numeric}`}>{data.letterDate}</p>
       </div>
 
       <p className={styles.greeting}>Dear {data.candidateFirstName}</p>
@@ -23,19 +23,19 @@ export default function IncrementLetterTemplate({ data }: { data: IncrementLette
       </p>
 
       <p className={styles.paragraph}>
-        At {data.companyName}, we greatly appreciate the dedication and hard work of our employees.
-        After a thorough review of your performance, we are pleased to acknowledge your outstanding
-        contributions, which have significantly impacted our projects&apos; success and the overall
-        growth of the company.
+        At <strong>{data.companyName}</strong>, we greatly appreciate the dedication and hard work
+        of our employees. After a thorough review of your performance, we are pleased to acknowledge
+        your outstanding contributions, which have significantly contributed to the success of our
+        projects and the overall growth of the company.
       </p>
 
       <p className={styles.paragraph}>
         In recognition of your efforts and to align your compensation with your responsibilities and
         market standards, we are delighted to inform you of a salary increment. Effective{" "}
-        <strong className={styles.numeric}>{data.effectiveDate}</strong>, your revised salary will
-        be <strong>{data.revisedSalary}</strong>, reflecting an increase over your current salary.
-        This adjustment is a testament to our appreciation of your commitment to excellence and the
-        value you bring to {data.companyName}.
+        <strong className={styles.numeric}>{data.effectiveDate}</strong>, your revised monthly
+        salary will be <strong>{data.revisedSalary}</strong>, representing an increase from your
+        current salary. This adjustment is a testament to our appreciation of your commitment to
+        excellence and the value you bring to <strong>{data.companyName}</strong>.
       </p>
 
       <p className={styles.paragraph}>
@@ -43,26 +43,30 @@ export default function IncrementLetterTemplate({ data }: { data: IncrementLette
         <strong>
           <span className={styles.numeric}>{data.loyaltyBonusRate}</span>% loyalty bonus
         </strong>{" "}
-        deduction from the gross amount. This loyalty bonus will be returned to you upon contract
-        renewal, along with any accumulated total. Additionally, an interest rate of 3%-5% on the
-        Recurring Deposit will be credited to the loyalty bonus amount as part of your employee
-        benefits.
+        deduction from your gross salary. The accumulated loyalty bonus will be returned to you upon
+        contract renewal, along with the applicable accumulated amount. Additionally, an interest
+        rate of{" "}
+        <strong>
+          <span className={styles.numeric}>{data.interestRate}</span>%
+        </strong>{" "}
+        on the Recurring Deposit (RD) will be credited to the loyalty bonus amount as part of your
+        applicable employee benefits.
       </p>
 
       <p className={styles.paragraph}>
-        Additionally, as per your employment contract, your tenure has been renewed for the next
-        year. All the rules and regulations will continue to be governed by the HRD Guidelines of{" "}
-        {data.companyName}, ensuring compliance with company policies and maintaining a productive
-        work environment.
+        Furthermore, as per your employment contract, your employment tenure has been renewed for
+        another year. All applicable rules, regulations, and terms of employment will continue to be
+        governed by the HRD Guidelines and policies of <strong>{data.companyName}</strong>, ensuring
+        compliance with company policies and maintaining a productive work environment.
       </p>
 
-      <p className={styles.paragraph}>
+      <p className={`${styles.paragraph} ${styles.incrementLastParagraph}`}>
         Once again, congratulations on this well-deserved recognition. We look forward to your
-        continued contributions and success at {data.companyName}. Thank you for your hard work and
-        dedication.
+        continued contributions and success at <strong>{data.companyName}</strong>. Thank you for
+        your hard work and dedication.
       </p>
 
-      <SignatureBlock signOff="Sincerely," />
+      <SignatureBlock signOff="Sincerely," splitTitle showSignatory={false} />
     </LetterPage>
   );
 }

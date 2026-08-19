@@ -34,6 +34,9 @@ type PayrollEmployeeRow = {
   designation: string;
   skippedReason?: string;
   payroll: {
+    basic: number;
+    hra: number;
+    organizationAllowance: number;
     monthlySalary: number;
     workingDays: number;
     perDay: number;
@@ -45,8 +48,11 @@ type PayrollEmployeeRow = {
     totalPaidLeave: number;
     totalUnpaidLeave: number;
     attendDays: number;
+    netPayableDays: number;
     paidLeaveAmount: number;
     unpaidLeaveAmount: number;
+    overtimeHours: number;
+    overtimeAmount: number;
     amountAfterAttendance: number;
     loyaltyPercent: number;
     loyaltyBonus: number;
@@ -76,6 +82,7 @@ type PayrollApiResponse = {
     loyalty: DeductionBucket;
     unpaidLeave: DeductionBucket;
     salaryAdvance: DeductionBucket;
+    overtime: DeductionBucket;
   };
   employees?: PayrollEmployeeRow[];
 };
@@ -85,14 +92,19 @@ type TableRow = {
   employeeId: string;
   name: string;
   designation: string;
-  salary: string;
+  basic: string;
+  hra: string;
+  organizationAllowance: string;
   perDay: string;
   workingDays: string;
   attendDays: string;
+  netPayableDays: string;
   halfUnpaidLeave: string;
   fullUnpaidLeave: string;
   unpaidLeave: string;
   unpaidAmount: string;
+  overtimeHours: string;
+  overtimeAmount: string;
   advance: string;
   loyalty: string;
   pt: string;
@@ -115,6 +127,11 @@ const MONTHS = [
   "November",
   "December",
 ] as const;
+
+function formatDayCount(value: number): string {
+  const rounded = Math.round((Number(value) || 0) * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+}
 
 function formatInr(amount: number): string {
   return `Rs. ${amount.toLocaleString("en-IN", {
@@ -237,14 +254,19 @@ export default function PayrollPage() {
           employeeId: employee.employeeId || "—",
           name: employee.name || "—",
           designation: formatDesignation(employee.designation ?? ""),
-          salary: "—",
+          basic: "—",
+          hra: "—",
+          organizationAllowance: "—",
           perDay: "—",
           workingDays: "—",
           attendDays: "—",
+          netPayableDays: "—",
           halfUnpaidLeave: "—",
           fullUnpaidLeave: "—",
           unpaidLeave: "—",
           unpaidAmount: "—",
+          overtimeHours: "—",
+          overtimeAmount: "—",
           advance: "—",
           loyalty: "—",
           pt: "—",
@@ -259,14 +281,22 @@ export default function PayrollPage() {
         employeeId: employee.employeeId || "—",
         name: employee.name || "—",
         designation: formatDesignation(employee.designation ?? ""),
-        salary: formatInr(payroll.monthlySalary),
+        basic: formatInr(payroll.basic),
+        hra: formatInr(payroll.hra),
+        organizationAllowance: formatInr(payroll.organizationAllowance),
         perDay: formatInr(payroll.perDay),
-        workingDays: String(payroll.workingDays),
-        attendDays: String(payroll.attendDays),
+        workingDays: formatDayCount(payroll.workingDays),
+        attendDays: formatDayCount(payroll.attendDays),
+        netPayableDays: formatDayCount(payroll.netPayableDays),
         halfUnpaidLeave: String(payroll.halfUnpaidLeave),
         fullUnpaidLeave: String(payroll.fullUnpaidLeave),
-        unpaidLeave: String(payroll.totalUnpaidLeave),
+        unpaidLeave: formatDayCount(payroll.totalUnpaidLeave),
         unpaidAmount: formatInr(payroll.unpaidLeaveAmount),
+        overtimeHours: `${payroll.overtimeHours.toLocaleString("en-IN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} h`,
+        overtimeAmount: formatInr(payroll.overtimeAmount),
         advance: formatInr(payroll.salaryAdvance),
         loyalty: formatInr(payroll.loyaltyBonus),
         pt: formatInr(payroll.professionalTax),
@@ -286,14 +316,19 @@ export default function PayrollPage() {
         header: "Designation",
         render: (row) => <span className="capitalize">{row.designation}</span>,
       },
-      { key: "salary", header: "Salary" },
+      { key: "basic", header: "Basic" },
+      { key: "hra", header: "HRA" },
+      { key: "organizationAllowance", header: "Organization Allowance" },
       { key: "perDay", header: "Per Day" },
       { key: "workingDays", header: "Working Days" },
       { key: "attendDays", header: "Attend Days" },
+      { key: "netPayableDays", header: "Net Payable Days" },
       { key: "halfUnpaidLeave", header: "Half Unpaid Leave" },
       { key: "fullUnpaidLeave", header: "Full Unpaid Leave" },
       { key: "unpaidLeave", header: "Total Unpaid Leave" },
       { key: "unpaidAmount", header: "Unpaid Amount" },
+      { key: "overtimeHours", header: "OT Hours" },
+      { key: "overtimeAmount", header: "OT Amount" },
       { key: "advance", header: "Salary Advance" },
       { key: "loyalty", header: "Loyalty" },
       { key: "pt", header: "PT" },
@@ -340,7 +375,7 @@ export default function PayrollPage() {
     <div className="space-y-8">
       <PageHeader
         title="Payroll"
-        description="Final pay = monthly salary − unpaid leave − salary advance − 10% loyalty − PT (Rs. 200) − LWF (Rs. 6). Paid / Sick / Casual leave do not deduct. Per-day rate uses Mon–Fri working days excluding leave-type holidays."
+        description="Final pay = pro-rated basic + HRA + organization allowance + approved OT − unpaid leave − salary advance − loyalty − PT − LWF. Loyalty is salary-history % of full basic (not reduced by working days). PT and LWF come from salary history. Paid / Sick / Casual leave do not deduct."
         actions={
           <div className="flex flex-wrap items-end gap-2">
             <MonthYearPicker
@@ -387,7 +422,7 @@ export default function PayrollPage() {
       <div className="space-y-4">
         <Card>
           <CardHeader className="border-0 pb-0">
-            <CardTitle className="text-ex-secondary">Loyalty Bonus (10%)</CardTitle>
+            <CardTitle className="text-ex-secondary">Loyalty Bonus</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-6 sm:grid-cols-2">
             <Metric
@@ -474,6 +509,24 @@ export default function PayrollPage() {
             />
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="border-0 pb-0">
+            <CardTitle className="text-ex-secondary">Overtime</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-6 sm:grid-cols-2">
+            <Metric
+              label="OT Payable"
+              value={formatInr(deductions?.overtime.payable ?? 0)}
+              loading={loading}
+            />
+            <Metric
+              label="Employees Affected"
+              value={String(deductions?.overtime.employeeCount ?? 0)}
+              loading={loading}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       <div className="space-y-3">
@@ -497,11 +550,13 @@ export default function PayrollPage() {
       </div>
 
       <p className="text-ex-muted text-sm">
-        Flow: fix loyalty (10% of salary), PT (Rs. 200), LWF (Rs. 6) → working days (Mon–Fri,
-        exclude leave-type holidays) → per day / per hour → deduct unpaid leave (U/F; missing/absent
-        scheduled days count as F) and salary advance recovery from salary → then deduct loyalty,
-        PT, and LWF for final pay. Paid leave (A/H) is not deducted. Attend Days counts P (and half
-        of H/U present portion). Manage advances under Employee → Salary advances.
+        Flow: take basic, HRA, organization allowance, loyalty %, PT, and LWF from salary history
+        (same values as salary slips) → working days (Mon–Fri, exclude leave-type holidays) → per
+        day / per hour on gross pay → pro-rate earnings for unpaid leave (U/F; missing/absent
+        scheduled days count as F) → add approved overtime (Accepted on Overtime & Approvals) at the
+        gross hourly rate → deduct loyalty (% of full basic, not working days), PT, LWF, and salary
+        advance recovery. Paid leave (A/H) is not deducted. Attend Days counts P (and half of H/U
+        present portion). Manage advances under Employee → Salary advances.
       </p>
     </div>
   );

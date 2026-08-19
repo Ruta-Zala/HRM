@@ -15,6 +15,7 @@ export interface NocLetterData {
   subject: string; // He/She
   subjectLower: string; // he/she
   possessive: string; // his/her
-  date: string; // dd/mm/yyyy
+  object: string; // him/her
+  date: string; // 30th June, 2026
   companyName: string;
 }

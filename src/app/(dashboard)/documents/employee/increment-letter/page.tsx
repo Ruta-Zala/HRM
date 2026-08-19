@@ -31,9 +31,11 @@ export default function IncrementLetterPage() {
     employeeSheetRow: "",
     candidateName: "",
     address: "",
+    letterDate: todayIso(),
     effectiveDate: todayIso(),
     revisedSalary: "",
     loyaltyBonusRate: "10",
+    interestRate: "4",
   });
 
   function update<K extends keyof IncrementFormState>(key: K, value: IncrementFormState[K]) {
@@ -53,7 +55,7 @@ export default function IncrementLetterPage() {
   const data = useMemo(() => buildIncrementLetterData(form), [form]);
 
   const isReady = Boolean(
-    form.candidateName.trim() && form.effectiveDate && form.revisedSalary.trim(),
+    form.candidateName.trim() && form.letterDate && form.effectiveDate && form.revisedSalary.trim(),
   );
 
   if (!canManage) {
@@ -133,12 +135,12 @@ export default function IncrementLetterPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="revisedSalary">Revised salary</Label>
+                <Label htmlFor="revisedSalary">Revised salary (₹)</Label>
                 <Input
                   id="revisedSalary"
                   value={form.revisedSalary}
                   onChange={(e) => update("revisedSalary", e.target.value)}
-                  placeholder="e.g. ₹25,000/-"
+                  placeholder="e.g. 17000"
                 />
               </div>
 
@@ -153,7 +155,27 @@ export default function IncrementLetterPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="effectiveDate">Effective / letter date</Label>
+                <Label htmlFor="interestRate">RD interest rate (%)</Label>
+                <Input
+                  id="interestRate"
+                  value={form.interestRate}
+                  onChange={(e) => update("interestRate", e.target.value)}
+                  placeholder="4"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="letterDate">Letter date</Label>
+                <Input
+                  id="letterDate"
+                  type="date"
+                  value={form.letterDate}
+                  onChange={(e) => update("letterDate", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="effectiveDate">Effective date</Label>
                 <Input
                   id="effectiveDate"
                   type="date"

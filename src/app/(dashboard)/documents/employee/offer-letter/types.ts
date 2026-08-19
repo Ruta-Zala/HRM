@@ -6,6 +6,7 @@ export interface OfferFormState {
   commencementDate: string; // yyyy-mm-dd — employment start
   monthlySalary: string; // numeric string, e.g. "15000"
   loyaltyBonusRate: string; // %, e.g. "10"
+  interestRate: string; // %, e.g. "4" or "4-6"
   salaryEffectiveDate: string; // yyyy-mm-dd — salary calculation effective from
 }
 
@@ -20,6 +21,7 @@ export interface OfferLetterData {
   monthlySalary: string; // e.g. "15,000/-"
   basic: string;
   loyaltyBonusRate: string; // %
+  interestRate: string; // e.g. "4%" or "4%-6%"
   loyaltyBonus: string;
   totalMonthly: string;
   salaryEffectiveDate: string; // long date

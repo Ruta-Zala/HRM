@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { ROLES } from "@/app/consts/common";
 import { readResponseJson } from "@/lib/api/read-response-json";
 import { toUserFacingFetchError } from "@/lib/api/user-facing-error";
 import { parseEmployeeListApiResponse } from "@/lib/employee";
@@ -10,7 +11,8 @@ import type { Employee } from "@/types/employee";
 /**
  * Candidate list for letter forms — HR/Super Admin only. Includes every status
  * (not just Active): several letters (experience, NOC) are typically generated
- * for someone who has already left the company.
+ * for someone who has already left the company. Super Admin accounts are omitted
+ * so they cannot be selected as the letter recipient.
  */
 export function useLetterEmployees(enabled: boolean) {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -31,7 +33,9 @@ export function useLetterEmployees(enabled: boolean) {
         data?: string[][];
         sheetRows?: number[];
       }>(res, "fetch");
-      const list = parseEmployeeListApiResponse(data).sort((a, b) => a.name.localeCompare(b.name));
+      const list = parseEmployeeListApiResponse(data)
+        .filter((employee) => employee.role.trim().toLowerCase() !== ROLES.SUPER_ADMIN)
+        .sort((a, b) => a.name.localeCompare(b.name));
       setEmployees(list);
     } catch (err) {
       setError(toUserFacingFetchError(err));

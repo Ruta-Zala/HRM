@@ -4,7 +4,7 @@ import { ROLES } from "@/app/consts/common";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
-import { sheetRowToForm } from "@/lib/employee";
+import { formatEmployeePositionLabel, headerToFormKey, sheetRowToForm } from "@/lib/employee";
 import {
   getOrCreateSalarySlipsYearFolder,
   trashDriveFile,
@@ -13,8 +13,29 @@ import {
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import { amountToIndianWords, calculateSalaryBreakdown } from "@/lib/salary-slips/calculation";
 import { renderSalarySlipPdf } from "@/lib/salary-slips/pdf";
-import { getMonthAttendance, type AttendanceRow } from "@/lib/google/attendance-sheets";
-import { WORK_MODE, canonicalizeWorkMode } from "@/lib/attendance/constants";
+import { OVERTIME_APPROVAL, OVERTIME_REQUEST_STATUS } from "@/lib/attendance/constants";
+import {
+  getAttendanceSpreadsheetIdFromRow,
+  resolveAttendanceSpreadsheetIdForRow,
+} from "@/lib/attendance/employee";
+import { listLeaveApplications } from "@/lib/attendance/leave-approvals";
+import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
+import { listOvertimeRequests } from "@/lib/attendance/overtime-requests";
+import { listCompanyHolidays } from "@/lib/company-holidays/repository";
+import {
+  DEFAULT_LWF,
+  DEFAULT_PROFESSIONAL_TAX,
+  calculateEmployeePayroll,
+  filterDatesForEmployment,
+  getDaysInMonth,
+  listScheduledWorkingDates,
+  loadMonthAttendanceByDate,
+} from "@/lib/payroll";
+import {
+  buildAcceptedLeaveAttendanceOverlays,
+  localDateIso,
+  mergeAttendanceWithApprovedLeaves,
+} from "@/lib/payroll/leave-attendance";
 import {
   findEffectiveSalaryForPeriodFromRecords,
   listSalaryHistoryRecords,
@@ -31,89 +52,34 @@ function monthLabel(month: number): string {
   return new Date(Date.UTC(2026, month - 1, 1)).toLocaleString("en-IN", { month: "short" });
 }
 
-function getDaysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate();
+function normalizeHeaderKey(header: string): string {
+  return header
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_")
+    .toLowerCase();
 }
 
-function countWeekdaysInMonth(year: number, month: number): number {
-  let count = 0;
-  const days = getDaysInMonth(year, month);
-  for (let day = 1; day <= days; day += 1) {
-    const date = new Date(year, month - 1, day);
-    const dayOfWeek = date.getDay();
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      count += 1;
-    }
-  }
-  return count;
-}
+function readEmployeeValue(
+  headers: string[],
+  row: string[],
+  formValue: string,
+  formKey: "bankAccountNumber" | "ifscCode" | "panNumber" | "aadharNumber",
+  matchesLoose: (normalizedHeader: string) => boolean,
+): string {
+  const fromForm = String(formValue ?? "").trim();
+  if (fromForm) return fromForm;
 
-function getWorkModeDayValue(workMode: string): number | null {
-  const normalized = canonicalizeWorkMode(String(workMode ?? ""));
-  if (
-    normalized === WORK_MODE.PAID_LEAVE ||
-    normalized === WORK_MODE.SICK_LEAVE ||
-    normalized === WORK_MODE.CASUAL_LEAVE ||
-    normalized === WORK_MODE.UNPAID_LEAVE ||
-    normalized === WORK_MODE.PUBLIC_HOLIDAY ||
-    normalized === WORK_MODE.WEEKEND_HOLIDAY
-  ) {
-    return 0;
+  const mappedIndex = headers.findIndex((header) => headerToFormKey(header) === formKey);
+  if (mappedIndex >= 0) {
+    const mapped = String(row[mappedIndex] ?? "").trim();
+    if (mapped) return mapped;
   }
 
-  if (
-    normalized === WORK_MODE.HALF_DAY_PAID_LEAVE ||
-    normalized === WORK_MODE.HALF_DAY_UNPAID_LEAVE ||
-    normalized === WORK_MODE.WFH_HALF_DAY
-  ) {
-    return 0.5;
-  }
-
-  return null;
-}
-
-function getAttendanceWorkingDays(
-  year: number,
-  month: number,
-  attendanceRows: AttendanceRow[],
-): number {
-  const rowsByDate = new Map<string, AttendanceRow>();
-  attendanceRows.forEach((row) => {
-    if (row.date) rowsByDate.set(row.date, row);
-  });
-
-  let workingDays = 0;
-  const days = getDaysInMonth(year, month);
-  for (let day = 1; day <= days; day += 1) {
-    const date = new Date(year, month - 1, day);
-    const dayOfWeek = date.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) continue;
-
-    const dateIso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    const attendance = rowsByDate.get(dateIso);
-    if (!attendance) {
-      workingDays += 1;
-      continue;
-    }
-
-    const value = getWorkModeDayValue(attendance.workMode);
-    workingDays += value ?? 1;
-  }
-
-  return workingDays;
-}
-
-function getEmployeeField(row: string[], headers: string[], candidates: string[]): string {
-  const idx = headers.findIndex((h) =>
-    candidates.includes(
-      h
-        .trim()
-        .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
-        .replace(/\s+/g, "_")
-        .toLowerCase(),
-    ),
-  );
-  return idx >= 0 ? String(row[idx] ?? "").trim() : "";
+  const looseIndex = headers.findIndex((header) => matchesLoose(normalizeHeaderKey(header)));
+  return looseIndex >= 0 ? String(row[looseIndex] ?? "").trim() : "";
 }
 
 export const GET = withActiveSession(async (req, user) => {
@@ -189,31 +155,22 @@ export const POST = withActiveSession(async (req, user) => {
       return NextResponse.json({ success: false, message: "No employees found" }, { status: 400 });
     }
     const headers = employeeSheet[0] as string[];
-    const allSlips = await listSalarySlips();
+    const [allSlips, salaryHistory, holidays, overtimeRequests] = await Promise.all([
+      listSalarySlips(),
+      listSalaryHistoryRecords(),
+      listCompanyHolidays(year),
+      listOvertimeRequests({}).catch((error) => {
+        console.error("Salary slip overtime request load failed", error);
+        return [];
+      }),
+    ]);
 
-    async function resolveWorkingDaysForEmployee(
-      year: number,
-      month: number,
-      attendanceSpreadsheetId: string,
-    ): Promise<number> {
-      const scheduledWeekdays = countWeekdaysInMonth(year, month);
-      if (!attendanceSpreadsheetId?.trim()) return scheduledWeekdays;
-
-      try {
-        const attendanceRows = await getMonthAttendance(attendanceSpreadsheetId, year, month - 1);
-        if (!attendanceRows.length) {
-          return scheduledWeekdays;
-        }
-        const attendanceBasedDays = getAttendanceWorkingDays(year, month, attendanceRows);
-        return Number.isFinite(attendanceBasedDays) ? attendanceBasedDays : scheduledWeekdays;
-      } catch {
-        return scheduledWeekdays;
-      }
-    }
+    const scheduledDates = listScheduledWorkingDates(year, month, holidays);
+    const workingDays = scheduledDates.length;
+    const periodStart = `${year}-${String(month).padStart(2, "0")}-01`;
+    const periodEnd = `${year}-${String(month).padStart(2, "0")}-${String(getDaysInMonth(year, month)).padStart(2, "0")}`;
 
     const generated: Array<{ employeeSheetRow: number; slipId: string; fileName: string }> = [];
-    // Preload salary history once to avoid repeated Sheets API reads inside the loop
-    const salaryHistory = await listSalaryHistoryRecords();
     for (let i = 1; i < employeeSheet.length; i += 1) {
       const sheetRow = i + 1;
       if (targetSheetRow && targetSheetRow !== sheetRow) continue;
@@ -242,8 +199,6 @@ export const POST = withActiveSession(async (req, user) => {
         continue;
       }
 
-      const periodStart = `${year}-${String(month).padStart(2, "0")}-01`;
-      const periodEnd = `${year}-${String(month).padStart(2, "0")}-${String(getDaysInMonth(year, month)).padStart(2, "0")}`;
       const history = findEffectiveSalaryForPeriodFromRecords(salaryHistory, {
         employeeSheetRow: sheetRow,
         periodStart,
@@ -251,20 +206,138 @@ export const POST = withActiveSession(async (req, user) => {
       });
       if (!history) continue;
 
-      const workingDays = await resolveWorkingDaysForEmployee(
-        year,
-        month,
-        form.attendanceSpreadsheetId ?? "",
+      const attendanceByDate = new Map();
+      let attendanceSpreadsheetId =
+        form.attendanceSpreadsheetId?.trim() || getAttendanceSpreadsheetIdFromRow(headers, row);
+      if (!attendanceSpreadsheetId) {
+        attendanceSpreadsheetId = await resolveAttendanceSpreadsheetIdForRow({
+          headers,
+          row,
+          sheetRow,
+          employeeId: form.employeeId.trim(),
+          employeeName: form.name.trim() || "Employee",
+          documentsFolderId: form.documentsFolderId,
+          birthdayDate: form.birthdayDate,
+          createIfMissing: false,
+        });
+      }
+
+      if (attendanceSpreadsheetId || form.employeeId.trim()) {
+        try {
+          const loaded = await loadMonthAttendanceByDate({
+            employeeId: form.employeeId.trim(),
+            attendanceSpreadsheetId: attendanceSpreadsheetId || "",
+            year,
+            monthIndex: month - 1,
+          });
+          for (const [date, value] of loaded) {
+            attendanceByDate.set(date, value);
+          }
+          if (attendanceByDate.size === 0 && form.documentsFolderId.trim()) {
+            const folderResolved = await resolveAttendanceSpreadsheetIdForRow({
+              headers,
+              row,
+              sheetRow,
+              employeeId: form.employeeId.trim(),
+              employeeName: form.name.trim() || "Employee",
+              documentsFolderId: form.documentsFolderId,
+              birthdayDate: form.birthdayDate,
+              createIfMissing: false,
+              preferFolderSearch: true,
+            });
+            if (folderResolved && folderResolved !== attendanceSpreadsheetId) {
+              attendanceSpreadsheetId = folderResolved;
+              const retried = await loadMonthAttendanceByDate({
+                employeeId: form.employeeId.trim(),
+                attendanceSpreadsheetId,
+                year,
+                monthIndex: month - 1,
+              });
+              for (const [date, value] of retried) {
+                attendanceByDate.set(date, value);
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`Salary slip attendance load failed for row ${sheetRow}`, error);
+        }
+      }
+
+      if (attendanceSpreadsheetId || form.employeeId.trim()) {
+        try {
+          const leaveApplications = await listLeaveApplications({
+            employeeId: form.employeeId,
+            employeeName: form.name,
+            attendanceSpreadsheetId: attendanceSpreadsheetId || "",
+            statusFilter: LEAVE_STATUS.ACCEPTED,
+          });
+          const overlays = buildAcceptedLeaveAttendanceOverlays(leaveApplications).filter(
+            (overlay) => overlay.dateIso >= periodStart && overlay.dateIso <= periodEnd,
+          );
+          const merged = mergeAttendanceWithApprovedLeaves(attendanceByDate, overlays);
+          attendanceByDate.clear();
+          for (const [date, value] of merged) {
+            attendanceByDate.set(date, value);
+          }
+        } catch (error) {
+          console.error(`Salary slip leave bucket load failed for row ${sheetRow}`, error);
+        }
+      }
+
+      const employeeId = form.employeeId.trim();
+      for (const request of overtimeRequests) {
+        if (request.employeeId.trim() !== employeeId) continue;
+        if (request.status !== OVERTIME_REQUEST_STATUS.APPROVED) continue;
+        if (request.date < periodStart || request.date > periodEnd) continue;
+        const existingDay = attendanceByDate.get(request.date) ?? {};
+        attendanceByDate.set(request.date, {
+          ...existingDay,
+          overtime: request.overtime || existingDay.overtime,
+          isOvertimeApproved: OVERTIME_APPROVAL.ACCEPTED,
+        });
+      }
+
+      const employeeScheduledDates = filterDatesForEmployment(
+        scheduledDates,
+        form.joiningDate,
+        form.lastWorkingDay,
       );
-      const netPayableDays = workingDays;
+      const asOfIso = localDateIso();
+      const dueScheduledDates = employeeScheduledDates.filter(
+        (date) => date <= asOfIso || attendanceByDate.has(date),
+      );
+      const loyaltyPercent = Number.isFinite(history.loyaltyBonus) ? history.loyaltyBonus : 10;
+      const professionalTax =
+        history.professionalTax > 0 ? history.professionalTax : DEFAULT_PROFESSIONAL_TAX;
+      const lwf = history.lwf > 0 ? history.lwf : DEFAULT_LWF;
+      const payrollResult = calculateEmployeePayroll({
+        basic: history.basic,
+        hra: history.hra ?? 0,
+        organizationAllowance: history.organizationAllowance ?? 0,
+        loyaltyPercent,
+        professionalTax,
+        lwf,
+        salaryAdvance: 0,
+        workingDays,
+        scheduledDates: dueScheduledDates,
+        attendanceByDate,
+      });
+      const netPayableDays = payrollResult.netPayableDays;
+      const overtimeAmount = payrollResult.overtimeAmount;
+      const unpaidLeaveAmount = payrollResult.unpaidLeaveAmount;
       const breakdown = calculateSalaryBreakdown({
         basic: history.basic,
-        loyaltyBonus: history.loyaltyBonus,
-        professionalTax: history.professionalTax > 0 ? history.professionalTax : 200,
+        hra: history.hra ?? 0,
+        organizationAllowance: history.organizationAllowance ?? 0,
+        loyaltyBonus: loyaltyPercent,
+        professionalTax,
+        lwf,
         workingDays,
         netPayableDays,
+        overtimeAmount,
+        unpaidLeaveAmount,
       });
-      const amountInWords = amountToIndianWords(breakdown.netPay);
+      const amountInWords = amountToIndianWords(breakdown.totalPay);
       const { yearFolderId } = await getOrCreateSalarySlipsYearFolder({
         employeeId: form.employeeId || `EMP${String(sheetRow - 1).padStart(3, "0")}`,
         employeeName: form.name || "Employee",
@@ -281,31 +354,50 @@ export const POST = withActiveSession(async (req, user) => {
         employeeName: form.name,
         employeeCode: form.employeeId || `EMP${String(sheetRow - 1).padStart(3, "0")}`,
         fatherName: form.parentName,
-        pan: form.panNumber || getEmployeeField(row, headers, ["pan", "pan_number"]),
-        bankAccountNo:
-          form.bankAccountNumber ||
-          getEmployeeField(row, headers, [
-            "bank_account_number",
-            "bank_account_no",
-            "bank_a_c_no",
-            "bank_ac_no",
-          ]),
-        designation: form.position,
-        ifsc:
-          form.ifscCode ||
-          getEmployeeField(row, headers, ["ifsc", "ifsc_code", "ifsc_code_number"]),
+        pan: readEmployeeValue(
+          headers,
+          row,
+          form.panNumber,
+          "panNumber",
+          (key) => key === "pan" || key === "pan_number",
+        ),
+        bankAccountNo: readEmployeeValue(
+          headers,
+          row,
+          form.bankAccountNumber,
+          "bankAccountNumber",
+          (key) =>
+            (key.includes("bank") &&
+              (key.includes("account") || key.includes("ac") || key.includes("a_c"))) ||
+            key === "account_number" ||
+            key === "account_no",
+        ),
+        designation: formatEmployeePositionLabel(form.position),
+        ifsc: readEmployeeValue(headers, row, form.ifscCode, "ifscCode", (key) =>
+          key.includes("ifsc"),
+        ),
         netPayableDays,
-        aadharNo:
-          form.aadharNumber ||
-          getEmployeeField(row, headers, ["aadhar_number", "aadhaar_number", "aadhaar"]),
+        aadharNo: readEmployeeValue(
+          headers,
+          row,
+          form.aadharNumber,
+          "aadharNumber",
+          (key) => (key.includes("aadhar") || key.includes("aadhaar")) && !key.includes("card"),
+        ),
         workingDays,
         basic: breakdown.basic,
-        loyaltyBonusRate: history.loyaltyBonus > 0 ? history.loyaltyBonus : 10,
+        hra: breakdown.hra,
+        organizationAllowance: breakdown.organizationAllowance,
+        loyaltyBonusRate: Number.isFinite(history.loyaltyBonus) ? history.loyaltyBonus : 10,
         loyaltyBonus: breakdown.loyaltyBonus,
         professionalTax: breakdown.professionalTax,
+        lwf: breakdown.lwf,
+        unpaidLeaveAmount: breakdown.unpaidLeaveAmount,
         totalEarnings: breakdown.totalEarnings,
         totalDeductions: breakdown.totalDeductions,
         netPay: breakdown.netPay,
+        overtimeAmount: breakdown.overtimeAmount,
+        totalPay: breakdown.totalPay,
         amountInWords,
       });
 
@@ -330,6 +422,8 @@ export const POST = withActiveSession(async (req, user) => {
         professionalTax: breakdown.professionalTax,
         totalDeductions: breakdown.totalDeductions,
         netPay: breakdown.netPay,
+        overtimeAmount: breakdown.overtimeAmount,
+        totalPay: breakdown.totalPay,
         amountInWords,
         status: "Released",
         driveFileId: uploaded.fileId,

@@ -37,7 +37,7 @@ export default function EmployeeDocumentsPage() {
             icon={BadgeCheck}
           />
           <DocumentTypeCard
-            title="No Objection Certificate"
+            title="Non-Objection Certificate"
             description="Clear documents/dues on exit with a signed acknowledgement."
             href="/documents/employee/noc"
             icon={Award}

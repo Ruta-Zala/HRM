@@ -12,11 +12,40 @@ function formatRupees(amount: number): string {
   return `${amount.toLocaleString("en-IN")}/-`;
 }
 
+const MIN_INTEREST_RATE = 4;
+
+function parseInterestParts(value: string): number[] {
+  return value
+    .trim()
+    .split(/\s*(?:-|–|—|to)\s*/i)
+    .map((part) => Number(part.replace(/[^\d.]/g, "")))
+    .filter((n) => Number.isFinite(n) && n > 0);
+}
+
+function formatInterestNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(value);
+}
+
+/** Accepts "4", "4%", "4-6", or "4%-6%" and renders "4%" or "4%-6%". */
+export function formatInterestRate(value: string): string {
+  const parts = parseInterestParts(value);
+  if (parts.length === 0) return `${MIN_INTEREST_RATE}%`;
+  if (parts.length === 1) return `${formatInterestNumber(parts[0])}%`;
+  return `${formatInterestNumber(parts[0])}%-${formatInterestNumber(parts[parts.length - 1])}%`;
+}
+
+export function interestRateMeetsMinimum(value: string): boolean {
+  const parts = parseInterestParts(value);
+  if (parts.length === 0) return false;
+  return Math.min(...parts) >= MIN_INTEREST_RATE;
+}
+
 export function buildOfferLetterData(form: OfferFormState): OfferLetterData {
   const basic = toAmount(form.monthlySalary);
   const rate = Number(form.loyaltyBonusRate) || 10;
   const loyaltyBonus = Math.round((basic * rate) / 100);
   const totalMonthly = basic - loyaltyBonus;
+  const interestRate = formatInterestRate(form.interestRate);
 
   return {
     candidateName: form.candidateName,
@@ -28,6 +57,7 @@ export function buildOfferLetterData(form: OfferFormState): OfferLetterData {
     monthlySalary: formatRupees(basic),
     basic: formatRupees(basic),
     loyaltyBonusRate: String(rate),
+    interestRate,
     loyaltyBonus: formatRupees(loyaltyBonus),
     totalMonthly: formatRupees(totalMonthly),
     salaryEffectiveDate: formatLongDate(form.salaryEffectiveDate),
