@@ -54,8 +54,8 @@ export default function NocPage() {
     return (
       <div className="space-y-8">
         <PageHeader
-          title="No Objection Certificate"
-          description="Generate a no-objection certificate for an employee."
+          title="Non-Objection Certificate"
+          description="Generate a non-objection certificate for an employee."
         />
         <AccessDenied
           description="Document generation is only available to HR and Super Admin."
@@ -76,7 +76,7 @@ export default function NocPage() {
     <div className="flex flex-col gap-6 lg:h-[calc(100dvh-8.5rem)] lg:overflow-hidden">
       <PageHeader
         className="shrink-0"
-        title="No Objection Certificate"
+        title="Non-Objection Certificate"
         description="Pick an employee and fill in the certificate date."
         actions={
           <Link href="/documents/employee">

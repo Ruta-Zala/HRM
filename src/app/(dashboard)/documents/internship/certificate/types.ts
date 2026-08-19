@@ -5,7 +5,7 @@ export interface CertificateFormState {
   employeeSheetRow: string;
   candidateName: string;
   title: Title;
-  project: string;
+  position: string;
   startDate: string; // yyyy-mm-dd
   endDate: string; // yyyy-mm-dd
   issueDate: string; // yyyy-mm-dd
@@ -14,13 +14,13 @@ export interface CertificateFormState {
 /** Render-ready internship certificate data. */
 export interface CertificateLetterData {
   candidateName: string;
-  candidateFirstName: string;
   honorific: string; // Mr./Ms./Mrs.
   subject: string; // He/She
-  possessive: string; // his/her
-  project: string;
-  durationMonths: number;
+  subjectLower: string; // he/she
+  object: string; // him/her
+  position: string;
   startDate: string; // long date
   endDate: string; // long date
   issueDate: string; // long date
+  companyName: string;
 }

@@ -13,11 +13,11 @@ import {
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import { amountToIndianWords, calculateSalaryBreakdown } from "@/lib/salary-slips/calculation";
 import { renderSalarySlipPdf } from "@/lib/salary-slips/pdf";
+import { OVERTIME_APPROVAL, OVERTIME_REQUEST_STATUS } from "@/lib/attendance/constants";
 import {
-  OVERTIME_APPROVAL,
-  OVERTIME_REQUEST_STATUS,
-} from "@/lib/attendance/constants";
-import { getAttendanceSpreadsheetIdFromRow, resolveAttendanceSpreadsheetIdForRow } from "@/lib/attendance/employee";
+  getAttendanceSpreadsheetIdFromRow,
+  resolveAttendanceSpreadsheetIdForRow,
+} from "@/lib/attendance/employee";
 import { listLeaveApplications } from "@/lib/attendance/leave-approvals";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
 import { listOvertimeRequests } from "@/lib/attendance/overtime-requests";
@@ -354,8 +354,12 @@ export const POST = withActiveSession(async (req, user) => {
         employeeName: form.name,
         employeeCode: form.employeeId || `EMP${String(sheetRow - 1).padStart(3, "0")}`,
         fatherName: form.parentName,
-        pan: readEmployeeValue(headers, row, form.panNumber, "panNumber", (key) =>
-          key === "pan" || key === "pan_number",
+        pan: readEmployeeValue(
+          headers,
+          row,
+          form.panNumber,
+          "panNumber",
+          (key) => key === "pan" || key === "pan_number",
         ),
         bankAccountNo: readEmployeeValue(
           headers,
@@ -373,8 +377,12 @@ export const POST = withActiveSession(async (req, user) => {
           key.includes("ifsc"),
         ),
         netPayableDays,
-        aadharNo: readEmployeeValue(headers, row, form.aadharNumber, "aadharNumber", (key) =>
-          (key.includes("aadhar") || key.includes("aadhaar")) && !key.includes("card"),
+        aadharNo: readEmployeeValue(
+          headers,
+          row,
+          form.aadharNumber,
+          "aadharNumber",
+          (key) => (key.includes("aadhar") || key.includes("aadhaar")) && !key.includes("card"),
         ),
         workingDays,
         basic: breakdown.basic,

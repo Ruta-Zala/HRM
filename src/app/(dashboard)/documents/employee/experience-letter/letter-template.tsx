@@ -26,10 +26,11 @@ export default function ExperienceLetterTemplate({ data }: { data: ExperienceLet
 
         <p className={styles.paragraph}>
           This is to certify that {data.honorific}
-          <strong> {data.candidateName}</strong> was employed at {data.companyName} from{" "}
+          <strong> {data.candidateName}</strong> was employed at <strong>{data.companyName}</strong>{" "}
+          from{" "}
           <strong>
-            <span className={styles.numeric}>{data.startDate}</span>, to{" "}
-            <span className={styles.numeric}>{data.endDate}</span>,
+            <span className={styles.numeric}>{data.startDate}</span> to{" "}
+            <span className={styles.numeric}>{data.endDate}</span>
           </strong>{" "}
           as a <strong>{data.position}</strong>.
         </p>
@@ -47,7 +48,7 @@ export default function ExperienceLetterTemplate({ data }: { data: ExperienceLet
           {data.possessive} success in {data.object} future career.
         </p>
 
-        <SignatureBlock signOff="Sincerely," />
+        <SignatureBlock signOff={null} splitTitle signLine />
       </div>
     </LetterPage>
   );

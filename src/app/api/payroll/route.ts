@@ -139,8 +139,7 @@ export const GET = withActiveSession(async (req, user) => {
         periodEnd,
       });
       const salaryFromForm = Number(String(form.salary ?? "").replace(/,/g, ""));
-      const basic =
-        history?.basic ?? (Number.isFinite(salaryFromForm) ? salaryFromForm : 0);
+      const basic = history?.basic ?? (Number.isFinite(salaryFromForm) ? salaryFromForm : 0);
       const hra = history?.hra ?? 0;
       const organizationAllowance = history?.organizationAllowance ?? 0;
       const grossMonthly = basic + hra + organizationAllowance;

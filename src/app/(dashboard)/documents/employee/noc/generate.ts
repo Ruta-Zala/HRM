@@ -1,4 +1,4 @@
-import { COMPANY, formatShortDate, pronouns } from "../../_shared/letter-utils";
+import { COMPANY, formatLongDate, pronouns } from "../../_shared/letter-utils";
 import type { NocFormState, NocLetterData } from "./types";
 
 export function buildNocData(form: NocFormState): NocLetterData {
@@ -9,7 +9,8 @@ export function buildNocData(form: NocFormState): NocLetterData {
     subject: p.subject,
     subjectLower: p.subject.toLowerCase(),
     possessive: p.possessive,
-    date: formatShortDate(form.date),
+    object: p.object,
+    date: formatLongDate(form.date),
     companyName: COMPANY.name,
   };
 }

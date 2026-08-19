@@ -221,7 +221,9 @@ export default function OvertimePage() {
         inputValue={reviewRemarks}
         onInputChange={setReviewRemarks}
         inputPlaceholder={
-          pendingReview?.status === "Rejected" ? "Enter the reason for rejection" : "Add a note (optional)"
+          pendingReview?.status === "Rejected"
+            ? "Enter the reason for rejection"
+            : "Add a note (optional)"
         }
         inputRequired={pendingReview?.status === "Rejected"}
         onCancel={() => {

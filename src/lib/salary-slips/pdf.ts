@@ -52,20 +52,26 @@ function formatDays(value: number): string {
 }
 
 function formatSlipAddressLines(address: string): string[] {
-  const raw = String(address ?? "").replace(/\s+/g, " ").trim();
+  const raw = String(address ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!raw) return [""];
 
   const gujaratSplit = raw.match(/^(.*?),\s*(Gujarat\s+\d{6})\.?$/i);
   if (gujaratSplit?.[1] && gujaratSplit[2]) {
-    const street = gujaratSplit[1]
-      .replace(/Ground,\s*Nana/i, "Ground Nana")
-      .replace(/,\s*$/, "");
+    const street = gujaratSplit[1].replace(/Ground,\s*Nana/i, "Ground Nana").replace(/,\s*$/, "");
     return [`${street},`, gujaratSplit[2]];
   }
   return [raw];
 }
 
-function fontSizeToFit(text: string, font: PDFFont, preferred: number, maxWidth: number, min = 7): number {
+function fontSizeToFit(
+  text: string,
+  font: PDFFont,
+  preferred: number,
+  maxWidth: number,
+  min = 7,
+): number {
   let size = preferred;
   while (size > min && font.widthOfTextAtSize(text, size) > maxWidth) {
     size -= 0.25;
@@ -183,12 +189,7 @@ export async function renderSalarySlipPdf(input: SlipPdfInput): Promise<Buffer> 
   infoRow("Employee Name", input.employeeName, "Employee Code", input.employeeCode);
   infoRow("Father's Name", input.fatherName, "PAN", input.pan);
   infoRow("Bank A/c No.", input.bankAccountNo, "Designation", input.designation);
-  infoRow(
-    "IFSC",
-    input.ifsc,
-    "Net Payable Days",
-    formatDays(input.netPayableDays),
-  );
+  infoRow("IFSC", input.ifsc, "Net Payable Days", formatDays(input.netPayableDays));
   infoRow("Aadhar No.", input.aadharNo, "Working Days", formatDays(input.workingDays));
 
   const tableTop = infoBoxTop - infoBoxH - 10;

@@ -3,7 +3,11 @@ export type {
   PayrollEmployeeResult,
   PayrollPeriodAggregate,
 } from "@/lib/payroll/calculation";
-export { calculateEmployeePayroll, aggregatePayroll, sumApprovedOvertimeMs } from "@/lib/payroll/calculation";
+export {
+  calculateEmployeePayroll,
+  aggregatePayroll,
+  sumApprovedOvertimeMs,
+} from "@/lib/payroll/calculation";
 export { loadMonthAttendanceByDate } from "@/lib/payroll/load-month-attendance";
 export {
   countScheduledWorkingDays,

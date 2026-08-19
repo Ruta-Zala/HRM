@@ -38,7 +38,7 @@ export default function InternshipCertificatePage() {
     employeeSheetRow: "",
     candidateName: "",
     title: "Mr",
-    project: "",
+    position: "",
     startDate: "",
     endDate: "",
     issueDate: todayIso(),
@@ -60,7 +60,7 @@ export default function InternshipCertificatePage() {
   const data = useMemo(() => buildCertificateData(form), [form]);
 
   const isReady = Boolean(
-    form.candidateName.trim() && form.startDate && form.endDate && form.issueDate,
+    form.candidateName.trim() && form.position.trim() && form.startDate && form.endDate,
   );
 
   if (!canManage) {
@@ -153,12 +153,12 @@ export default function InternshipCertificatePage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="project">Technology / project</Label>
+                <Label htmlFor="position">Position</Label>
                 <Input
-                  id="project"
-                  value={form.project}
-                  onChange={(e) => update("project", e.target.value)}
-                  placeholder="e.g. Full Stack Development"
+                  id="position"
+                  value={form.position}
+                  onChange={(e) => update("position", e.target.value)}
+                  placeholder="e.g. Front-End Developer"
                 />
               </div>
 
@@ -197,7 +197,7 @@ export default function InternshipCertificatePage() {
               </Button>
               {!isReady ? (
                 <p className="text-ex-muted text-xs">
-                  Select a candidate and fill in the dates to enable printing.
+                  Select a candidate and fill in the position and dates to enable printing.
                 </p>
               ) : null}
             </CardContent>

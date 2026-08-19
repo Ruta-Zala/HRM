@@ -1,6 +1,6 @@
 /** Fixed signatory / company details used across all generated letters. */
 export const COMPANY = {
-  name: "ExhiByte Solutions",
+  name: "ExhiByte Solution",
   signatoryName: "Authorised Signatory",
   hrTitle: "HR Manager",
   /** Fixed work location — not editable per letter. */

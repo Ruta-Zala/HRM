@@ -6,10 +6,7 @@ import {
   DEFAULT_PROFESSIONAL_TAX,
   HOURS_PER_DAY,
 } from "@/lib/payroll/constants";
-import {
-  summarizeAttendanceDays,
-  type PayrollAttendanceDay,
-} from "@/lib/payroll/attendance-codes";
+import { summarizeAttendanceDays, type PayrollAttendanceDay } from "@/lib/payroll/attendance-codes";
 import { calculateSalaryBreakdown, proratedEarningsTotal } from "@/lib/salary-slips/calculation";
 
 function round2(value: number): number {
