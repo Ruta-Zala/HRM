@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,11 @@ export default function OvertimePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [pendingReview, setPendingReview] = useState<{
+    row: OvertimeRequestDto;
+    status: "Approved" | "Rejected";
+  } | null>(null);
+  const [reviewRemarks, setReviewRemarks] = useState("");
 
   async function load() {
     setLoading(true);
@@ -62,15 +68,13 @@ export default function OvertimePage() {
     };
   }, []);
 
-  async function decide(row: OvertimeRequestDto, status: "Approved" | "Rejected") {
-    const remarks =
-      status === "Rejected"
-        ? (window.prompt("Rejection remarks (required):") ?? "")
-        : (window.prompt("Approval remarks (optional):") ?? "");
+  async function decide(row: OvertimeRequestDto, status: "Approved" | "Rejected", remarks: string) {
     setActingId(row.id);
     setError(null);
     try {
       await reviewOvertimeRequest(row.id, status, remarks);
+      setPendingReview(null);
+      setReviewRemarks("");
       await load();
     } catch (err) {
       setError(toUserFacingActionError(err));
@@ -156,7 +160,11 @@ export default function OvertimePage() {
                       <Button
                         size="sm"
                         disabled={actingId != null}
-                        onClick={() => void decide(r, "Approved")}
+                        onClick={() => {
+                          setError(null);
+                          setReviewRemarks("");
+                          setPendingReview({ row: r, status: "Approved" });
+                        }}
                       >
                         {actingId === r.id ? "Saving..." : "Approve"}
                       </Button>
@@ -164,7 +172,11 @@ export default function OvertimePage() {
                         variant="outline"
                         size="sm"
                         disabled={actingId != null}
-                        onClick={() => void decide(r, "Rejected")}
+                        onClick={() => {
+                          setError(null);
+                          setReviewRemarks("");
+                          setPendingReview({ row: r, status: "Rejected" });
+                        }}
                       >
                         {actingId === r.id ? "Saving..." : "Reject"}
                       </Button>
@@ -177,6 +189,51 @@ export default function OvertimePage() {
           />
         </CardContent>
       </Card>
+
+      <ConfirmationDialog
+        open={Boolean(pendingReview)}
+        title={
+          pendingReview?.status === "Rejected" ? "Reject overtime request?" : "Approve overtime?"
+        }
+        description={
+          pendingReview ? (
+            <>
+              {pendingReview.status === "Rejected" ? "Reject" : "Approve"} overtime for{" "}
+              <span className="text-ex-primary font-medium">{pendingReview.row.employeeName}</span>{" "}
+              on {pendingReview.row.date} ({pendingReview.row.overtime}).
+            </>
+          ) : (
+            ""
+          )
+        }
+        confirmText={pendingReview?.status === "Rejected" ? "Reject" : "Approve"}
+        confirmVariant={pendingReview?.status === "Rejected" ? "danger" : "primary"}
+        busy={Boolean(actingId)}
+        busyText="Saving…"
+        iconContainerClassName={
+          pendingReview?.status === "Rejected" ? "bg-rose-600" : "bg-amber-500"
+        }
+        inputLabel={
+          pendingReview?.status === "Rejected"
+            ? "Rejection remarks (required)"
+            : "Approval remarks (optional)"
+        }
+        inputValue={reviewRemarks}
+        onInputChange={setReviewRemarks}
+        inputPlaceholder={
+          pendingReview?.status === "Rejected" ? "Enter the reason for rejection" : "Add a note (optional)"
+        }
+        inputRequired={pendingReview?.status === "Rejected"}
+        onCancel={() => {
+          if (actingId) return;
+          setPendingReview(null);
+          setReviewRemarks("");
+        }}
+        onConfirm={() => {
+          if (!pendingReview) return;
+          void decide(pendingReview.row, pendingReview.status, reviewRemarks);
+        }}
+      />
     </div>
   );
 }

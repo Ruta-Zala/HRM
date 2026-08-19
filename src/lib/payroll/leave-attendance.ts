@@ -3,6 +3,7 @@ import { leaveDaysFromDurationLabel } from "@/lib/attendance/leave-display";
 import { parseLeaveDisplayDate } from "@/lib/attendance/leave-range-display";
 import { WORK_MODE, WORKING_STATUS } from "@/lib/attendance/constants";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
+import type { PayrollAttendanceDay } from "@/lib/payroll/attendance-codes";
 
 export type LeaveAttendanceOverlay = {
   dateIso: string;
@@ -81,12 +82,9 @@ export function buildAcceptedLeaveAttendanceOverlays(
  * (that was turning present days into paid-leave "A" and Attend Days = 0).
  */
 export function mergeAttendanceWithApprovedLeaves(
-  attendanceByDate: Map<
-    string,
-    { workMode?: string; status?: string; punchIn?: string; punchOut?: string }
-  >,
+  attendanceByDate: Map<string, PayrollAttendanceDay>,
   overlays: LeaveAttendanceOverlay[],
-): Map<string, { workMode?: string; status?: string; punchIn?: string; punchOut?: string }> {
+): Map<string, PayrollAttendanceDay> {
   const merged = new Map(attendanceByDate);
 
   for (const overlay of overlays) {

@@ -1,4 +1,10 @@
-import { getSheetHeaders, headerToFormKey } from "@/lib/employee";
+import {
+  employeeHeadersEqual,
+  ensureRequiredEmployeeFormHeaders,
+  getSheetHeaders,
+  headerToFormKey,
+  sheetRowToRange,
+} from "@/lib/employee";
 import { sheets } from "./auth";
 
 const spreadsheetId = process.env.GOOGLE_SHEET_ID as string;
@@ -100,8 +106,16 @@ export async function copyRowFormatFromRow(
 
 export const getSheetHeadersData = async () => {
   const rows = await readSheet("Employees");
-
-  return getSheetHeaders(rows);
+  const headers = getSheetHeaders(rows);
+  const ensured = ensureRequiredEmployeeFormHeaders(headers);
+  if (headers.length > 0 && !employeeHeadersEqual(headers, ensured)) {
+    try {
+      await updateSheetRow(sheetRowToRange(1, ensured.length), [ensured]);
+    } catch (error) {
+      console.error("[sheets] failed to append required employee header columns:", error);
+    }
+  }
+  return ensured;
 };
 
 /**

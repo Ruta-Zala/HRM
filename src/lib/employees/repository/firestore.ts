@@ -1,4 +1,10 @@
-import { getSheetHeaders, headerToFormKey, sheetRowToForm } from "@/lib/employee";
+import {
+  employeeHeadersEqual,
+  ensureRequiredEmployeeFormHeaders,
+  getSheetHeaders,
+  headerToFormKey,
+  sheetRowToForm,
+} from "@/lib/employee";
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 
@@ -44,11 +50,11 @@ async function ensureEmployeesBootstrapped(): Promise<void> {
       await db
         .collection(EMPLOYEES_COLLECTION)
         .doc(META_DOC_ID)
-        .set({ headers: getSheetHeaders(raw) });
+        .set({ headers: ensureRequiredEmployeeFormHeaders(getSheetHeaders(raw)) });
       return;
     }
 
-    const headers = getSheetHeaders(raw);
+    const headers = ensureRequiredEmployeeFormHeaders(getSheetHeaders(raw));
     const batch = db.batch();
     batch.set(db.collection(EMPLOYEES_COLLECTION).doc(META_DOC_ID), { headers });
 
@@ -71,18 +77,25 @@ async function ensureEmployeesBootstrapped(): Promise<void> {
   return bootstrapPromise;
 }
 
+async function persistHeadersIfNeeded(headers: string[]): Promise<string[]> {
+  const ensured = ensureRequiredEmployeeFormHeaders(headers);
+  if (employeeHeadersEqual(headers, ensured)) return headers;
+  await employeesCollection().doc(META_DOC_ID).set({ headers: ensured }, { merge: true });
+  return ensured;
+}
+
 async function getHeaders(): Promise<string[]> {
   await ensureEmployeesBootstrapped();
   const snap = await employeesCollection().doc(META_DOC_ID).get();
   let headers = (snap.data()?.headers as string[] | undefined) ?? [];
-  if (headers.length > 0) return headers;
+  if (headers.length > 0) return persistHeadersIfNeeded(headers);
 
   // Meta may exist without headers (empty bootstrap). Pull once from Sheets.
   try {
     const raw = await readSheet(EMPLOYEE_SHEET_RANGE);
     headers = getSheetHeaders(raw);
     if (headers.length > 0) {
-      await employeesCollection().doc(META_DOC_ID).set({ headers }, { merge: true });
+      return persistHeadersIfNeeded(headers);
     }
   } catch (error) {
     console.error("[firebase] failed to refresh employee headers from Sheets:", error);
@@ -103,10 +116,11 @@ export async function getEmployeeBySheetRow(sheetRow: number): Promise<EmployeeR
   ]);
   if (!snap.exists) return null;
   const data = snap.data() as { row?: string[] };
+  const row = (data.row as string[]) ?? [];
   return {
     sheetRow,
     headers,
-    row: (data.row as string[]) ?? [],
+    row: headers.map((_, index) => String(row[index] ?? "")),
   };
 }
 
@@ -138,7 +152,9 @@ export async function findEmployeeByLogin(login: string): Promise<EmployeeRowRec
       return {
         sheetRow,
         headers,
-        row: (indexedDoc.data().row as string[]) ?? [],
+        row: headers.map((_, index) =>
+          String(((indexedDoc.data().row as string[]) ?? [])[index] ?? ""),
+        ),
       };
     }
   }
@@ -159,7 +175,11 @@ export async function findEmployeeByLogin(login: string): Promise<EmployeeRowRec
         .doc(String(sheetRow))
         .set({ emailLower: email, usernameLower: username }, { merge: true })
         .catch(() => undefined);
-      return { sheetRow, headers, row };
+      return {
+        sheetRow,
+        headers,
+        row: headers.map((_, index) => String(row[index] ?? "")),
+      };
     }
   }
 
@@ -168,9 +188,10 @@ export async function findEmployeeByLogin(login: string): Promise<EmployeeRowRec
 
 export async function updateEmployeeRow(sheetRow: number, row: string[]): Promise<void> {
   const headers = await getHeaders();
+  const normalized = headers.map((_, index) => String(row[index] ?? ""));
   await employeesCollection()
     .doc(String(sheetRow))
-    .set({ sheetRow, row, ...loginIndexFields(headers, row) }, { merge: true });
+    .set({ sheetRow, row: normalized, ...loginIndexFields(headers, normalized) }, { merge: true });
 }
 
 export async function listAllEmployeeRows(): Promise<EmployeeRowRecord[]> {
@@ -186,7 +207,7 @@ export async function listAllEmployeeRows(): Promise<EmployeeRowRecord[]> {
     records.push({
       sheetRow,
       headers,
-      row: (doc.data().row as string[]) ?? [],
+      row: headers.map((_, index) => String(((doc.data().row as string[]) ?? [])[index] ?? "")),
     });
   }
 

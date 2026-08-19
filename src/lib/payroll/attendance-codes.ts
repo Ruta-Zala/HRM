@@ -6,6 +6,15 @@ import {
 } from "@/lib/attendance/constants";
 import { PAYROLL_DAY_CODE, type PayrollDayCode } from "@/lib/payroll/constants";
 
+export type PayrollAttendanceDay = {
+  workMode?: string;
+  status?: string;
+  punchIn?: string;
+  punchOut?: string;
+  overtime?: string;
+  isOvertimeApproved?: string;
+};
+
 export type DayWeights = {
   code: PayrollDayCode;
   /** Day weight that reduces pay (unpaid). */
@@ -76,10 +85,7 @@ export function mapAttendanceToPayrollCode(input: {
 
 export function summarizeAttendanceDays(
   scheduledDates: string[],
-  attendanceByDate: Map<
-    string,
-    { workMode?: string; status?: string; punchIn?: string; punchOut?: string }
-  >,
+  attendanceByDate: Map<string, PayrollAttendanceDay>,
 ): {
   halfPaidLeave: number;
   fullPaidLeave: number;

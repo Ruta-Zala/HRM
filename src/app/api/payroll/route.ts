@@ -3,7 +3,12 @@ import { NextResponse } from "next/server";
 import { ROLES } from "@/app/consts/common";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
-import { canonicalizeWorkMode } from "@/lib/attendance/constants";
+import {
+  canonicalizeWorkMode,
+  OVERTIME_APPROVAL,
+  OVERTIME_REQUEST_STATUS,
+} from "@/lib/attendance/constants";
+import { listOvertimeRequests } from "@/lib/attendance/overtime-requests";
 import {
   getAttendanceSpreadsheetIdFromRow,
   resolveAttendanceSpreadsheetIdForRow,
@@ -12,7 +17,6 @@ import { sheetRowToForm } from "@/lib/employee";
 import { listCompanyHolidays } from "@/lib/company-holidays/repository";
 import { listLeaveApplications } from "@/lib/attendance/leave-approvals";
 import { LEAVE_STATUS } from "@/lib/attendance/leave-status";
-import { getMonthAttendance } from "@/lib/google/attendance-sheets";
 import { EMPLOYEE_SHEET_RANGE, readSheet } from "@/lib/google/sheets";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
 import {
@@ -23,6 +27,7 @@ import {
   DEFAULT_PROFESSIONAL_TAX,
   getDaysInMonth,
   listScheduledWorkingDates,
+  loadMonthAttendanceByDate,
 } from "@/lib/payroll";
 import { filterDatesForEmployment, wasEmployedDuringPeriod } from "@/lib/payroll/employment";
 import {
@@ -53,12 +58,17 @@ export const GET = withActiveSession(async (req, user) => {
       return NextResponse.json({ success: false, message: "Invalid month" }, { status: 400 });
     }
 
-    const [employeeSheet, holidays, salaryHistory, advanceDeductions] = await Promise.all([
-      readSheet(EMPLOYEE_SHEET_RANGE),
-      listCompanyHolidays(year),
-      listSalaryHistoryRecords(),
-      mapSalaryAdvanceDeductionsForPeriod(year, month),
-    ]);
+    const [employeeSheet, holidays, salaryHistory, advanceDeductions, overtimeRequests] =
+      await Promise.all([
+        readSheet(EMPLOYEE_SHEET_RANGE),
+        listCompanyHolidays(year),
+        listSalaryHistoryRecords(),
+        mapSalaryAdvanceDeductionsForPeriod(year, month),
+        listOvertimeRequests({}).catch((error) => {
+          console.error("Payroll overtime request load failed", error);
+          return [];
+        }),
+      ]);
 
     if (!employeeSheet.length) {
       return NextResponse.json({
@@ -71,6 +81,7 @@ export const GET = withActiveSession(async (req, user) => {
           loyalty: { payable: 0, employeeCount: 0 },
           unpaidLeave: { payable: 0, employeeCount: 0 },
           salaryAdvance: { payable: 0, employeeCount: 0 },
+          overtime: { payable: 0, employeeCount: 0 },
         },
         employees: [],
       });
@@ -128,10 +139,13 @@ export const GET = withActiveSession(async (req, user) => {
         periodEnd,
       });
       const salaryFromForm = Number(String(form.salary ?? "").replace(/,/g, ""));
-      const monthlySalary =
+      const basic =
         history?.basic ?? (Number.isFinite(salaryFromForm) ? salaryFromForm : 0);
+      const hra = history?.hra ?? 0;
+      const organizationAllowance = history?.organizationAllowance ?? 0;
+      const grossMonthly = basic + hra + organizationAllowance;
 
-      if (!monthlySalary || monthlySalary <= 0) {
+      if (!grossMonthly || grossMonthly <= 0) {
         employees.push({
           id: String(sheetRow),
           employeeSheetRow: sheetRow,
@@ -146,7 +160,14 @@ export const GET = withActiveSession(async (req, user) => {
 
       const attendanceByDate = new Map<
         string,
-        { workMode?: string; status?: string; punchIn?: string; punchOut?: string }
+        {
+          workMode?: string;
+          status?: string;
+          punchIn?: string;
+          punchOut?: string;
+          overtime?: string;
+          isOvertimeApproved?: string;
+        }
       >();
 
       // Prefer the stored Employees-sheet ID (same workbook punch uses). Avoid a Drive
@@ -169,23 +190,22 @@ export const GET = withActiveSession(async (req, user) => {
       }
 
       const loadMonthRows = async (spreadsheetId: string) => {
-        const rows = await getMonthAttendance(spreadsheetId, year, month - 1);
+        const loaded = await loadMonthAttendanceByDate({
+          employeeId: form.employeeId.trim(),
+          attendanceSpreadsheetId: spreadsheetId,
+          year,
+          monthIndex: month - 1,
+        });
         attendanceByDate.clear();
-        for (const attendance of rows) {
-          if (!attendance.date) continue;
-          attendanceByDate.set(attendance.date, {
-            workMode: canonicalizeWorkMode(attendance.workMode ?? ""),
-            status: attendance.status,
-            punchIn: attendance.punchIn,
-            punchOut: attendance.punchOut,
-          });
+        for (const [date, value] of loaded) {
+          attendanceByDate.set(date, value);
         }
-        return rows.length;
+        return attendanceByDate.size;
       };
 
-      if (attendanceSpreadsheetId) {
+      if (attendanceSpreadsheetId || form.employeeId.trim()) {
         try {
-          const loaded = await loadMonthRows(attendanceSpreadsheetId);
+          const loaded = await loadMonthRows(attendanceSpreadsheetId || "");
           if (loaded === 0 && form.documentsFolderId.trim()) {
             const folderResolved = await resolveAttendanceSpreadsheetIdForRow({
               headers,
@@ -226,12 +246,12 @@ export const GET = withActiveSession(async (req, user) => {
           }
         }
 
-        if (attendanceSpreadsheetId) {
+        if (attendanceSpreadsheetId || form.employeeId.trim()) {
           try {
             const leaveApplications = await listLeaveApplications({
               employeeId: form.employeeId,
               employeeName: form.name,
-              attendanceSpreadsheetId,
+              attendanceSpreadsheetId: attendanceSpreadsheetId || "",
               statusFilter: LEAVE_STATUS.ACCEPTED,
             });
             const overlays = buildAcceptedLeaveAttendanceOverlays(leaveApplications).filter(
@@ -245,6 +265,8 @@ export const GET = withActiveSession(async (req, user) => {
                 status: value.status,
                 punchIn: value.punchIn,
                 punchOut: value.punchOut,
+                overtime: value.overtime,
+                isOvertimeApproved: value.isOvertimeApproved,
               });
             }
           } catch (error) {
@@ -274,15 +296,32 @@ export const GET = withActiveSession(async (req, user) => {
         }
       }
 
+      const employeeId = form.employeeId.trim();
+      for (const request of overtimeRequests) {
+        if (request.employeeId.trim() !== employeeId) continue;
+        if (request.status !== OVERTIME_REQUEST_STATUS.APPROVED) continue;
+        if (request.date < periodStart || request.date > periodEnd) continue;
+        const existing = attendanceByDate.get(request.date) ?? {};
+        attendanceByDate.set(request.date, {
+          ...existing,
+          overtime: request.overtime || existing.overtime,
+          isOvertimeApproved: OVERTIME_APPROVAL.ACCEPTED,
+        });
+      }
+
       const payroll = calculateEmployeePayroll({
-        monthlySalary,
+        basic,
+        hra,
+        organizationAllowance,
         loyaltyPercent:
-          history && history.loyaltyBonus > 0 ? history.loyaltyBonus : DEFAULT_LOYALTY_PERCENT,
+          history && Number.isFinite(history.loyaltyBonus)
+            ? history.loyaltyBonus
+            : DEFAULT_LOYALTY_PERCENT,
         professionalTax:
           history && history.professionalTax > 0
             ? history.professionalTax
             : DEFAULT_PROFESSIONAL_TAX,
-        lwf: DEFAULT_LWF,
+        lwf: history && history.lwf > 0 ? history.lwf : DEFAULT_LWF,
         salaryAdvance: advanceDeductions.get(sheetRow) ?? 0,
         workingDays,
         scheduledDates: dueScheduledDates,
@@ -332,6 +371,10 @@ export const GET = withActiveSession(async (req, user) => {
         salaryAdvance: {
           payable: summary.totalSalaryAdvance,
           employeeCount: summary.employeesWithAdvance,
+        },
+        overtime: {
+          payable: summary.totalOvertimeAmount,
+          employeeCount: summary.employeesWithOvertime,
         },
       },
       employees,

@@ -3,7 +3,8 @@ export type {
   PayrollEmployeeResult,
   PayrollPeriodAggregate,
 } from "@/lib/payroll/calculation";
-export { calculateEmployeePayroll, aggregatePayroll } from "@/lib/payroll/calculation";
+export { calculateEmployeePayroll, aggregatePayroll, sumApprovedOvertimeMs } from "@/lib/payroll/calculation";
+export { loadMonthAttendanceByDate } from "@/lib/payroll/load-month-attendance";
 export {
   countScheduledWorkingDays,
   listScheduledWorkingDates,
@@ -15,6 +16,7 @@ export {
   summarizeAttendanceDays,
   weightsForCode,
 } from "@/lib/payroll/attendance-codes";
+export type { PayrollAttendanceDay } from "@/lib/payroll/attendance-codes";
 export {
   DEFAULT_LOYALTY_PERCENT,
   DEFAULT_PROFESSIONAL_TAX,

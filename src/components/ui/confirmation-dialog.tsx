@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 
 import { Button, type ButtonProps } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 export function ConfirmationDialog({
   open,
@@ -16,6 +17,11 @@ export function ConfirmationDialog({
   busyText,
   icon,
   iconContainerClassName = "bg-rose-600",
+  inputLabel,
+  inputValue,
+  onInputChange,
+  inputPlaceholder,
+  inputRequired = false,
 }: {
   open: boolean;
   title: string;
@@ -29,8 +35,15 @@ export function ConfirmationDialog({
   busyText?: string;
   icon?: ReactNode;
   iconContainerClassName?: string;
+  inputLabel?: string;
+  inputValue?: string;
+  onInputChange?: (value: string) => void;
+  inputPlaceholder?: string;
+  inputRequired?: boolean;
 }) {
   if (!open) return null;
+
+  const inputMissing = Boolean(inputLabel && inputRequired && !String(inputValue ?? "").trim());
 
   return (
     <div
@@ -60,11 +73,35 @@ export function ConfirmationDialog({
           </div>
         </div>
 
+        {inputLabel ? (
+          <div className="mt-4">
+            <label
+              htmlFor="confirmation-dialog-input"
+              className="text-ex-primary mb-1.5 block text-sm font-medium"
+            >
+              {inputLabel}
+            </label>
+            <Textarea
+              id="confirmation-dialog-input"
+              value={inputValue ?? ""}
+              onChange={(event) => onInputChange?.(event.target.value)}
+              placeholder={inputPlaceholder}
+              disabled={busy}
+              rows={3}
+            />
+          </div>
+        ) : null}
+
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
             {cancelText}
           </Button>
-          <Button type="button" variant={confirmVariant} disabled={busy} onClick={onConfirm}>
+          <Button
+            type="button"
+            variant={confirmVariant}
+            disabled={busy || inputMissing}
+            onClick={onConfirm}
+          >
             {busy ? (busyText ?? confirmText) : confirmText}
           </Button>
         </div>

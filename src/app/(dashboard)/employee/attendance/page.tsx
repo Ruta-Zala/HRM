@@ -4,6 +4,7 @@ import { readResponseJson } from "@/lib/api/read-response-json";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AttendanceHistoryView } from "@/components/attendance/attendance-history-view";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useAuth } from "@/contexts/auth-provider";
 import {
   fetchAttendanceHistory,
@@ -105,6 +106,8 @@ export default function AttendanceHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [requestingOvertimeId, setRequestingOvertimeId] = useState<string | null>(null);
+  const [pendingOvertimeRow, setPendingOvertimeRow] = useState<AttendanceHistoryRow | null>(null);
+  const [overtimeNote, setOvertimeNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [hrFormMode, setHrFormMode] = useState<"closed" | "add" | "edit">("closed");
@@ -224,8 +227,7 @@ export default function AttendanceHistoryPage() {
     setMonth(clampMonthForYear(nextYear, nextMonth, periods));
   }
 
-  async function handleRequestOvertime(row: AttendanceHistoryRow) {
-    const comment = window.prompt("Optional note for approver (press OK to continue):") ?? "";
+  async function handleRequestOvertime(row: AttendanceHistoryRow, comment: string) {
     setRequestingOvertimeId(row.id);
     setError(null);
     setImportMessage(null);
@@ -236,6 +238,8 @@ export default function AttendanceHistoryPage() {
         ...(isHr && targetSheetRow != null ? { employeeSheetRow: targetSheetRow } : {}),
       });
       setImportMessage(`Overtime request submitted for ${row.date}.`);
+      setPendingOvertimeRow(null);
+      setOvertimeNote("");
       await loadHistory();
     } catch (err) {
       setError(toUserFacingActionError(err));
@@ -322,7 +326,11 @@ export default function AttendanceHistoryPage() {
         }
         canExport={rows.length > 0}
         requestingOvertimeId={requestingOvertimeId}
-        onRequestOvertime={(row) => void handleRequestOvertime(row)}
+        onRequestOvertime={(row) => {
+          setError(null);
+          setOvertimeNote("");
+          setPendingOvertimeRow(row);
+        }}
         hrFormMode={hrFormMode}
         hrFormRow={hrFormRow}
         hrFormDate={defaultHrFormDate()}
@@ -340,6 +348,33 @@ export default function AttendanceHistoryPage() {
           setHrFormRow(null);
         }}
         onSaveHrAttendance={handleSaveHrAttendance}
+      />
+
+      <ConfirmationDialog
+        open={Boolean(pendingOvertimeRow)}
+        title="Request OT approval?"
+        description={
+          pendingOvertimeRow
+            ? `Submit overtime approval for ${pendingOvertimeRow.date}? You can add an optional note for the approver.`
+            : ""
+        }
+        confirmText="Submit request"
+        confirmVariant="primary"
+        busy={Boolean(requestingOvertimeId)}
+        busyText="Requesting…"
+        iconContainerClassName="bg-amber-500"
+        inputLabel="Optional note for approver"
+        inputValue={overtimeNote}
+        onInputChange={setOvertimeNote}
+        inputPlaceholder="Add a note (optional)"
+        onCancel={() => {
+          if (requestingOvertimeId) return;
+          setPendingOvertimeRow(null);
+          setOvertimeNote("");
+        }}
+        onConfirm={() => {
+          if (pendingOvertimeRow) void handleRequestOvertime(pendingOvertimeRow, overtimeNote);
+        }}
       />
     </div>
   );

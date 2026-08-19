@@ -8,8 +8,11 @@ export type SalaryHistoryRecord = {
   effectiveFrom: string;
   effectiveTo: string;
   basic: number;
+  hra: number;
+  organizationAllowance: number;
   loyaltyBonus: number;
   professionalTax: number;
+  lwf: number;
   status: "Active" | "Inactive";
   createdAt: string;
   updatedAt: string;
@@ -33,6 +36,8 @@ export type SalarySlipRecord = {
   professionalTax: number;
   totalDeductions: number;
   netPay: number;
+  overtimeAmount: number;
+  totalPay: number;
   amountInWords: string;
   status: SalarySlipStatus;
   driveFileId: string;
@@ -45,8 +50,14 @@ export type SalarySlipRecord = {
 
 export type SalaryBreakdownInput = {
   basic: number;
+  hra: number;
+  organizationAllowance: number;
   loyaltyBonus: number; // percentage (5/10/15/20)
   professionalTax: number;
+  lwf: number;
   workingDays: number;
   netPayableDays: number;
+  overtimeAmount?: number;
+  /** Unpaid leave amount from payroll; omitted line on the slip when 0. */
+  unpaidLeaveAmount?: number;
 };
