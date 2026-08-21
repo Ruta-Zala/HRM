@@ -100,11 +100,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <TodayAttendanceProvider>
       <NotificationsProvider>
-        <div className="bg-ex-bg flex min-h-screen">
+        <div className="bg-ex-bg min-h-screen">
           <AppSidebar />
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-w-0 flex-col lg:pl-64">
             <AppHeader />
-            <main className="flex-1 space-y-8 p-4 pb-10 lg:p-8">{children}</main>
+            <main className="min-w-0 flex-1 space-y-8 p-4 pb-10 lg:p-8">{children}</main>
           </div>
         </div>
       </NotificationsProvider>

@@ -1,4 +1,9 @@
-import { COMPANY, firstName, formatLongDate } from "../../_shared/letter-utils";
+import {
+  COMPANY,
+  firstName,
+  formatLongDate,
+  type LetterCompanyFields,
+} from "../../_shared/letter-utils";
 import type { IncrementFormState, IncrementLetterData } from "./types";
 
 function formatRupees(value: string): string {
@@ -7,7 +12,10 @@ function formatRupees(value: string): string {
   return `₹${amount.toLocaleString("en-IN")}/-`;
 }
 
-export function buildIncrementLetterData(form: IncrementFormState): IncrementLetterData {
+export function buildIncrementLetterData(
+  form: IncrementFormState,
+  company: LetterCompanyFields = COMPANY,
+): IncrementLetterData {
   return {
     candidateName: form.candidateName,
     candidateFirstName: firstName(form.candidateName),
@@ -17,6 +25,6 @@ export function buildIncrementLetterData(form: IncrementFormState): IncrementLet
     revisedSalary: formatRupees(form.revisedSalary),
     loyaltyBonusRate: form.loyaltyBonusRate.trim() || "10",
     interestRate: form.interestRate.trim() || "4",
-    companyName: COMPANY.name,
+    companyName: company.name || "Company",
   };
 }

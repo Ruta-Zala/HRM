@@ -1,7 +1,6 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type RGB } from "pdf-lib";
+
+import { getBrandingAssetBytes } from "@/lib/branding";
 
 type SlipPdfInput = {
   companyName: string;
@@ -132,21 +131,29 @@ export async function renderSalarySlipPdf(input: SlipPdfInput): Promise<Buffer> 
     });
   };
 
-  const logoBytes = await readFile(
-    path.join(process.cwd(), "public", "documents", "exhibyte_logo.png"),
-  );
-  const logo = await pdf.embedPng(logoBytes);
-  const logoSize = 46;
+  const logoAsset = await getBrandingAssetBytes("logo");
   let y = PAGE_HEIGHT - 78;
-  page.drawImage(logo, {
-    x: (PAGE_WIDTH - logoSize) / 2,
-    y: y - logoSize,
-    width: logoSize,
-    height: logoSize,
-  });
-  y -= logoSize + 18;
 
-  drawCentered(input.companyName, y, 10, true);
+  if (logoAsset) {
+    try {
+      const logo =
+        logoAsset.mimeType.includes("jpeg") || logoAsset.mimeType.includes("jpg")
+          ? await pdf.embedJpg(logoAsset.buffer)
+          : await pdf.embedPng(logoAsset.buffer);
+      const logoSize = 46;
+      page.drawImage(logo, {
+        x: (PAGE_WIDTH - logoSize) / 2,
+        y: y - logoSize,
+        width: logoSize,
+        height: logoSize,
+      });
+      y -= logoSize + 18;
+    } catch {
+      // Invalid/unsupported logo — continue without it.
+    }
+  }
+
+  drawCentered(input.companyName || "Company", y, 10, true);
   y -= 16;
   const addressLines = formatSlipAddressLines(input.companyAddress);
   const addressMaxWidth = PAGE_WIDTH - 20;

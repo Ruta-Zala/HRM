@@ -1,7 +1,15 @@
-import { COMPANY, formatLongDate, pronouns } from "../../_shared/letter-utils";
+import {
+  COMPANY,
+  formatLongDate,
+  pronouns,
+  type LetterCompanyFields,
+} from "../../_shared/letter-utils";
 import type { ExperienceFormState, ExperienceLetterData } from "./types";
 
-export function buildExperienceLetterData(form: ExperienceFormState): ExperienceLetterData {
+export function buildExperienceLetterData(
+  form: ExperienceFormState,
+  company: LetterCompanyFields = COMPANY,
+): ExperienceLetterData {
   const p = pronouns(form.title);
   return {
     candidateName: form.candidateName,
@@ -12,7 +20,7 @@ export function buildExperienceLetterData(form: ExperienceFormState): Experience
     issueDate: formatLongDate(form.issueDate),
     object: p.object,
     possessive: p.possessive,
-    companyName: COMPANY.name,
+    companyName: company.name || "Company",
     additionalRemarks: form.additionalRemarks.trim(),
   };
 }

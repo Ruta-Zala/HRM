@@ -1,14 +1,14 @@
-import Image from "next/image";
+"use client";
 
+import { useState } from "react";
+
+import { useCompanyBranding } from "@/lib/branding/use-company-branding";
 import { cn } from "@/lib/utils";
 
-export const BRAND_LOGO_SRC =
-  "https://exhibytesolution.com/wp-content/uploads/2023/06/cropped-Exhibyte_Logo_Black_Logo-removebg-preview-1.png";
-
 const sizeConfig = {
-  sm: { box: "size-10 rounded-lg", padding: "p-1", sizes: "40px" },
-  md: { box: "size-14 rounded-2xl", padding: "p-2", sizes: "56px" },
-  lg: { box: "size-16 rounded-2xl", padding: "p-2", sizes: "64px" },
+  sm: { box: "size-10 rounded-lg", padding: "p-1", text: "text-sm" },
+  md: { box: "size-14 rounded-2xl", padding: "p-2", text: "text-lg" },
+  lg: { box: "size-16 rounded-2xl", padding: "p-2", text: "text-xl" },
 } as const;
 
 type BrandLogoProps = {
@@ -17,8 +17,18 @@ type BrandLogoProps = {
   className?: string;
 };
 
-export function BrandLogo({ size = "md", priority = false, className }: BrandLogoProps) {
+export function BrandLogo({ size = "md", className }: BrandLogoProps) {
   const config = sizeConfig[size];
+  const { branding } = useCompanyBranding();
+  const name = branding.companyName.trim() || "HRM";
+  const initial = name.charAt(0).toUpperCase() || "H";
+  const logoSrc = branding.hasLogo
+    ? branding.logoUrl ||
+      `/api/branding/public/logo?v=${encodeURIComponent(branding.updatedAt || "1")}`
+    : null;
+
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const showImage = Boolean(logoSrc) && failedSrc !== logoSrc;
 
   return (
     <div
@@ -28,14 +38,26 @@ export function BrandLogo({ size = "md", priority = false, className }: BrandLog
         className,
       )}
     >
-      <Image
-        src={BRAND_LOGO_SRC}
-        alt="ExhiByte Solutions"
-        fill
-        className={cn("object-contain", config.padding)}
-        sizes={config.sizes}
-        priority={priority}
-      />
+      {showImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={logoSrc}
+          src={logoSrc!}
+          alt={name}
+          className={cn("absolute inset-0 h-full w-full object-contain", config.padding)}
+          onError={() => setFailedSrc(logoSrc)}
+        />
+      ) : (
+        <span
+          className={cn(
+            "text-ex-primary absolute inset-0 flex items-center justify-center font-semibold",
+            config.text,
+          )}
+          aria-label={name}
+        >
+          {initial}
+        </span>
+      )}
     </div>
   );
 }

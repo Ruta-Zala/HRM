@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { ROLES } from "@/app/consts/common";
 import { withActiveSession } from "@/lib/auth/api-guard";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { getCompanyBranding } from "@/lib/branding";
 import { formatGoogleApiClientMessage } from "@/lib/google/drive-auth";
 import { formatEmployeePositionLabel, headerToFormKey, sheetRowToForm } from "@/lib/employee";
 import {
@@ -344,11 +345,11 @@ export const POST = withActiveSession(async (req, user) => {
         year,
       });
 
+      const branding = await getCompanyBranding();
       const fileName = `${monthLabel(month)}.pdf`;
       const pdf = await renderSalarySlipPdf({
-        companyName: "ExhiByte Solutions",
-        companyAddress:
-          "364, Raj Imperia, Vraj Chowk, Vrajbhoomi Ground, Nana Varachha, Surat, Gujarat 395006",
+        companyName: branding.companyName || "Company",
+        companyAddress: branding.companyAddress,
         payTitle: `Pay Slip For the Month of ${monthLabel(month)}-${year}`,
         payRange: `(From ${periodStart.split("-").reverse().join("/")} To ${periodEnd.split("-").reverse().join("/")})`,
         employeeName: form.name,

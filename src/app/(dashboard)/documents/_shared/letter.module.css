@@ -14,7 +14,8 @@
   position: relative;
   width: 210mm;
   height: 297mm;
-  background-image: url("/documents/background-page.png");
+  /* Background image is applied via LetterPage from company branding settings. */
+  background-color: #fff;
   background-size: 100% 100%;
   background-repeat: no-repeat;
   background-position: center;

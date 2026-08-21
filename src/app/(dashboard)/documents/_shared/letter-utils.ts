@@ -1,11 +1,15 @@
-/** Fixed signatory / company details used across all generated letters. */
+/** @deprecated Prefer getCompanyBranding() / useCompanyBranding(). Kept as empty fallbacks. */
 export const COMPANY = {
-  name: "ExhiByte Solution",
+  name: "",
   signatoryName: "Authorised Signatory",
   hrTitle: "HR Manager",
-  /** Fixed work location — not editable per letter. */
-  address: "364, Raj Imperia Vraj Chowk, Nana Varachha, Surat, Gujarat 395006",
+  address: "",
 } as const;
+
+export type LetterCompanyFields = {
+  name: string;
+  address: string;
+};
 
 export type Title = "Mr" | "Ms" | "Mrs";
 

@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { useCompanyBranding } from "@/lib/branding/use-company-branding";
 
 import { useLetterEmployees } from "../../_shared/use-letter-employees";
 import { printLetter, todayIso } from "../../_shared/letter-utils";
@@ -24,6 +25,7 @@ import type { OfferFormState } from "./types";
 export default function OfferLetterPage() {
   const { user } = useAuth();
   const canManage = user ? canManageEmployees(user.role) : false;
+  const { branding } = useCompanyBranding();
   const { employees, loading, error } = useLetterEmployees(canManage);
 
   const [form, setForm] = useState<OfferFormState>({
@@ -50,7 +52,14 @@ export default function OfferLetterPage() {
     }));
   }
 
-  const data = useMemo(() => buildOfferLetterData(form), [form]);
+  const data = useMemo(
+    () =>
+      buildOfferLetterData(form, {
+        name: branding.companyName,
+        address: branding.companyAddress,
+      }),
+    [form, branding.companyName, branding.companyAddress],
+  );
 
   const showInterestError =
     Boolean(form.interestRate.trim()) && !interestRateMeetsMinimum(form.interestRate);

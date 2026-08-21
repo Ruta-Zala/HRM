@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { useCompanyBranding } from "@/lib/branding/use-company-branding";
 
 import { plusDaysIso, printLetter, todayIso } from "../../_shared/letter-utils";
 import styles from "../../_shared/letter.module.css";
@@ -23,6 +24,7 @@ import type { InternshipType, OfferFormState } from "./types";
 export default function InternshipOfferLetterPage() {
   const { user } = useAuth();
   const canManage = user ? canManageEmployees(user.role) : false;
+  const { branding } = useCompanyBranding();
 
   const [form, setForm] = useState<OfferFormState>({
     candidateName: "",
@@ -40,7 +42,14 @@ export default function InternshipOfferLetterPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  const data = useMemo(() => buildOfferLetterData(form), [form]);
+  const data = useMemo(
+    () =>
+      buildOfferLetterData(form, {
+        name: branding.companyName,
+        address: branding.companyAddress,
+      }),
+    [form, branding.companyName, branding.companyAddress],
+  );
 
   const partTimeHoursValid =
     form.internshipType === "full-time" ||

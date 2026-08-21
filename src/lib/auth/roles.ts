@@ -9,6 +9,10 @@ export function canReviewOvertime(role: UserRole): boolean {
   return role === ROLES.SUPER_ADMIN;
 }
 
+export function canManageCompanyBranding(role: UserRole): boolean {
+  return role === ROLES.SUPER_ADMIN;
+}
+
 export {
   roleRequiresAbsenceExplanationGate,
   roleCanPunchInOut,
