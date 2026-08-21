@@ -20,6 +20,7 @@ export interface OfferLetterData {
   candidateName: string;
   candidateFirstName: string;
   position: string;
+  companyName: string;
   internshipTypeLabel: string; // "full-time" | "part-time"
   offerDate: string; // 19th August, 2026
   durationStart: string; // dd/mm/yyyy

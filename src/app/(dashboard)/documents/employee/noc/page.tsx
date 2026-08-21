@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { useCompanyBranding } from "@/lib/branding/use-company-branding";
 
 import { useLetterEmployees } from "../../_shared/use-letter-employees";
 import { TITLE_OPTIONS, printLetter, todayIso, type Title } from "../../_shared/letter-utils";
@@ -24,6 +25,7 @@ import type { NocFormState } from "./types";
 export default function NocPage() {
   const { user } = useAuth();
   const canManage = user ? canManageEmployees(user.role) : false;
+  const { branding } = useCompanyBranding();
   const { employees, loading, error } = useLetterEmployees(canManage);
 
   const [form, setForm] = useState<NocFormState>({
@@ -46,7 +48,14 @@ export default function NocPage() {
     }));
   }
 
-  const data = useMemo(() => buildNocData(form), [form]);
+  const data = useMemo(
+    () =>
+      buildNocData(form, {
+        name: branding.companyName,
+        address: branding.companyAddress,
+      }),
+    [form, branding.companyName, branding.companyAddress],
+  );
 
   const isReady = Boolean(form.candidateName.trim() && form.date);
 

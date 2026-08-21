@@ -16,7 +16,7 @@ export default function OfferLetterTemplate({ data }: { data: OfferLetterData })
 
       <p className={styles.paragraph}>
         We are pleased to offer you an Internship Opportunity with{" "}
-        <strong>ExhiByte Solution</strong> for the position of <strong>{data.position}</strong>. We
+        <strong>{data.companyName}</strong> for the position of <strong>{data.position}</strong>. We
         were impressed with your skills, enthusiasm, and technical potential during the selection
         process and are excited to have you as part of our team.
       </p>
@@ -46,7 +46,8 @@ export default function OfferLetterTemplate({ data }: { data: OfferLetterData })
       <p className={styles.paragraph}>
         Upon successful completion of your internship and satisfactory performance evaluation, you
         may be considered for a <strong>{data.internshipTypeLabel}</strong> employment opportunity
-        with <strong>ExhiByte Solution</strong>, subject to the company’s requirements and policies.
+        with <strong>{data.companyName}</strong>, subject to the company’s requirements and
+        policies.
       </p>
 
       <p className={styles.paragraph}>

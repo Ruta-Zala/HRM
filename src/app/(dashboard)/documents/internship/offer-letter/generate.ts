@@ -1,4 +1,10 @@
-import { firstName, formatLongDate, formatShortDate } from "../../_shared/letter-utils";
+import {
+  COMPANY,
+  firstName,
+  formatLongDate,
+  formatShortDate,
+  type LetterCompanyFields,
+} from "../../_shared/letter-utils";
 import type { OfferFormState, OfferLetterData } from "./types";
 
 const WORKING_DAYS = "Monday to Friday";
@@ -34,7 +40,10 @@ function formatClock(time: string): string {
   return `${hour12}:${minutes} ${period}`;
 }
 
-export function buildOfferLetterData(form: OfferFormState): OfferLetterData {
+export function buildOfferLetterData(
+  form: OfferFormState,
+  company: LetterCompanyFields = COMPANY,
+): OfferLetterData {
   const workingHours =
     form.internshipType === "part-time"
       ? `${formatClock(form.partTimeStart)} to ${formatClock(form.partTimeEnd)}`
@@ -44,6 +53,7 @@ export function buildOfferLetterData(form: OfferFormState): OfferLetterData {
     candidateName: form.candidateName,
     candidateFirstName: firstName(form.candidateName),
     position: form.position.trim() || "-",
+    companyName: company.name || "Company",
     internshipTypeLabel: form.internshipType,
     offerDate: formatLongDate(form.offerDate),
     durationStart: formatShortDate(form.durationStart),

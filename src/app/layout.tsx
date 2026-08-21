@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/contexts/providers";
+import { buildBrandingMetadata } from "@/lib/branding/metadata";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -9,30 +9,9 @@ const dmSans = DM_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: "ExhiByte Solutions — HRM Admin",
-    template: "%s · Exhibyte HRM",
-  },
-  description:
-    "Internal HRM admin for ExhiByte Solutions — people, leave, attendance, and notifications.",
-  icons: {
-    icon: [
-      {
-        url: "/brand/favicon-light.png",
-        type: "image/png",
-        sizes: "32x32",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        url: "/brand/favicon-dark.png",
-        type: "image/png",
-        sizes: "32x32",
-        media: "(prefers-color-scheme: dark)",
-      },
-    ],
-  },
-};
+export async function generateMetadata() {
+  return buildBrandingMetadata();
+}
 
 export default function RootLayout({
   children,

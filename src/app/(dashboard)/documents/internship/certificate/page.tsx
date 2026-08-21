@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { POSITIONS } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { useCompanyBranding } from "@/lib/branding/use-company-branding";
 
 import { useLetterEmployees } from "../../_shared/use-letter-employees";
 import { TITLE_OPTIONS, printLetter, todayIso, type Title } from "../../_shared/letter-utils";
@@ -25,6 +26,7 @@ import type { CertificateFormState } from "./types";
 export default function InternshipCertificatePage() {
   const { user } = useAuth();
   const canManage = user ? canManageEmployees(user.role) : false;
+  const { branding } = useCompanyBranding();
   const { employees: allEmployees, loading, error } = useLetterEmployees(canManage);
   const employees = useMemo(
     () =>
@@ -57,7 +59,14 @@ export default function InternshipCertificatePage() {
     }));
   }
 
-  const data = useMemo(() => buildCertificateData(form), [form]);
+  const data = useMemo(
+    () =>
+      buildCertificateData(form, {
+        name: branding.companyName,
+        address: branding.companyAddress,
+      }),
+    [form, branding.companyName, branding.companyAddress],
+  );
 
   const isReady = Boolean(
     form.candidateName.trim() && form.position.trim() && form.startDate && form.endDate,

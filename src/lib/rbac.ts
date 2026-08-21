@@ -236,6 +236,11 @@ export const navStructure: NavItem[] = [
         label: "LAN / Wi-Fi Restriction",
         href: "/settings/network",
       },
+      {
+        roles: [SUPER_ADMIN],
+        label: "Company Branding",
+        href: "/settings/branding",
+      },
     ],
   },
 ];
