@@ -9,16 +9,20 @@ export async function buildBrandingMetadata(): Promise<Metadata> {
     const company = branding.companyName.trim();
     const title = company ? `${company} — HRM Admin` : "HRM Admin";
     const bust = encodeURIComponent(branding.updatedAt || "1");
-    const light = `/api/branding/public/favicon?scheme=light&v=${bust}`;
-    const dark = `/api/branding/public/favicon?scheme=dark&v=${bust}`;
 
-    return {
+    const metadata: Metadata = {
       title: {
         default: title,
         template: company ? `%s · ${company}` : "%s · HRM Admin",
       },
       description: "Internal HRM admin — people, leave, attendance, and notifications.",
-      icons: {
+    };
+
+    // Same as /login: only attach favicons when a company logo exists.
+    if (branding.hasLogo) {
+      const light = `/api/branding/public/favicon?scheme=light&v=${bust}`;
+      const dark = `/api/branding/public/favicon?scheme=dark&v=${bust}`;
+      metadata.icons = {
         icon: [
           {
             url: light,
@@ -33,8 +37,13 @@ export async function buildBrandingMetadata(): Promise<Metadata> {
             media: "(prefers-color-scheme: dark)",
           },
         ],
-      },
-    };
+      };
+    } else {
+      // Prevent stale / default Next icons from showing a letter mark.
+      metadata.icons = { icon: [] };
+    }
+
+    return metadata;
   } catch {
     return {
       title: {
@@ -42,20 +51,7 @@ export async function buildBrandingMetadata(): Promise<Metadata> {
         template: "%s · HRM Admin",
       },
       description: "Internal HRM admin — people, leave, attendance, and notifications.",
-      icons: {
-        icon: [
-          {
-            url: "/api/branding/public/favicon?scheme=light",
-            type: "image/png",
-            media: "(prefers-color-scheme: light)",
-          },
-          {
-            url: "/api/branding/public/favicon?scheme=dark",
-            type: "image/png",
-            media: "(prefers-color-scheme: dark)",
-          },
-        ],
-      },
+      icons: { icon: [] },
     };
   }
 }

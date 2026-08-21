@@ -16,6 +16,9 @@ import { toUserFacingActionError, toUserFacingFetchError } from "@/lib/api/user-
 import { canManageCompanyBranding } from "@/lib/auth/roles";
 import {
   BRANDING_UPLOAD_LIMITS,
+  acceptAttrForKind,
+  formatHintForKind,
+  isAllowedBrandingMime,
   type BrandingAssetKind,
   type CompanyBranding,
 } from "@/lib/branding/types";
@@ -124,14 +127,10 @@ export default function CompanyBrandingSettingsPage() {
         ? BRANDING_UPLOAD_LIMITS.logoMaxBytes
         : BRANDING_UPLOAD_LIMITS.backgroundMaxBytes;
     const mimeType = (file.type || "").toLowerCase();
-    if (
-      !BRANDING_UPLOAD_LIMITS.allowedMimeTypes.includes(
-        mimeType as (typeof BRANDING_UPLOAD_LIMITS.allowedMimeTypes)[number],
-      )
-    ) {
+    if (!isAllowedBrandingMime(kind, mimeType, file.name)) {
       pushToast({
         title: "Invalid image",
-        body: "Only PNG, JPEG, or WebP images are allowed.",
+        body: formatHintForKind(kind),
         variant: "error",
       });
       return;
@@ -375,7 +374,7 @@ export default function CompanyBrandingSettingsPage() {
       <div className="grid w-full max-w-full min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
         <AssetCard
           title="Company Logo"
-          description="Used on salary slips and the sidebar. PNG, JPEG, or WebP up to 512 KB. Applied only after Save Changes."
+          description="Used on salary slips, sidebar, and the browser tab favicon. PNG or ICO up to 512 KB. Applied only after Save Changes."
           kind="logo"
           hasAsset={logoHasAsset}
           previewUrl={logoPreview}
@@ -465,7 +464,7 @@ function AssetCard({
           <input
             id={inputId}
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept={acceptAttrForKind(kind)}
             className="sr-only"
             disabled={disabled}
             onChange={(e) => {

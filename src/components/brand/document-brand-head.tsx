@@ -16,7 +16,6 @@ function faviconHref(scheme: "light" | "dark", updatedAt: string): string {
 }
 
 function upsertSchemeIcon(scheme: "light" | "dark", href: string) {
-  const key = `${MANAGED_ATTR}-${scheme}`;
   let link = document.head.querySelector<HTMLLinkElement>(`link[${MANAGED_ATTR}="${scheme}"]`);
   if (!link) {
     link = document.createElement("link");
@@ -28,13 +27,17 @@ function upsertSchemeIcon(scheme: "light" | "dark", href: string) {
   link.setAttribute("sizes", "64x64");
   link.media = `(prefers-color-scheme: ${scheme})`;
   link.href = href;
-  // Keep attribute for debugging / future queries
-  void key;
+}
+
+function removeManagedIcons() {
+  document
+    .querySelectorAll<HTMLLinkElement>(`link[${MANAGED_ATTR}]`)
+    .forEach((link) => link.remove());
 }
 
 /**
- * Light tab → original logo; dark tab → inverted light logo.
- * Mutates/creates media-query icon links only (no removeChild on Next tags).
+ * Tab title always syncs from branding.
+ * Favicon links only when a company logo is uploaded (same as /login).
  */
 export function DocumentBrandHead() {
   const { branding } = useCompanyBranding();
@@ -45,10 +48,20 @@ export function DocumentBrandHead() {
     const titleNode = document.querySelector("title");
     if (titleNode) titleNode.textContent = title;
 
+    if (!branding.hasLogo) {
+      removeManagedIcons();
+      // Neutralize Next/metadata icon hrefs so a stale letter mark cannot linger.
+      document.querySelectorAll<HTMLLinkElement>('link[rel="icon"]').forEach((link) => {
+        link.href =
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5X2ZkAAAAASUVORK5CYII=";
+        link.type = "image/png";
+      });
+      return;
+    }
+
     const light = faviconHref("light", branding.updatedAt);
     const dark = faviconHref("dark", branding.updatedAt);
 
-    // Update Next metadata icon tags in place when they have media queries.
     document.querySelectorAll<HTMLLinkElement>('link[rel="icon"]').forEach((link) => {
       const media = (link.media || "").toLowerCase();
       if (media.includes("dark")) {

@@ -5,7 +5,9 @@ import { canManageCompanyBranding } from "@/lib/auth/roles";
 import {
   BRANDING_UPLOAD_LIMITS,
   clearBrandingAsset,
+  formatHintForKind,
   getBrandingAssetBytes,
+  isAllowedBrandingMime,
   saveBrandingAsset,
   type BrandingAssetKind,
 } from "@/lib/branding";
@@ -71,16 +73,22 @@ export const POST = withActiveSession(async (req, user, context: ApiRouteContext
     }
 
     const mimeType = (file.type || "application/octet-stream").toLowerCase();
-    if (
-      !BRANDING_UPLOAD_LIMITS.allowedMimeTypes.includes(
-        mimeType as (typeof BRANDING_UPLOAD_LIMITS.allowedMimeTypes)[number],
-      )
-    ) {
+    if (!isAllowedBrandingMime(kind, mimeType, file.name)) {
       return NextResponse.json(
-        { success: false, message: "Only PNG, JPEG, or WebP images are allowed" },
+        { success: false, message: formatHintForKind(kind) },
         { status: 400 },
       );
     }
+
+    // Normalize empty/.ico octet-stream uploads to a real favicon mime.
+    const normalizedMime =
+      kind === "logo" &&
+      (mimeType === "" || mimeType === "application/octet-stream") &&
+      file.name.toLowerCase().endsWith(".ico")
+        ? "image/x-icon"
+        : mimeType === "" || mimeType === "application/octet-stream"
+          ? "image/png"
+          : mimeType;
 
     const maxBytes =
       kind === "logo"
@@ -103,7 +111,7 @@ export const POST = withActiveSession(async (req, user, context: ApiRouteContext
     const branding = await saveBrandingAsset(
       kind,
       buffer,
-      mimeType,
+      normalizedMime,
       user.email || user.name || user.id || "super_admin",
     );
     return NextResponse.json({ success: true, branding });
