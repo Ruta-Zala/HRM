@@ -1,11 +1,15 @@
-/** Fixed signatory / company details used across all generated letters. */
+/** @deprecated Prefer getCompanyBranding() / useCompanyBranding(). Kept as empty fallbacks. */
 export const COMPANY = {
-  name: "ExhiByte Solutions",
+  name: "",
   signatoryName: "Authorised Signatory",
   hrTitle: "HR Manager",
-  /** Fixed work location — not editable per letter. */
-  address: "364, Raj Imperia Vraj Chowk, Nana Varachha, Surat, Gujarat 395006",
+  address: "",
 } as const;
+
+export type LetterCompanyFields = {
+  name: string;
+  address: string;
+};
 
 export type Title = "Mr" | "Ms" | "Mrs";
 
@@ -94,13 +98,13 @@ export function plusDaysIso(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Inclusive whole-month span between two yyyy-mm-dd dates (min 1). */
+/** Calendar-month span between two yyyy-mm-dd dates (e.g. 1 Aug → 1 Sep = 1). */
 export function monthsBetween(startIso: string, endIso: string): number {
   const start = /^(\d{4})-(\d{2})/.exec(startIso);
   const end = /^(\d{4})-(\d{2})/.exec(endIso);
-  if (!start || !end) return 1;
-  const months = (Number(end[1]) - Number(start[1])) * 12 + (Number(end[2]) - Number(start[2])) + 1;
-  return Math.max(1, months);
+  if (!start || !end) return 0;
+  const months = (Number(end[1]) - Number(start[1])) * 12 + (Number(end[2]) - Number(start[2]));
+  return Math.max(0, months);
 }
 
 /** Opens the browser print dialog; the letter is the only visible element (see letter.module.css). */

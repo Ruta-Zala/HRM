@@ -13,17 +13,19 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { useCompanyBranding } from "@/lib/branding/use-company-branding";
 
 import { useLetterEmployees } from "../../_shared/use-letter-employees";
 import { printLetter, todayIso } from "../../_shared/letter-utils";
 import styles from "../../_shared/letter.module.css";
-import { buildOfferLetterData } from "./generate";
+import { buildOfferLetterData, interestRateMeetsMinimum } from "./generate";
 import OfferLetterTemplate from "./letter-template";
 import type { OfferFormState } from "./types";
 
 export default function OfferLetterPage() {
   const { user } = useAuth();
   const canManage = user ? canManageEmployees(user.role) : false;
+  const { branding } = useCompanyBranding();
   const { employees, loading, error } = useLetterEmployees(canManage);
 
   const [form, setForm] = useState<OfferFormState>({
@@ -33,6 +35,7 @@ export default function OfferLetterPage() {
     commencementDate: "",
     monthlySalary: "",
     loyaltyBonusRate: "10",
+    interestRate: "4",
     salaryEffectiveDate: todayIso(),
   });
 
@@ -49,13 +52,24 @@ export default function OfferLetterPage() {
     }));
   }
 
-  const data = useMemo(() => buildOfferLetterData(form), [form]);
+  const data = useMemo(
+    () =>
+      buildOfferLetterData(form, {
+        name: branding.companyName,
+        address: branding.companyAddress,
+      }),
+    [form, branding.companyName, branding.companyAddress],
+  );
+
+  const showInterestError =
+    Boolean(form.interestRate.trim()) && !interestRateMeetsMinimum(form.interestRate);
 
   const isReady = Boolean(
     form.candidateName.trim() &&
     form.position.trim() &&
     form.commencementDate &&
-    form.monthlySalary.trim(),
+    form.monthlySalary.trim() &&
+    interestRateMeetsMinimum(form.interestRate),
   );
 
   if (!canManage) {
@@ -114,7 +128,7 @@ export default function OfferLetterPage() {
                   onChange={(e) => selectEmployee(e.target.value)}
                   disabled={loading}
                 >
-                  <option value="">{loading ? "Loading employees…" : "Select employee"}</option>
+                  <option value="">{loading ? "Loading Employees…" : "Select Employee"}</option>
                   {employees.map((employee) => (
                     <option key={employee.sheetRow} value={employee.sheetRow}>
                       {employee.name} ({employee.employeeId})
@@ -161,6 +175,22 @@ export default function OfferLetterPage() {
                   onChange={(e) => update("loyaltyBonusRate", e.target.value)}
                   placeholder="10"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="interestRate">Loyalty bonus interest (%)</Label>
+                <Input
+                  id="interestRate"
+                  value={form.interestRate}
+                  onChange={(e) => update("interestRate", e.target.value)}
+                  placeholder="e.g. 4 or 4-6"
+                />
+                {showInterestError ? (
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    Interest rate must be at least 4%. You can enter a single value or a range such
+                    as 4-6.
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-2">

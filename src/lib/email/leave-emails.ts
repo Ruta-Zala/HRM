@@ -1,27 +1,38 @@
+import { EMPTY_COMPANY_BRANDING, getBrandingAssetBytes, getCompanyBranding } from "@/lib/branding";
+import type { CompanyBranding } from "@/lib/branding";
 import { sendEmail } from "@/lib/email/send";
 import type { EmailDeliveryResult } from "@/lib/email/types";
 
-const COMPANY = {
-  name: "ExhiByte Solutions",
-  tagline: "Human Resource Management",
-  logoUrl:
-    "https://exhibytesolution.com/wp-content/uploads/2023/06/cropped-Exhibyte_Logo_Black_Logo-removebg-preview-1.png",
-  websiteUrl: "https://exhibytesolution.com",
-  supportEmail: "hr@exhibytesolution.com",
-  address: "364, Raj Imperia, Vraj Chowk, Vrajbhoomi Ground, Nana Varachha, Surat, Gujarat 395006",
-} as const;
+const TAGLINE = "Human Resource Management";
+const LOGO_CID = "company-logo";
 
-/** White mark for dark-mode clients (local asset when app URL is public, else CDN invert). */
-function resolveLogoUrls(): { logoLight: string; logoDark: string } {
-  const logoLight = COMPANY.logoUrl;
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
-  const canUseAppAsset = /^https:\/\//i.test(appUrl) && !/localhost|127\.0\.0\.1/i.test(appUrl);
+type EmailCompany = {
+  name: string;
+  address: string;
+  supportEmail: string;
+  websiteUrl: string;
+  /** When true, HTML uses cid:company-logo (inline attachment). */
+  hasInlineLogo: boolean;
+  productLabel: string;
+};
 
-  const logoDark = canUseAppAsset
-    ? `${appUrl}/email/exhibyte-logo-white.png`
-    : `https://wsrv.nl/?url=${encodeURIComponent(COMPANY.logoUrl)}&filt=negate`;
+function normalizeWebsiteHref(websiteUrl: string): string {
+  const trimmed = websiteUrl.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
 
-  return { logoLight, logoDark };
+function toEmailCompany(branding: CompanyBranding, hasInlineLogo: boolean): EmailCompany {
+  const name = branding.companyName.trim();
+  return {
+    name,
+    address: branding.companyAddress.trim(),
+    supportEmail: branding.supportEmail.trim(),
+    websiteUrl: branding.websiteUrl.trim(),
+    hasInlineLogo,
+    productLabel: name ? `${name} HRM` : "HRM",
+  };
 }
 
 function formatLeaveTypeLabel(leaveType: string): string {
@@ -43,13 +54,16 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function buildLeaveReviewedText(params: {
-  employeeName: string;
-  leaveTypeLabel: string;
-  dateRange: string;
-  status: "Accepted" | "Rejected";
-  rejectReason?: string;
-}): string {
+function buildLeaveReviewedText(
+  params: {
+    employeeName: string;
+    leaveTypeLabel: string;
+    dateRange: string;
+    status: "Accepted" | "Rejected";
+    rejectReason?: string;
+  },
+  company: EmailCompany,
+): string {
   const isApproved = params.status === "Accepted";
   let body = isApproved
     ? `Hi ${params.employeeName},\n\nYour ${params.leaveTypeLabel} leave request for ${params.dateRange} has been approved.`
@@ -59,18 +73,28 @@ function buildLeaveReviewedText(params: {
     body += `\n\nReason: ${params.rejectReason.trim()}`;
   }
 
-  body += `\n\nIf you have questions, reply to ${COMPANY.supportEmail} or visit ${COMPANY.websiteUrl}.`;
-  body += `\n\n— ${COMPANY.name}\n${COMPANY.address}`;
+  const helpParts: string[] = [];
+  if (company.supportEmail) helpParts.push(`reply to ${company.supportEmail}`);
+  if (company.websiteUrl) helpParts.push(`visit ${normalizeWebsiteHref(company.websiteUrl)}`);
+  if (helpParts.length) {
+    body += `\n\nIf you have questions, ${helpParts.join(" or ")}.`;
+  }
+
+  const signoff = [company.name, company.address].filter(Boolean).join("\n");
+  if (signoff) body += `\n\n— ${signoff}`;
   return body;
 }
 
-function buildLeaveReviewedHtml(params: {
-  employeeName: string;
-  leaveTypeLabel: string;
-  dateRange: string;
-  status: "Accepted" | "Rejected";
-  rejectReason?: string;
-}): string {
+function buildLeaveReviewedHtml(
+  params: {
+    employeeName: string;
+    leaveTypeLabel: string;
+    dateRange: string;
+    status: "Accepted" | "Rejected";
+    rejectReason?: string;
+  },
+  company: EmailCompany,
+): string {
   const isApproved = params.status === "Accepted";
   const statusLabel = isApproved ? "Approved" : "Rejected";
   const statusColor = isApproved ? "#15803d" : "#b91c1c";
@@ -82,13 +106,15 @@ function buildLeaveReviewedHtml(params: {
   const dateRange = escapeHtml(params.dateRange);
   const dateFieldLabel = params.dateRange.includes(" - ") ? "Dates" : "Date";
   const reason = escapeHtml(params.rejectReason?.trim() || "");
-  const companyName = escapeHtml(COMPANY.name);
-  const tagline = escapeHtml(COMPANY.tagline);
-  const address = escapeHtml(COMPANY.address);
-  const supportEmail = escapeHtml(COMPANY.supportEmail);
-  const websiteUrl = escapeHtml(COMPANY.websiteUrl);
-  const { logoLight } = resolveLogoUrls();
-  const logoLightUrl = escapeHtml(logoLight);
+  const companyName = escapeHtml(company.name);
+  const productLabel = escapeHtml(company.productLabel);
+  const tagline = escapeHtml(TAGLINE);
+  const address = escapeHtml(company.address);
+  const supportEmail = escapeHtml(company.supportEmail);
+  const websiteHref = escapeHtml(normalizeWebsiteHref(company.websiteUrl));
+  const websiteDisplay = escapeHtml(
+    normalizeWebsiteHref(company.websiteUrl).replace(/^https?:\/\//i, ""),
+  );
   const subject = isApproved ? "Your leave is approved" : "Your leave is rejected";
 
   const reasonBlock =
@@ -106,6 +132,56 @@ function buildLeaveReviewedHtml(params: {
           </td>
         </tr>`
       : "";
+
+  const logoBlock = company.hasInlineLogo
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="logo-plate" bgcolor="#ffffff" style="margin:0 auto;background-color:#ffffff;border-radius:12px;">
+                <tr>
+                  <td align="center" bgcolor="#ffffff" style="padding:14px 20px;background-color:#ffffff;">
+                    <img src="cid:${LOGO_CID}" alt="${companyName || "Company logo"}" width="180" height="auto" style="display:block;max-width:180px;width:180px;height:auto;border:0;outline:none;text-decoration:none;background-color:#ffffff;" />
+                  </td>
+                </tr>
+              </table>`
+    : companyName
+      ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:#0f172a;">${companyName}</div>`
+      : "";
+
+  const helpEmail = supportEmail
+    ? ` For help, email
+              <a href="mailto:${supportEmail}" style="color:#0f766e;text-decoration:none;font-weight:600;">${supportEmail}</a>.`
+    : "";
+
+  const footerContactParts: string[] = [];
+  if (supportEmail) {
+    footerContactParts.push(
+      `<a href="mailto:${supportEmail}" style="color:#5eead4;text-decoration:none;">${supportEmail}</a>`,
+    );
+  }
+  if (websiteHref) {
+    footerContactParts.push(
+      `<a href="${websiteHref}" style="color:#5eead4;text-decoration:none;">${websiteDisplay}</a>`,
+    );
+  }
+
+  const footerName = companyName
+    ? `<div style="font-size:14px;font-weight:700;color:#ffffff;">${companyName}</div>`
+    : "";
+  const footerAddress = address
+    ? `<div style="margin-top:8px;font-size:12px;line-height:1.55;">${address}</div>`
+    : "";
+  const footerContacts = footerContactParts.length
+    ? `<div style="margin-top:8px;font-size:12px;line-height:1.55;">${footerContactParts.join("&nbsp;·&nbsp;")}</div>`
+    : "";
+
+  const footerInner = `${footerName}${footerAddress}${footerContacts}`;
+  const footerBlock = footerInner.trim()
+    ? `<tr>
+            <td style="padding:20px 32px;background:#0f172a;font-family:Arial,Helvetica,sans-serif;color:#cbd5e1;">
+              ${footerInner}
+            </td>
+          </tr>`
+    : "";
+
+  const automatedFrom = companyName ? `${companyName} HRM` : "HRM";
 
   return `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
@@ -127,14 +203,7 @@ function buildLeaveReviewedHtml(params: {
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
           <tr>
             <td align="center" bgcolor="#ffffff" style="padding:28px 32px 18px;text-align:center;background-color:#ffffff;border-bottom:1px solid #eef2f7;">
-              <!-- Logo sits on an opaque white plate so the black mark stays visible in dark-mode clients -->
-              <table role="presentation" cellpadding="0" cellspacing="0" border="0" class="logo-plate" bgcolor="#ffffff" style="margin:0 auto;background-color:#ffffff;border-radius:12px;">
-                <tr>
-                  <td align="center" bgcolor="#ffffff" style="padding:14px 20px;background-color:#ffffff;">
-                    <img src="${logoLightUrl}" alt="${companyName}" width="180" height="auto" style="display:block;max-width:180px;width:180px;height:auto;border:0;outline:none;text-decoration:none;background-color:#ffffff;" />
-                  </td>
-                </tr>
-              </table>
+              ${logoBlock}
               <div style="margin-top:10px;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:0.04em;text-transform:uppercase;color:#64748b;">
                 ${tagline}
               </div>
@@ -183,31 +252,25 @@ function buildLeaveReviewedHtml(params: {
           <tr>
             <td style="padding:4px 32px 28px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#475569;">
               You can review leave updates anytime in
-              <strong style="color:#0f172a;">ExhiByte HRM</strong>.
-              For help, email
-              <a href="mailto:${supportEmail}" style="color:#0f766e;text-decoration:none;font-weight:600;">${supportEmail}</a>.
+              <strong style="color:#0f172a;">${productLabel}</strong>.${helpEmail}
             </td>
           </tr>
-          <tr>
-            <td style="padding:20px 32px;background:#0f172a;font-family:Arial,Helvetica,sans-serif;color:#cbd5e1;">
-              <div style="font-size:14px;font-weight:700;color:#ffffff;">${companyName}</div>
-              <div style="margin-top:8px;font-size:12px;line-height:1.55;">${address}</div>
-              <div style="margin-top:8px;font-size:12px;line-height:1.55;">
-                <a href="mailto:${supportEmail}" style="color:#5eead4;text-decoration:none;">${supportEmail}</a>
-                &nbsp;·&nbsp;
-                <a href="${websiteUrl}" style="color:#5eead4;text-decoration:none;">${websiteUrl.replace(/^https?:\/\//, "")}</a>
-              </div>
-            </td>
-          </tr>
+          ${footerBlock}
         </table>
         <div style="max-width:560px;margin:14px auto 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.5;color:#94a3b8;text-align:center;">
-          This is an automated message from ${companyName} HRM. Please do not reply with sensitive credentials.
+          This is an automated message from ${escapeHtml(automatedFrom)}. Please do not reply with sensitive credentials.
         </div>
       </td>
     </tr>
   </table>
 </body>
 </html>`;
+}
+
+function logoFilename(mimeType: string): string {
+  if (mimeType.includes("jpeg") || mimeType.includes("jpg")) return "company-logo.jpg";
+  if (mimeType.includes("webp")) return "company-logo.webp";
+  return "company-logo.png";
 }
 
 export async function sendLeaveReviewedEmail(params: {
@@ -219,6 +282,12 @@ export async function sendLeaveReviewedEmail(params: {
   rejectReason?: string;
 }): Promise<EmailDeliveryResult> {
   const leaveTypeLabel = formatLeaveTypeLabel(params.leaveType);
+  const branding = await getCompanyBranding().catch(() => EMPTY_COMPANY_BRANDING);
+
+  const logoAsset = branding.hasLogo ? await getBrandingAssetBytes("logo").catch(() => null) : null;
+  const hasInlineLogo = Boolean(logoAsset?.buffer?.length);
+  const company = toEmailCompany(branding, hasInlineLogo);
+
   const content = {
     employeeName: params.employeeName,
     leaveTypeLabel,
@@ -230,7 +299,18 @@ export async function sendLeaveReviewedEmail(params: {
   return sendEmail({
     to: params.to,
     subject: params.status === "Accepted" ? "Your leave is approved" : "Your leave is rejected",
-    text: buildLeaveReviewedText(content),
-    html: buildLeaveReviewedHtml(content),
+    text: buildLeaveReviewedText(content, company),
+    html: buildLeaveReviewedHtml(content, company),
+    attachments:
+      hasInlineLogo && logoAsset
+        ? [
+            {
+              filename: logoFilename(logoAsset.mimeType),
+              content: logoAsset.buffer,
+              contentType: logoAsset.mimeType,
+              cid: LOGO_CID,
+            },
+          ]
+        : undefined,
   });
 }

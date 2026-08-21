@@ -59,6 +59,23 @@ export function formatParentRelationshipLabel(value: string): string {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+const POSITION_ACRONYMS = new Set(["hr", "ai", "ml", "llm", "ceo", "qa", "ui", "ux"]);
+
+/** Display label for stored position keys such as `hr_manager` → `HR Manager`. */
+export function formatEmployeePositionLabel(position: string): string {
+  const trimmed = String(position ?? "").trim();
+  if (!trimmed) return "";
+  return trimmed
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((part) => {
+      const lower = part.toLowerCase();
+      if (POSITION_ACRONYMS.has(lower)) return lower.toUpperCase();
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(" ");
+}
+
 /** Maps normalized sheet header → form field key */
 const SHEET_KEY_TO_FORM: Record<string, keyof EmployeeFormState> = {
   employee_id: "employeeId",
@@ -88,9 +105,17 @@ const SHEET_KEY_TO_FORM: Record<string, keyof EmployeeFormState> = {
   bank_account_no: "bankAccountNumber",
   bank_ac_no: "bankAccountNumber",
   bank_a_c_no: "bankAccountNumber",
+  bank_a_c_number: "bankAccountNumber",
+  bank_acc_no: "bankAccountNumber",
+  bank_acc_number: "bankAccountNumber",
+  bank_account: "bankAccountNumber",
+  account_number: "bankAccountNumber",
+  account_no: "bankAccountNumber",
   ifsc: "ifscCode",
   ifsc_code: "ifscCode",
   ifsc_code_number: "ifscCode",
+  ifsc_code_no: "ifscCode",
+  ifsc_no: "ifscCode",
   aadhaar: "aadharNumber",
   aadhar_number: "aadharNumber",
   aadhaar_number: "aadharNumber",
@@ -143,11 +168,39 @@ export function headerToFormKey(header: string): keyof EmployeeFormState | null 
 }
 
 /**
+ * Columns the employee form always needs. Older Employees sheets / Firebase
+ * meta headers may omit these, which drops them from GET and the save payload.
+ */
+export const REQUIRED_EMPLOYEE_FORM_HEADERS: ReadonlyArray<{
+  formKey: keyof EmployeeFormState;
+  header: string;
+}> = [
+  { formKey: "bankAccountNumber", header: "Bank Account Number" },
+  { formKey: "ifscCode", header: "IFSC Code" },
+];
+
+export function ensureRequiredEmployeeFormHeaders(headers: string[]): string[] {
+  if (headers.length === 0) return headers;
+  const next = [...headers];
+  for (const required of REQUIRED_EMPLOYEE_FORM_HEADERS) {
+    if (!next.some((header) => headerToFormKey(header) === required.formKey)) {
+      next.push(required.header);
+    }
+  }
+  return next;
+}
+
+export function employeeHeadersEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((header, index) => header === b[index]);
+}
+
+/**
  * Build a sheet row using the live header row order from Google Sheets.
- * Unknown columns are left empty; unmapped form fields are omitted.
+ * Missing bank/IFSC columns are appended so they are included in the save payload.
  */
 export function formToSheetRow(form: EmployeeFormState, headers: string[]): string[] {
-  return headers.map((header) => {
+  return ensureRequiredEmployeeFormHeaders(headers).map((header) => {
     if (!header.trim()) return "";
     const formKey = headerToFormKey(header);
     return formKey ? String(form[formKey] ?? "") : "";

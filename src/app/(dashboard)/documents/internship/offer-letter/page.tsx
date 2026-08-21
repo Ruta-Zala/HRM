@@ -9,23 +9,29 @@ import { AccessDenied } from "@/components/ui/access-denied";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { useCompanyBranding } from "@/lib/branding/use-company-branding";
 
 import { plusDaysIso, printLetter, todayIso } from "../../_shared/letter-utils";
 import styles from "../../_shared/letter.module.css";
-import { buildOfferLetterData } from "./generate";
+import { buildOfferLetterData, partTimeHoursMeetMinimum } from "./generate";
 import OfferLetterTemplate from "./letter-template";
-import type { OfferFormState } from "./types";
+import type { InternshipType, OfferFormState } from "./types";
 
 export default function InternshipOfferLetterPage() {
   const { user } = useAuth();
   const canManage = user ? canManageEmployees(user.role) : false;
+  const { branding } = useCompanyBranding();
 
   const [form, setForm] = useState<OfferFormState>({
     candidateName: "",
     position: "",
+    internshipType: "full-time",
+    partTimeStart: "",
+    partTimeEnd: "",
     durationStart: "",
     durationEnd: "",
     offerDate: todayIso(),
@@ -36,14 +42,30 @@ export default function InternshipOfferLetterPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  const data = useMemo(() => buildOfferLetterData(form), [form]);
+  const data = useMemo(
+    () =>
+      buildOfferLetterData(form, {
+        name: branding.companyName,
+        address: branding.companyAddress,
+      }),
+    [form, branding.companyName, branding.companyAddress],
+  );
+
+  const partTimeHoursValid =
+    form.internshipType === "full-time" ||
+    partTimeHoursMeetMinimum(form.partTimeStart, form.partTimeEnd);
+  const showPartTimeHoursError =
+    form.internshipType === "part-time" &&
+    Boolean(form.partTimeStart && form.partTimeEnd) &&
+    !partTimeHoursMeetMinimum(form.partTimeStart, form.partTimeEnd);
 
   const isReady = Boolean(
     form.candidateName.trim() &&
     form.position.trim() &&
     form.durationStart &&
     form.durationEnd &&
-    form.offerDate,
+    form.offerDate &&
+    partTimeHoursValid,
   );
 
   if (!canManage) {
@@ -94,7 +116,7 @@ export default function InternshipOfferLetterPage() {
                   id="candidateName"
                   value={form.candidateName}
                   onChange={(e) => update("candidateName", e.target.value)}
-                  placeholder="Full name"
+                  placeholder="Full Name"
                 />
               </div>
 
@@ -107,6 +129,50 @@ export default function InternshipOfferLetterPage() {
                   placeholder="e.g. Java Backend Developer"
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="internshipType">Type</Label>
+                <Select
+                  id="internshipType"
+                  value={form.internshipType}
+                  onChange={(e) => update("internshipType", e.target.value as InternshipType)}
+                >
+                  <option value="full-time">Full-time</option>
+                  <option value="part-time">Part-time</option>
+                </Select>
+              </div>
+
+              {form.internshipType === "part-time" ? (
+                <div className="grid gap-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="partTimeStart">Working hours start</Label>
+                      <Input
+                        id="partTimeStart"
+                        type="time"
+                        value={form.partTimeStart}
+                        onChange={(e) => update("partTimeStart", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="partTimeEnd">Working hours end</Label>
+                      <Input
+                        id="partTimeEnd"
+                        type="time"
+                        value={form.partTimeEnd}
+                        onChange={(e) => update("partTimeEnd", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  {showPartTimeHoursError ? (
+                    <p className="text-xs text-red-600 dark:text-red-400">
+                      Part-time working hours must be at least 4 hours.
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-ex-muted text-xs">Full-time working hours: 9:30 AM to 6:30 PM</p>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="durationStart">Duration start</Label>
@@ -153,7 +219,7 @@ export default function InternshipOfferLetterPage() {
               </Button>
               {!isReady ? (
                 <p className="text-ex-muted text-xs">
-                  Fill in the candidate, position, and dates to enable printing.
+                  Fill in the candidate, position, type, and dates to enable printing.
                 </p>
               ) : null}
             </CardContent>

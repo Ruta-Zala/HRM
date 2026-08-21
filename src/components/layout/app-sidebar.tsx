@@ -21,6 +21,7 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { filterNav, isNavChildActive, isNavGroupActive, type NavItem } from "@/lib/rbac";
 import { useAuth } from "@/contexts/auth-provider";
+import { useCompanyBranding } from "@/lib/branding/use-company-branding";
 import { useNotificationsOptional } from "@/contexts/notifications-provider";
 import { UnreadBadge } from "@/components/notifications/unread-badge";
 
@@ -144,7 +145,7 @@ function NavGroup({
 
 export function AppSidebar() {
   return (
-    <aside className="border-ex-border bg-ex-elevated sticky top-0 bottom-0 hidden h-[calc(100vh)] w-64 shrink-0 flex-col border-r lg:flex">
+    <aside className="border-ex-border bg-ex-elevated fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r lg:flex">
       <SidebarBrand />
       <NavLinks />
     </aside>
@@ -219,6 +220,9 @@ export function MobileDrawer() {
 }
 
 function SidebarBrand({ compact, onNavigate }: { compact?: boolean; onNavigate?: () => void }) {
+  const { branding } = useCompanyBranding();
+  const companyName = branding.companyName.trim() || "HRM";
+
   return (
     <Link
       href="/dashboard"
@@ -228,9 +232,9 @@ function SidebarBrand({ compact, onNavigate }: { compact?: boolean; onNavigate?:
         compact && "border-0 py-2",
       )}
     >
-      <BrandLogo size="sm" priority />
+      <BrandLogo size="sm" />
       <div className="min-w-0">
-        <p className="text-ex-primary truncate text-sm font-semibold">ExhiByte Solutions</p>
+        <p className="text-ex-primary truncate text-sm font-semibold">{companyName}</p>
         <p className="text-ex-muted truncate text-xs">HRM Admin</p>
       </div>
     </Link>

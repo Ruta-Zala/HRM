@@ -1,5 +1,4 @@
-import { LetterPages } from "../../_shared/LetterPage";
-import { COMPANY } from "../../_shared/letter-utils";
+import { LetterPages, SignatureBlock } from "../../_shared/LetterPage";
 import styles from "../../_shared/letter.module.css";
 import type { OfferLetterData } from "./types";
 
@@ -10,7 +9,6 @@ export default function OfferLetterTemplate({ data }: { data: OfferLetterData })
       <h1 className={styles.letterTitle}>Offer Letter</h1>
 
       <p className={styles.nameLine}>{data.candidateName}</p>
-
       <p className={styles.tightParagraph}>Dear {data.candidateFirstName},</p>
       <p className={styles.tightParagraph}>
         Congratulations! We are pleased to confirm that you have been selected to work at{" "}
@@ -51,7 +49,10 @@ export default function OfferLetterTemplate({ data }: { data: OfferLetterData })
 
       <p className={styles.sectionHeading}>4. Salary and Benefits:</p>
       <ul className={styles.bulletList}>
-        <li>Joining as full-time employment your monthly salary will be {data.monthlySalary}.</li>
+        <li>
+          Joining as full-time employment your monthly salary will be{" "}
+          <strong>{data.monthlySalary}</strong>.
+        </li>
         <li>
           This salary will be paid by Monthly. Salary will be deposited in your specified account.
         </li>
@@ -61,11 +62,15 @@ export default function OfferLetterTemplate({ data }: { data: OfferLetterData })
           you by the employer.
         </li>
         <li>
-          Your monthly salary comprises several components, including a{" "}
-          <span className={styles.numeric}>{data.loyaltyBonusRate}</span>% of your gross salary
-          loyalty bonus deduction, which the company returns to you upon contract renewal, along
-          with the accumulated total of the loyalty bonus. Additionally, you will receive 4% - 6%
-          interest on the Loyalty Bonus.
+          Your monthly salary includes various components, including a{" "}
+          <strong>
+            <span className={styles.numeric}>{data.loyaltyBonusRate}</span>% loyalty bonus
+          </strong>{" "}
+          deduction from your gross salary. The accumulated loyalty bonus will be returned to you
+          upon contract renewal, along with the applicable accumulated amount. Additionally, an
+          interest rate of <strong className={styles.numeric}>{data.interestRate}</strong> on the
+          Recurring Deposit (RD) will be credited to the loyalty bonus amount as part of your
+          applicable employee benefits.
         </li>
       </ul>
 
@@ -160,22 +165,28 @@ export default function OfferLetterTemplate({ data }: { data: OfferLetterData })
 
       <p className={styles.tightParagraph}>
         <strong>12.</strong> Please find the Salary Calculation that reflect in your Salary from{" "}
-        <span className={styles.numeric}>{data.salaryEffectiveDate}</span>.
+        <strong className={styles.numeric}>{data.salaryEffectiveDate}</strong>.
       </p>
 
       <table className={styles.offerTable}>
         <tbody>
           <tr>
             <td>Basic Salary</td>
-            <td>Rs. {data.basic}</td>
+            <td>
+              <strong>Rs. {data.basic}</strong>
+            </td>
           </tr>
           <tr>
             <td>Loyalty Bonus ({data.loyaltyBonusRate}% of Total Salary)</td>
-            <td>Rs. {data.loyaltyBonus}</td>
+            <td>
+              <strong>Rs. {data.loyaltyBonus}</strong>
+            </td>
           </tr>
           <tr>
             <td>Total Monthly Salary</td>
-            <td>Rs. {data.totalMonthly}</td>
+            <td>
+              <strong>Rs. {data.totalMonthly}</strong>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -190,12 +201,7 @@ export default function OfferLetterTemplate({ data }: { data: OfferLetterData })
         employment and request to please prepare a formal contract of employment for execution.
       </p>
 
-      <p className={styles.tightParagraph}>Sincerely,</p>
-      <div className={styles.signatureSpace} aria-hidden />
-      <p className={styles.signatureName}>Signature with Date</p>
-      <p className={styles.signatureTitle}>
-        {COMPANY.hrTitle} {data.companyName}
-      </p>
+      <SignatureBlock signOff="Sincerely," splitTitle showSignatory={false} signSpace />
     </div>
   );
 

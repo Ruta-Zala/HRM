@@ -98,15 +98,22 @@ export async function listAllEmployeeRows(): Promise<EmployeeRowRecord[]> {
   return listAllEmployeeRowsFromSheets();
 }
 
+function invalidateSessionEmployeeCache(): void {
+  sessionEmployeeCache.clear();
+}
+
 export async function updateEmployeeRow(sheetRow: number, row: string[]): Promise<void> {
   if (isFirebaseDailyStorage()) {
     await updateEmployeeRowFirestore(sheetRow, row);
+    invalidateSessionEmployeeCache();
     return;
   }
   const { sheetRowToRange } = await import("@/lib/employee");
   const { getSheetHeadersData, updateSheetRow } = await import("@/lib/google/sheets");
   const headers = await getSheetHeadersData();
-  await updateSheetRow(sheetRowToRange(sheetRow, headers.length), [row]);
+  const normalized = headers.map((_, index) => String(row[index] ?? ""));
+  await updateSheetRow(sheetRowToRange(sheetRow, headers.length), [normalized]);
+  invalidateSessionEmployeeCache();
 }
 
 export async function getEmployeeSheetHeaders(): Promise<string[]> {

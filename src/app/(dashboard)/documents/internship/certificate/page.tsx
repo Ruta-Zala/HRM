@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { POSITIONS } from "@/app/consts/common";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { useCompanyBranding } from "@/lib/branding/use-company-branding";
 
 import { useLetterEmployees } from "../../_shared/use-letter-employees";
 import { TITLE_OPTIONS, printLetter, todayIso, type Title } from "../../_shared/letter-utils";
@@ -25,6 +26,7 @@ import type { CertificateFormState } from "./types";
 export default function InternshipCertificatePage() {
   const { user } = useAuth();
   const canManage = user ? canManageEmployees(user.role) : false;
+  const { branding } = useCompanyBranding();
   const { employees: allEmployees, loading, error } = useLetterEmployees(canManage);
   const employees = useMemo(
     () =>
@@ -38,7 +40,7 @@ export default function InternshipCertificatePage() {
     employeeSheetRow: "",
     candidateName: "",
     title: "Mr",
-    project: "",
+    position: "",
     startDate: "",
     endDate: "",
     issueDate: todayIso(),
@@ -57,10 +59,17 @@ export default function InternshipCertificatePage() {
     }));
   }
 
-  const data = useMemo(() => buildCertificateData(form), [form]);
+  const data = useMemo(
+    () =>
+      buildCertificateData(form, {
+        name: branding.companyName,
+        address: branding.companyAddress,
+      }),
+    [form, branding.companyName, branding.companyAddress],
+  );
 
   const isReady = Boolean(
-    form.candidateName.trim() && form.startDate && form.endDate && form.issueDate,
+    form.candidateName.trim() && form.position.trim() && form.startDate && form.endDate,
   );
 
   if (!canManage) {
@@ -124,10 +133,10 @@ export default function InternshipCertificatePage() {
                 >
                   <option value="">
                     {loading
-                      ? "Loading trainees…"
+                      ? "Loading Trainees…"
                       : employees.length === 0
                         ? "No trainees found"
-                        : "Select trainee"}
+                        : "Select Trainee"}
                   </option>
                   {employees.map((employee) => (
                     <option key={employee.sheetRow} value={employee.sheetRow}>
@@ -153,12 +162,12 @@ export default function InternshipCertificatePage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="project">Technology / project</Label>
+                <Label htmlFor="position">Position</Label>
                 <Input
-                  id="project"
-                  value={form.project}
-                  onChange={(e) => update("project", e.target.value)}
-                  placeholder="e.g. Full Stack Development"
+                  id="position"
+                  value={form.position}
+                  onChange={(e) => update("position", e.target.value)}
+                  placeholder="e.g. Front-End Developer"
                 />
               </div>
 
@@ -197,7 +206,7 @@ export default function InternshipCertificatePage() {
               </Button>
               {!isReady ? (
                 <p className="text-ex-muted text-xs">
-                  Select a candidate and fill in the dates to enable printing.
+                  Select a candidate and fill in the position and dates to enable printing.
                 </p>
               ) : null}
             </CardContent>

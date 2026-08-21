@@ -3,11 +3,20 @@ import nodemailer from "nodemailer";
 import { getEmailConfig, getEmailConfigIssue } from "@/lib/email/config";
 import type { EmailDeliveryResult } from "@/lib/email/types";
 
+export type SendEmailAttachment = {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+  /** Content-ID without angle brackets; reference in HTML as `cid:<cid>`. */
+  cid: string;
+};
+
 export type SendEmailInput = {
   to: string;
   subject: string;
   text: string;
   html?: string;
+  attachments?: SendEmailAttachment[];
 };
 
 export async function sendEmail(input: SendEmailInput): Promise<EmailDeliveryResult> {
@@ -48,6 +57,13 @@ export async function sendEmail(input: SendEmailInput): Promise<EmailDeliveryRes
       subject: input.subject,
       text: input.text,
       html: input.html ?? input.text.replace(/\n/g, "<br />"),
+      attachments: input.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+        contentType: a.contentType,
+        cid: a.cid,
+        contentDisposition: "inline" as const,
+      })),
     });
 
     console.info(`Email sent to ${to}: ${input.subject}`);

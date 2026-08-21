@@ -5,25 +5,76 @@ function clampToMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+/** Earnings after unpaid / mid-month days (used by payroll final pay). */
+export function proratedEarningsTotal(input: {
+  basic: number;
+  hra: number;
+  organizationAllowance: number;
+  workingDays: number;
+  netPayableDays: number;
+}): number {
+  const workingDays = Math.max(0, Number(input.workingDays) || 0);
+  const ratio =
+    workingDays > 0
+      ? Math.min(1, Math.max(0, (Number(input.netPayableDays) || 0) / workingDays))
+      : 1;
+  return clampToMoney(
+    clampToMoney(input.basic * ratio) +
+      clampToMoney((input.hra || 0) * ratio) +
+      clampToMoney((input.organizationAllowance || 0) * ratio),
+  );
+}
+
 export function calculateSalaryBreakdown(input: SalaryBreakdownInput) {
-  const { basic, loyaltyBonus, professionalTax, workingDays, netPayableDays } = input;
+  const {
+    basic,
+    hra,
+    organizationAllowance,
+    loyaltyBonus,
+    professionalTax,
+    lwf,
+    workingDays,
+    netPayableDays,
+  } = input;
 
-  const ratio = workingDays > 0 ? Math.min(1, Math.max(0, netPayableDays / workingDays)) : 1;
-  const earningsBasic = clampToMoney(basic * ratio);
+  const earningsBasic = clampToMoney(basic);
+  const earningsHra = clampToMoney(hra || 0);
+  const earningsOrgAllowance = clampToMoney(organizationAllowance || 0);
+  const totalEarnings = clampToMoney(earningsBasic + earningsHra + earningsOrgAllowance);
 
-  const totalEarnings = clampToMoney(earningsBasic);
+  const unpaidDays = Math.max(0, workingDays - netPayableDays);
+  const unpaidLeaveAmount = clampToMoney(
+    input.unpaidLeaveAmount != null
+      ? input.unpaidLeaveAmount
+      : workingDays > 0
+        ? unpaidDays * (totalEarnings / workingDays)
+        : 0,
+  );
+
   const loyaltyBonusRate = Math.min(100, Math.max(0, loyaltyBonus));
-  const loyaltyBonusAmount = clampToMoney((totalEarnings * loyaltyBonusRate) / 100);
-  const totalDeductions = clampToMoney(loyaltyBonusAmount + professionalTax);
+  const loyaltyBonusAmount = clampToMoney((basic * loyaltyBonusRate) / 100);
+  const professionalTaxAmount = clampToMoney(professionalTax);
+  const lwfAmount = clampToMoney(lwf);
+  const totalDeductions = clampToMoney(
+    loyaltyBonusAmount + professionalTaxAmount + lwfAmount + unpaidLeaveAmount,
+  );
   const netPay = clampToMoney(totalEarnings - totalDeductions);
+  const overtimeAmount = clampToMoney(input.overtimeAmount || 0);
+  const totalPay = clampToMoney(netPay + overtimeAmount);
 
   return {
     basic: earningsBasic,
+    hra: earningsHra,
+    organizationAllowance: earningsOrgAllowance,
+    unpaidLeaveAmount,
     totalEarnings,
     loyaltyBonus: loyaltyBonusAmount,
-    professionalTax: clampToMoney(professionalTax),
+    professionalTax: professionalTaxAmount,
+    lwf: lwfAmount,
     totalDeductions,
     netPay,
+    overtimeAmount,
+    totalPay,
     workingDays,
     netPayableDays,
   };

@@ -8,10 +8,12 @@ import { AccessDenied } from "@/components/ui/access-denied";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-provider";
 import { canManageEmployees } from "@/lib/auth/roles";
+import { useCompanyBranding } from "@/lib/branding/use-company-branding";
 
 import { useLetterEmployees } from "../../_shared/use-letter-employees";
 import { TITLE_OPTIONS, printLetter, todayIso, type Title } from "../../_shared/letter-utils";
@@ -23,6 +25,7 @@ import type { ExperienceFormState } from "./types";
 export default function ExperienceLetterPage() {
   const { user } = useAuth();
   const canManage = user ? canManageEmployees(user.role) : false;
+  const { branding } = useCompanyBranding();
   const { employees, loading, error } = useLetterEmployees(canManage);
 
   const [form, setForm] = useState<ExperienceFormState>({
@@ -33,6 +36,7 @@ export default function ExperienceLetterPage() {
     startDate: "",
     endDate: todayIso(),
     issueDate: todayIso(),
+    additionalRemarks: "",
   });
 
   function update<K extends keyof ExperienceFormState>(key: K, value: ExperienceFormState[K]) {
@@ -48,7 +52,14 @@ export default function ExperienceLetterPage() {
     }));
   }
 
-  const data = useMemo(() => buildExperienceLetterData(form), [form]);
+  const data = useMemo(
+    () =>
+      buildExperienceLetterData(form, {
+        name: branding.companyName,
+        address: branding.companyAddress,
+      }),
+    [form, branding.companyName, branding.companyAddress],
+  );
 
   const isReady = Boolean(
     form.candidateName.trim() && form.position.trim() && form.startDate && form.endDate,
@@ -113,7 +124,7 @@ export default function ExperienceLetterPage() {
                   onChange={(e) => selectEmployee(e.target.value)}
                   disabled={loading}
                 >
-                  <option value="">{loading ? "Loading employees…" : "Select employee"}</option>
+                  <option value="">{loading ? "Loading Employees…" : "Select Employee"}</option>
                   {employees.map((employee) => (
                     <option key={employee.sheetRow} value={employee.sheetRow}>
                       {employee.name} ({employee.employeeId})
@@ -174,6 +185,17 @@ export default function ExperienceLetterPage() {
                   type="date"
                   value={form.issueDate}
                   onChange={(e) => update("issueDate", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="additionalRemarks">Additional remarks</Label>
+                <Textarea
+                  id="additionalRemarks"
+                  rows={4}
+                  value={form.additionalRemarks}
+                  onChange={(e) => update("additionalRemarks", e.target.value)}
+                  placeholder="Optional text shown after the employment certification paragraph."
                 />
               </div>
 

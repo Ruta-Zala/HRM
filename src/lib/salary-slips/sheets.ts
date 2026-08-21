@@ -26,6 +26,9 @@ const SALARY_HISTORY_HEADERS = [
   "status",
   "createdAt",
   "updatedAt",
+  "hra",
+  "organizationAllowance",
+  "lwf",
 ] as const;
 
 const SALARY_SLIPS_HEADERS = [
@@ -51,6 +54,8 @@ const SALARY_SLIPS_HEADERS = [
   "createdAt",
   "releasedAt",
   "deletedAt",
+  "overtimeAmount",
+  "totalPay",
 ] as const;
 
 function nowIso(): string {
@@ -92,6 +97,9 @@ function historyRowValues(payload: SalaryHistoryRecord): (string | number)[] {
     payload.status,
     payload.createdAt,
     payload.updatedAt,
+    payload.hra,
+    payload.organizationAllowance,
+    payload.lwf,
   ];
 }
 
@@ -193,6 +201,11 @@ function parseSalaryHistoryRow(row: string[], sheetRow: number): SalaryHistoryRe
   let effectiveFrom = normalizeDateOnly(readCell(row, SALARY_HISTORY_HEADERS, "effectiveFrom"));
   let effectiveTo = normalizeDateOnly(readCell(row, SALARY_HISTORY_HEADERS, "effectiveTo"));
   let basic = asNumber(readCell(row, SALARY_HISTORY_HEADERS, "basic"));
+  const hra = asNumber(readCell(row, SALARY_HISTORY_HEADERS, "hra"));
+  const organizationAllowance = asNumber(
+    readCell(row, SALARY_HISTORY_HEADERS, "organizationAllowance"),
+  );
+  const lwf = asNumber(readCell(row, SALARY_HISTORY_HEADERS, "lwf"));
   let loyaltyBonus = asNumber(readCell(row, SALARY_HISTORY_HEADERS, "loyaltyBonus"));
   let professionalTax = asNumber(readCell(row, SALARY_HISTORY_HEADERS, "professionalTax"));
   let statusRaw = readCell(row, SALARY_HISTORY_HEADERS, "status");
@@ -241,8 +254,11 @@ function parseSalaryHistoryRow(row: string[], sheetRow: number): SalaryHistoryRe
     effectiveFrom,
     effectiveTo,
     basic,
+    hra,
+    organizationAllowance,
     loyaltyBonus,
     professionalTax: professionalTax > 0 ? professionalTax : 200,
+    lwf: lwf > 0 ? lwf : 6,
     status,
     createdAt,
     updatedAt,
@@ -461,6 +477,9 @@ export async function createSalaryHistoryRecord(input: {
   effectiveFrom: string;
   effectiveTo?: string;
   basic: number;
+  hra?: number;
+  organizationAllowance?: number;
+  lwf?: number;
   loyaltyBonus: number;
   professionalTax: number;
   status?: "Active" | "Inactive";
@@ -490,6 +509,10 @@ export async function createSalaryHistoryRecord(input: {
     effectiveFrom,
     effectiveTo,
     basic: Math.round(basicAmount * 100) / 100,
+    hra: Math.round(Math.max(0, Number(input.hra) || 0) * 100) / 100,
+    organizationAllowance:
+      Math.round(Math.max(0, Number(input.organizationAllowance) || 0) * 100) / 100,
+    lwf: Number(input.lwf) > 0 ? Math.round(Number(input.lwf) * 100) / 100 : 6,
     loyaltyBonus: Math.min(20, Math.max(0, Number(input.loyaltyBonus) || 0)),
     professionalTax: Number(input.professionalTax) > 0 ? Number(input.professionalTax) : 200,
     status: input.status ?? "Active",
@@ -583,6 +606,8 @@ export async function listSalarySlips(): Promise<SalarySlipRecord[]> {
       professionalTax: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "professionalTax")),
       totalDeductions: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "totalDeductions")),
       netPay: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "netPay")),
+      overtimeAmount: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "overtimeAmount")),
+      totalPay: asNumber(readCell(normalizedRow, SALARY_SLIPS_HEADERS, "totalPay")),
       amountInWords: readCell(normalizedRow, SALARY_SLIPS_HEADERS, "amountInWords"),
       status:
         (readCell(normalizedRow, SALARY_SLIPS_HEADERS, "status") as SalarySlipRecord["status"]) ||
@@ -635,6 +660,8 @@ export async function saveSalarySlipRecord(
           createdAt,
           row.releasedAt ?? "",
           row.deletedAt ?? "",
+          row.overtimeAmount ?? 0,
+          row.totalPay ?? row.netPay,
         ],
       ],
     },
@@ -679,6 +706,8 @@ export async function updateSalarySlipRecord(
           merged.createdAt,
           merged.releasedAt ?? "",
           merged.deletedAt ?? "",
+          merged.overtimeAmount ?? 0,
+          merged.totalPay ?? merged.netPay,
         ],
       ],
     },

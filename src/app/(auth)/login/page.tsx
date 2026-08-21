@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiResponseErrorMessage, parseJsonResponse } from "@/lib/api/json-response";
 import { setAbsenceGateSessionHint } from "@/lib/attendance/absence-gate-session";
+import { useCompanyBranding } from "@/lib/branding/use-company-branding";
 import { fetchPublicIpv4FromBrowser } from "@/lib/network-access/ip";
 
 export default function LoginPage() {
@@ -32,6 +33,9 @@ function LoginPageContent() {
   const searchParams = useSearchParams();
   const fromRaw = searchParams.get("from") ?? "/dashboard";
   const from = fromRaw.startsWith("/") && !fromRaw.startsWith("//") ? fromRaw : "/dashboard";
+  const { branding } = useCompanyBranding();
+  const companyName = branding.companyName.trim();
+  const workspaceLabel = companyName ? `${companyName}'s Internal Workspace` : "Internal Workspace";
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -107,13 +111,11 @@ function LoginPageContent() {
         className="from-ex-secondary/8 pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] via-transparent to-transparent"
       />
       <Card className="border-ex-border relative z-10 w-full max-w-md shadow-lg dark:shadow-none">
-        <CardHeader className="space-y-4 text-center">
-          <BrandLogo size="lg" priority className="mx-auto" />
+        <CardHeader className="space-y-4 py-8 text-center">
+          {branding.hasLogo ? <BrandLogo size="lg" priority className="mx-auto" /> : null}
           <div>
             <CardTitle className="text-xl">Sign in to HRM Admin</CardTitle>
-            <CardDescription className="text-ex-muted">
-              ExhiByte Solutions Internal Workspace
-            </CardDescription>
+            <CardDescription className="text-ex-muted">{workspaceLabel}</CardDescription>
           </div>
         </CardHeader>
         <CardContent>

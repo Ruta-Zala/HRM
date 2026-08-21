@@ -516,13 +516,13 @@ export default function DashboardPage() {
 
       <section className="grid gap-4 lg:grid-cols-3 lg:items-stretch">
         <Card className="flex h-full w-full flex-col overflow-hidden">
-          <CardHeader className="bg-ex-surface/40 flex flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-ex-accent/15 text-ex-accent flex size-10 items-center justify-center rounded-xl">
+          <CardHeader className="bg-ex-surface/40 flex flex-row items-center justify-between gap-3 sm:gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="bg-ex-accent/15 text-ex-accent flex size-10 shrink-0 items-center justify-center rounded-xl">
                 <CalendarDays className="size-5" />
               </div>
-              <div>
-                <CardTitle>Upcoming Holidays</CardTitle>
+              <div className="min-w-0">
+                <CardTitle className="text-balance">Upcoming Holidays</CardTitle>
                 <p className="text-ex-muted mt-0.5 text-sm">
                   {holidaysUsingFallback
                     ? "Showing default holiday list — live holidays could not be loaded"

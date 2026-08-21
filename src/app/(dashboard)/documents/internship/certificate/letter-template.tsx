@@ -1,5 +1,4 @@
-import { LetterPage } from "../../_shared/LetterPage";
-import { COMPANY } from "../../_shared/letter-utils";
+import { LetterPage, SignatureBlock } from "../../_shared/LetterPage";
 import styles from "../../_shared/letter.module.css";
 import type { CertificateLetterData } from "./types";
 
@@ -10,46 +9,36 @@ export default function CertificateTemplate({ data }: { data: CertificateLetterD
       <h1 className={styles.letterTitle}>Internship Certificate</h1>
 
       <p className={styles.dateRight}>
-        Date:- <span className={styles.numeric}>{data.issueDate}</span>
-      </p>
-
-      <div className={styles.metaBlock}>
-        <p>Name: {data.candidateName}</p>
-        <p>Subject: Internship Certificate</p>
-      </div>
-
-      <p className={styles.greeting}>
-        {data.honorific} {data.candidateName},
+        <span className={styles.numeric}>{data.issueDate}</span>
       </p>
 
       <p className={styles.paragraph}>
-        This is to certify that <strong>{data.candidateName}</strong> has been actively engaged in a{" "}
-        <span className={styles.numeric}>{data.durationMonths}</span>-month internship with{" "}
-        {COMPANY.name}, commencing from <span className={styles.numeric}>{data.startDate}</span> to{" "}
-        <span className={styles.numeric}>{data.endDate}</span>. Throughout this period,{" "}
-        {data.candidateFirstName} has been dedicatedly involved in a {data.project} project.
+        This is to certify that {data.honorific} <strong>{data.candidateName}</strong> has
+        successfully completed an internship with <strong>{data.companyName}</strong> as a{" "}
+        <strong>{data.position}</strong> from{" "}
+        <strong>
+          <span className={styles.numeric}>{data.startDate}</span>
+        </strong>{" "}
+        to{" "}
+        <strong>
+          <span className={styles.numeric}>{data.endDate}</span>
+        </strong>
+        .
       </p>
 
       <p className={styles.paragraph}>
-        {data.candidateFirstName} has showcased commendable commitment, enthusiasm, and adaptability
-        during {data.possessive} internship. {data.subject} has demonstrated strong proficiency in{" "}
-        {data.project} and has contributed significantly to the project&apos;s development and
-        success.
+        During the internship period, {data.subjectLower} demonstrated dedication, enthusiasm,
+        willingness to learn, and a professional attitude towards the assigned responsibilities.{" "}
+        {data.subject} actively participated in the assigned tasks and gained valuable practical
+        knowledge and experience.
       </p>
 
-      <div className={styles.signRows}>
-        <p>
-          <span className={styles.signLabel}>Date</span>:{" "}
-          <span className={styles.numeric}>{data.issueDate}</span>
-        </p>
-        <p>
-          <span className={styles.signLabel}>Name</span>: {COMPANY.signatoryName}, {COMPANY.hrTitle}
-          , {COMPANY.name}
-        </p>
-        <p>
-          <span className={styles.signLabel}>Sign</span>:
-        </p>
-      </div>
+      <p className={styles.paragraph}>
+        We appreciate <strong>{data.candidateName}</strong> contribution during the internship and
+        wish {data.object} all the best for future endeavors.
+      </p>
+
+      <SignatureBlock signOff={null} splitTitle signLine />
     </LetterPage>
   );
 }

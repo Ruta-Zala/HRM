@@ -36,6 +36,21 @@ function parseHolidayInput(body: Record<string, unknown>): {
   return { date, name, type };
 }
 
+async function holidayOnDate(date: string, excludeId?: string): Promise<CompanyHoliday | null> {
+  const holidays = await listCompanyHolidays();
+  return holidays.find((holiday) => holiday.date === date && holiday.id !== excludeId) ?? null;
+}
+
+function duplicateDateResponse(existing: CompanyHoliday) {
+  return NextResponse.json(
+    {
+      success: false,
+      message: `A holiday already exists on this date (${existing.name}). Edit that holiday instead.`,
+    },
+    { status: 409 },
+  );
+}
+
 export const GET = withActiveSession(async (req) => {
   try {
     const yearValue = new URL(req.url).searchParams.get("year");
@@ -77,6 +92,9 @@ export const POST = withActiveSession(async (req, user) => {
       );
     }
 
+    const duplicate = await holidayOnDate(input.date);
+    if (duplicate) return duplicateDateResponse(duplicate);
+
     const holiday = await createCompanyHoliday(input);
     clearCompanyLeaveHolidayCache();
     return NextResponse.json({ success: true, holiday }, { status: 201 });
@@ -107,6 +125,9 @@ export const PATCH = withActiveSession(async (req, user) => {
         { status: 400 },
       );
     }
+
+    const duplicate = await holidayOnDate(input.date, id);
+    if (duplicate) return duplicateDateResponse(duplicate);
 
     const holiday = await updateCompanyHoliday({
       id,

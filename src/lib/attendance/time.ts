@@ -422,10 +422,55 @@ export function idealBreakMs(): number {
   return IDEAL_BREAK_HOURS * 60 * 60 * 1000;
 }
 
+/**
+ * Actual break duration to subtract from elapsed punch-in → punch-out time.
+ * Empty/missing break is 0 — unused break allowance is never assumed.
+ * Legacy CSV imports write `IMPORT_DEFAULT_BREAK` onto the row when needed.
+ */
 export function resolveAttendanceBreakMs(totalBreakTime: string, workMode?: string): number {
   if (isHalfDayUnpaidWorkMode(workMode)) return 0;
-  const parsed = parseDurationToMs(totalBreakTime);
-  return parsed > 0 ? parsed : idealBreakMs();
+  return parseDurationToMs(totalBreakTime);
+}
+
+/**
+ * Resolve total break time from the last break start/end clocks.
+ *
+ * Live punch keeps those clocks on the row after break-out so they appear in
+ * the sheet. The stored total can include earlier breaks the same day, so it
+ * is kept unless `overwriteFromClocks` is set (correction of break times).
+ */
+export function resolveTotalBreakTimeFromClocks(params: {
+  breakStart: string;
+  breakEnd: string;
+  punchIn?: string;
+  existingTotalBreakTime: string;
+  baseDate: Date;
+  workMode?: string;
+  overwriteFromClocks?: boolean;
+}): string {
+  if (isHalfDayUnpaidWorkMode(params.workMode)) return "";
+  const start = params.breakStart.trim();
+  const end = params.breakEnd.trim();
+  const existing = params.existingTotalBreakTime;
+  if (!start || !end) return existing;
+
+  const startMs = parseSheetClockTime(start, params.baseDate, {
+    punchIn: params.punchIn,
+    role: "in",
+  });
+  const endMs = parseSheetClockTime(end, params.baseDate, {
+    punchIn: params.punchIn,
+    role: "out",
+  });
+  if (startMs == null || endMs == null || endMs <= startMs) {
+    return existing;
+  }
+
+  const fromClocks = formatDuration(endMs - startMs);
+  if (existing.trim() && !params.overwriteFromClocks) {
+    return existing;
+  }
+  return fromClocks;
 }
 
 /** Break time already taken today — used for live timers (no assumed allowance). */
