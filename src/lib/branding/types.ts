@@ -47,8 +47,56 @@ export const BRANDING_ASSET_URLS = {
   background: "/api/branding/assets/background",
 } as const;
 
+/** Logo is also used as favicon — PNG / ICO only. */
+export const LOGO_MIME_TYPES = ["image/png", "image/x-icon", "image/vnd.microsoft.icon"] as const;
+
+/** Letter background can stay broader for print quality. */
+export const BACKGROUND_MIME_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+
 export const BRANDING_UPLOAD_LIMITS = {
   logoMaxBytes: 512 * 1024,
   backgroundMaxBytes: 900 * 1024,
-  allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"] as const,
+  /** @deprecated Prefer logoMimeTypes / backgroundMimeTypes */
+  allowedMimeTypes: BACKGROUND_MIME_TYPES,
+  logoMimeTypes: LOGO_MIME_TYPES,
+  backgroundMimeTypes: BACKGROUND_MIME_TYPES,
 } as const;
+
+export function allowedMimeTypesForKind(kind: BrandingAssetKind): readonly string[] {
+  return kind === "logo"
+    ? BRANDING_UPLOAD_LIMITS.logoMimeTypes
+    : BRANDING_UPLOAD_LIMITS.backgroundMimeTypes;
+}
+
+export function isAllowedBrandingMime(
+  kind: BrandingAssetKind,
+  mimeType: string,
+  fileName?: string,
+): boolean {
+  const mime = mimeType.trim().toLowerCase();
+  if (allowedMimeTypesForKind(kind).includes(mime)) return true;
+
+  // Some browsers leave .ico type empty or as octet-stream.
+  if (kind === "logo") {
+    const name = (fileName || "").toLowerCase();
+    if (name.endsWith(".ico") && (mime === "" || mime === "application/octet-stream")) {
+      return true;
+    }
+    if (name.endsWith(".png") && (mime === "" || mime === "application/octet-stream")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function acceptAttrForKind(kind: BrandingAssetKind): string {
+  return kind === "logo"
+    ? "image/png,image/x-icon,image/vnd.microsoft.icon,.png,.ico"
+    : "image/png,image/jpeg,image/webp";
+}
+
+export function formatHintForKind(kind: BrandingAssetKind): string {
+  return kind === "logo"
+    ? "Only PNG or ICO images are allowed."
+    : "Only PNG, JPEG, or WebP images are allowed.";
+}
